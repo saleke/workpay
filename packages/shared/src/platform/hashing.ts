@@ -33,6 +33,11 @@ export function sha256Hex(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
+/** SHA-256 of raw bytes, hex encoded. Used for stored artifacts. */
+export function sha256HexOfBytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 /** SHA-256 hash of the canonical serialization of an object. */
 export function hashObject(value: unknown): string {
   return sha256Hex(canonicalize(value));
