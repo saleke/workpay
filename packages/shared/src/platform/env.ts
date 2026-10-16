@@ -63,6 +63,7 @@ export const envSchema = z
     SYSTEM_PAYMENT_PAUSE: booleanish.default(false),
 
     STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+    STORAGE_LOCAL_DIR: z.string().default(".workpay-storage"),
     S3_ENDPOINT: z.string().default("http://localhost:9000"),
     S3_REGION: z.string().default("us-east-1"),
     S3_ACCESS_KEY_ID: z.string().default("workpay"),
