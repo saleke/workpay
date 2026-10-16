@@ -50,3 +50,7 @@ export async function closeTestDb(): Promise<void> {
 }
 
 export { sql };
+
+// Seed factories for integration tests. Re-exported here so a test needs a
+// single import for all of its database setup.
+export * from "./factories.js";

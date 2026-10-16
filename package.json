@@ -18,6 +18,7 @@
     "db:migrate": "pnpm --filter @workpay/shared db:migrate",
     "db:seed": "pnpm --filter @workpay/shared db:seed",
     "reset-demo": "pnpm --filter @workpay/shared reset-demo",
+    "rehearse-demo": "tsx scripts/rehearse-demo.ts",
     "openapi": "pnpm --filter @workpay/web openapi",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
