@@ -45,20 +45,25 @@ describe("Appendix D: Architectural Invariants", () => {
   // ── Invariant P1/P2/P3: Payment Policy Gates ────────────────────────────────
   describe("P1/P2/P3: Money follows proof and deterministic payment policy", () => {
     const baseContract = {
+      id: "contract_test_1",
       currentVersion: 1,
       currentHash: "hash_v1_approved",
       budget: money(50000, "USD"),
     };
 
     const baseAgreement = {
+      id: "agreement_test_1",
       contractVersion: 1,
       amount: money(45000, "USD"),
       status: "AUTHORIZED",
+      agreementHash: "hash_agreement_123",
     };
 
     const basePayment = {
+      id: "pay_test_1",
       status: "AUTHORIZED" as const,
       amount: money(45000, "USD"),
+      capturedAmountMinor: null,
       providerAuthorizationId: "auth_paypal_123",
     };
 
@@ -169,9 +174,12 @@ describe("Appendix D: Architectural Invariants", () => {
         action: "AUTHORIZE",
         contract: baseContract,
         agreement: baseAgreement,
+        acceptanceDecision: null,
         payment: {
+          id: "pay_test_mismatch",
           status: "PENDING",
           amount: money(46000, "USD"), // Mismatched!
+          capturedAmountMinor: null,
           providerAuthorizationId: null,
         },
       });

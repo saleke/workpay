@@ -85,7 +85,24 @@ export function jsonError(err: unknown, fallbackStatus = 500): NextResponse {
     );
   }
 
-  const message = err instanceof Error ? err.message : String(err);
+  if (typeof err === "object" && err !== null) {
+    const obj = err as Record<string, unknown>;
+    const code = typeof obj.code === "string" ? obj.code : "INTERNAL_ERROR";
+    const message = typeof obj.message === "string" ? obj.message : JSON.stringify(err);
+    const details = obj.details;
+    return NextResponse.json(
+      {
+        error: {
+          code,
+          message,
+          ...(details !== undefined ? { details } : {}),
+        },
+      },
+      { status: fallbackStatus },
+    );
+  }
+
+  const message = String(err);
   return NextResponse.json(
     {
       error: {

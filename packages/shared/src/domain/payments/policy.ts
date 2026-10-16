@@ -61,11 +61,11 @@ export interface PaymentPolicyInput {
     contractHash: string;
   } | null;
   /** An open case that blocks capture, if any. */
-  blockingCase: { id: string; category: string } | null;
+  blockingCase?: { id: string; category: string } | null;
   /** True when a SUCCEEDED capture already exists for this payment. */
-  hasSucceededCapture: boolean;
+  hasSucceededCapture?: boolean;
   /** Global emergency kill switch. */
-  systemPaymentPaused: boolean;
+  systemPaymentPaused?: boolean;
 }
 
 export interface PolicyDecision {

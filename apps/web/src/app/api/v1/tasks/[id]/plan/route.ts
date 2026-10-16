@@ -1,5 +1,10 @@
-import { getCorrelationId, getDb, jsonError, jsonOk, resolveActor, withTransaction } from "@/lib/server/api";
-import { planTask, draftContract, getLatestWorkSpecification } from "@workpay/shared/domain";
+import { getCorrelationId, getDb, jsonError, jsonOk, resolveActor } from "@/lib/server/api";
+import {
+  agentPlanAndDraftContract,
+  ensureAgent,
+  getLatestWorkSpecification,
+  getTaskById,
+} from "@workpay/shared/domain";
 import type { WorkSpecificationDto } from "@/lib/api/types";
 
 export async function POST(
@@ -10,16 +15,30 @@ export async function POST(
     const { id: taskId } = await params;
     const actor = resolveActor(req, "buyer");
     const correlationId = getCorrelationId(req);
+    const db = getDb();
 
-    await withTransaction(async (tx) => {
-      // 1. Generate plan with provenance-tagged requirements
-      await planTask(tx, { taskId, actor, correlationId });
+    const task = await getTaskById(db, taskId);
+    if (!task) {
+      return jsonError({ code: "NOT_FOUND", message: "Task not found" }, 404);
+    }
 
-      // 2. Draft the contract from the specification so buyer can review & approve it
-      await draftContract(tx, { taskId, actor, correlationId });
+    // 1. Ensure the agent run exists for this task
+    const { actor: agentActor } = await ensureAgent({
+      taskId,
+      userId: task.userId,
     });
 
-    const db = getDb();
+    // 2. Run planning and contract drafting through agent authority
+    const planRes = await agentPlanAndDraftContract({
+      taskId,
+      actor: agentActor,
+      correlationId,
+    });
+
+    if (!planRes.ok) {
+      return jsonError({ code: "PLANNING_FAILED", message: planRes.reasonCode }, 400);
+    }
+
     const specDetails = await getLatestWorkSpecification(db, taskId);
 
     if (!specDetails) {

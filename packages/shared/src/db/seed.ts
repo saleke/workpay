@@ -112,7 +112,7 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       id: "pro_dataclean_apex",
       displayName: "Apex Data Solutions",
       hourlyRateMinor: 4500, // $45/hr
-      tags: ["data_cleaning", "dataset_cleaning", "csv", "data_validation", "deduplication"],
+      tags: ["data_cleaning", "dataset_cleaning", "csv", "data_validation", "deduplication", "spreadsheet"],
       capacity: 4,
       activeAssignments: 1,
       completedTasks: 42,
@@ -123,7 +123,7 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       id: "pro_datasweep_labs",
       displayName: "DataSweep AI & Human Labs",
       hourlyRateMinor: 5000, // $50/hr
-      tags: ["data_cleaning", "dataset_cleaning", "csv"],
+      tags: ["data_cleaning", "dataset_cleaning", "csv", "spreadsheet"],
       capacity: 3,
       activeAssignments: 0,
       completedTasks: 28,
@@ -134,7 +134,7 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       id: "pro_quickclean_csv",
       displayName: "QuickClean CSV Services",
       hourlyRateMinor: 3500, // $35/hr
-      tags: ["data_cleaning", "csv"],
+      tags: ["data_cleaning", "csv", "spreadsheet"],
       capacity: 2,
       activeAssignments: 0,
       completedTasks: 15,
