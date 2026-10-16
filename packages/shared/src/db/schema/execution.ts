@@ -130,13 +130,19 @@ export const submissionArtifacts = pgTable(
 
 export const executionsRelations = relations(workExecutions, ({ one, many }) => ({
   task: one(tasks, { fields: [workExecutions.taskId], references: [tasks.id] }),
-  contract: one(workContracts, { fields: [workExecutions.contractId], references: [workContracts.id] }),
+  contract: one(workContracts, {
+    fields: [workExecutions.contractId],
+    references: [workContracts.id],
+  }),
   provider: one(providers, { fields: [workExecutions.providerId], references: [providers.id] }),
   workSubmissions: many(workSubmissions),
 }));
 
 export const submissionsRelations = relations(workSubmissions, ({ one, many }) => ({
-  execution: one(workExecutions, { fields: [workSubmissions.executionId], references: [workExecutions.id] }),
+  execution: one(workExecutions, {
+    fields: [workSubmissions.executionId],
+    references: [workExecutions.id],
+  }),
   artifacts: many(submissionArtifacts),
 }));
 

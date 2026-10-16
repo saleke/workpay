@@ -64,7 +64,10 @@ export const negotiations = pgTable(
   (t) => ({
     taskIdx: index("negotiations_task_idx").on(t.taskId),
     contractIdx: index("negotiations_contract_idx").on(t.contractId),
-    roundsCheck: check("negotiations_rounds", sql`${t.currentRound} >= 0 and ${t.currentRound} <= ${t.maxRounds}`),
+    roundsCheck: check(
+      "negotiations_rounds",
+      sql`${t.currentRound} >= 0 and ${t.currentRound} <= ${t.maxRounds}`,
+    ),
   }),
 );
 
@@ -139,7 +142,10 @@ export const commercialAgreements = pgTable(
 
 export const negotiationsRelations = relations(negotiations, ({ one, many }) => ({
   task: one(tasks, { fields: [negotiations.taskId], references: [tasks.id] }),
-  contract: one(workContracts, { fields: [negotiations.contractId], references: [workContracts.id] }),
+  contract: one(workContracts, {
+    fields: [negotiations.contractId],
+    references: [workContracts.id],
+  }),
   provider: one(providers, { fields: [negotiations.providerId], references: [providers.id] }),
   offers: many(offers),
 }));
@@ -150,6 +156,12 @@ export const offersRelations = relations(offers, ({ one }) => ({
 
 export const commercialAgreementsRelations = relations(commercialAgreements, ({ one }) => ({
   task: one(tasks, { fields: [commercialAgreements.taskId], references: [tasks.id] }),
-  contract: one(workContracts, { fields: [commercialAgreements.contractId], references: [workContracts.id] }),
-  provider: one(providers, { fields: [commercialAgreements.providerId], references: [providers.id] }),
+  contract: one(workContracts, {
+    fields: [commercialAgreements.contractId],
+    references: [workContracts.id],
+  }),
+  provider: one(providers, {
+    fields: [commercialAgreements.providerId],
+    references: [providers.id],
+  }),
 }));

@@ -154,5 +154,8 @@ export const scopeItemsRelations = relations(scopeItems, ({ one }) => ({
 }));
 
 export const acceptanceRulesRelations = relations(acceptanceRules, ({ one }) => ({
-  contract: one(workContracts, { fields: [acceptanceRules.contractId], references: [workContracts.id] }),
+  contract: one(workContracts, {
+    fields: [acceptanceRules.contractId],
+    references: [workContracts.id],
+  }),
 }));

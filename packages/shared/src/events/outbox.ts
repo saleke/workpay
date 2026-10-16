@@ -114,9 +114,7 @@ export async function claimOutboxBatch(tx: AnyDb, limit = 50) {
   const rows = await tx
     .select()
     .from(outboxEvents)
-    .where(
-      and(eq(outboxEvents.status, "PENDING"), lte(outboxEvents.availableAt, sql`now()`)),
-    )
+    .where(and(eq(outboxEvents.status, "PENDING"), lte(outboxEvents.availableAt, sql`now()`)))
     .orderBy(asc(outboxEvents.createdAt))
     .limit(limit)
     .for("update", { skipLocked: true });
@@ -151,9 +149,7 @@ export async function markOutboxFailed(
       attempts,
       lastError: error.slice(0, 2000),
       status: dead ? "DEAD_LETTER" : "PENDING",
-      availableAt: dead
-        ? sql`now()`
-        : sql`now() + (${backoffSeconds} * interval '1 second')`,
+      availableAt: dead ? sql`now()` : sql`now() + (${backoffSeconds} * interval '1 second')`,
     })
     .where(eq(outboxEvents.id, outboxId));
 }

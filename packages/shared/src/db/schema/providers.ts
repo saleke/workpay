@@ -147,6 +147,9 @@ export const providerCapabilitiesRelations = relations(capabilities, ({ one }) =
 }));
 
 export const providerSelectionsRelations = relations(providerSelections, ({ one }) => ({
-  contract: one(workContracts, { fields: [providerSelections.contractId], references: [workContracts.id] }),
+  contract: one(workContracts, {
+    fields: [providerSelections.contractId],
+    references: [workContracts.id],
+  }),
   provider: one(providers, { fields: [providerSelections.providerId], references: [providers.id] }),
 }));

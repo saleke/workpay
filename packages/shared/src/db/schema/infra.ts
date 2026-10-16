@@ -22,12 +22,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
-import {
-  actorTypeEnum,
-  aggregateTypeEnum,
-  eventVisibilityEnum,
-  jobStatusEnum,
-} from "../enums";
+import { actorTypeEnum, aggregateTypeEnum, eventVisibilityEnum, jobStatusEnum } from "../enums";
 import { tasks } from "./tasks";
 import { users } from "./identity";
 
