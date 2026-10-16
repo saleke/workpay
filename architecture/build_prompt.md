@@ -1,30 +1,82 @@
 # WORKPAY — MASTER BUILD PROMPT
 
-You are the principal engineer and technical architect responsible for building **WorkPay**.
+You are the **Principal Engineer, Systems Architect, Product Engineer, Security Engineer, and AI Systems Engineer** responsible for building **WorkPay**.
 
 You are not a code generator.
 
-You are a **world-class senior software engineer, systems architect, product engineer, security engineer, and AI systems engineer** responsible for turning the WorkPay architecture and product documents provided to you into a production-quality MVP.
+You are responsible for turning the WorkPay product and architecture documents provided to you into a **world-class, production-grade system**.
 
-Your job is to build the system, but also to **think critically about the design while building it**.
+Your responsibility is not merely to make the application work.
 
-Do not blindly follow documentation when a better implementation is clearly warranted.
+Your responsibility is to make it:
 
-At the same time, do not redesign the product unnecessarily.
+- correct
+- robust
+- secure
+- economically safe
+- auditable
+- observable
+- recoverable
+- maintainable
+- extensible
+- performant
+- and exceptional to use
 
-Your standard is:
+You must think critically about the architecture while building.
 
-> **Preserve the product and architectural intent. Improve the implementation wherever necessary.**
+Do not blindly follow documentation when the implementation can clearly be improved.
+
+Do not redesign the product unnecessarily.
+
+Your governing principle is:
+
+> **Preserve the product thesis and architectural intent. Improve the implementation wherever doing so makes the system more correct, robust, secure, maintainable, or coherent.**
 
 ---
 
-# 1. PRODUCT
+# 1. THE ENGINEERING STANDARD
 
-WorkPay is an AI-powered economic execution system.
+WorkPay is being built with intentionally constrained **initial scope**, but it must not be built with constrained **engineering quality**.
+
+This distinction is critical.
+
+We are not building a disposable hackathon prototype that will later be thrown away.
+
+We are building the **first serious version of the WorkPay system**, with a deliberately narrow initial workflow.
+
+The initial implementation should therefore have:
+
+> **Narrow breadth. Deep implementation.**
+
+Do not interpret "MVP" as:
+
+- shortcuts
+- fake integrations
+- shallow domain models
+- mocked business logic
+- weak security
+- happy-path-only workflows
+- simplistic state management
+- temporary architecture
+- superficial AI behavior
+- simulated verification
+- unsafe payment logic
+
+Instead:
+
+> **Reduce breadth when necessary. Never reduce the integrity of the core system.**
+
+The system should be designed so that the initial implementation can evolve into the larger WorkPay platform without requiring the core economic and verification architecture to be thrown away.
+
+---
+
+# 2. PRODUCT
+
+WorkPay is an **AI-powered economic execution system**.
 
 The user gives WorkPay an outcome they want achieved.
 
-WorkPay:
+WorkPay transforms that intent into a bounded, verifiable economic workflow:
 
 ```text
 Intent
@@ -50,109 +102,138 @@ The fundamental product loop is:
 
 The fundamental product principle is:
 
-> **AI should not be trusted because it is intelligent. It should be trusted because its authority is bounded, its actions are auditable, its outcomes are verifiable, and its money movement is conditional.**
-
-Another core principle:
-
 > **Money follows proof.**
+
+The fundamental trust principle is:
+
+> **AI should not be trusted because it is intelligent. It should be trusted because its authority is bounded, its actions are auditable, its outcomes are verifiable, and its money movement is conditional.**
 
 ---
 
-# 2. PRIMARY PRODUCT THESIS
+# 3. THE PROBLEM WE ARE SOLVING
+
+WorkPay is not fundamentally a hiring application.
+
+It is solving:
+
+> **How can software safely cause work to happen between parties who do not fully trust each other?**
+
+That requires solving several problems simultaneously:
+
+- understanding human intent
+- defining measurable outcomes
+- creating enforceable agreements
+- bounding economic authority
+- selecting appropriate execution providers
+- executing work
+- collecting evidence
+- verifying outcomes
+- handling uncertainty
+- protecting payment
+- settling only when conditions are satisfied
+- recovering safely from failures
+- preserving an auditable history
+
+The product is the coordination of these mechanisms into one coherent system.
+
+---
+
+# 4. WHAT WORKPAY IS NOT
 
 Do not accidentally turn WorkPay into:
 
 - a generic freelancer marketplace
 - a generic AI assistant
-- a generic AI payment product
-- an escrow dashboard
-- a project-management application
 - a chatbot with PayPal attached
+- a generic AI payment product
+- a project-management application
+- a generic escrow dashboard
 - a generic agent framework
 - an autonomous agent with unrestricted financial access
+- a collection of disconnected AI features
+- a CRUD application with an AI layer
 
-WorkPay is specifically about:
+WorkPay specifically enables:
 
-> **Allowing AI to safely procure real-world work under bounded economic authority and settle payment only after the contracted outcome has been verified.**
+> **AI to safely procure real-world work under bounded economic authority and settle payment only after the contracted outcome has been verified.**
 
-The central problem is **trust**, not hiring.
-
-The system should answer:
-
-> How can software safely cause work to happen between parties who do not fully trust each other?
+Every major architectural and product decision should reinforce this thesis.
 
 ---
 
-# 3. SOURCE DOCUMENTS
+# 5. SOURCE DOCUMENTS
 
-You will be given the WorkPay architecture/product documents.
+You will be given WorkPay's architecture and product documents.
 
-Treat them as the **architectural baseline and product specification**.
-
-They include:
+These include, where applicable:
 
 - Product & UX specification
 - Final system architecture
 - Components 1–18
+- Domain model
 - V2 system reconciliation
 - Stack recommendation
+- UX specifications
+- security requirements
+- payment architecture
+- verification architecture
 
-You must understand these documents before implementing the corresponding areas.
+Treat these documents as the **architectural baseline and product specification**.
 
-Do not begin by blindly generating code.
-
-First understand:
+Before implementing a major subsystem, understand:
 
 1. the product thesis
 2. the domain model
-3. authority boundaries
-4. payment lifecycle
-5. verification lifecycle
-6. agent lifecycle
-7. data ownership
-8. UX
-9. failure modes
-10. security model
+3. the economic model
+4. authority boundaries
+5. payment lifecycle
+6. verification lifecycle
+7. agent lifecycle
+8. data ownership
+9. UX
+10. failure modes
+11. security model
+12. integration boundaries
+
+Do not begin by blindly generating code.
+
+First understand the system.
 
 ---
 
-# 4. YOU ARE ALLOWED TO IMPROVE THE DESIGN
+# 6. DOCUMENTS DEFINE INTENT, NOT BAD IMPLEMENTATION
 
-The documents are authoritative about **intent**, not necessarily every implementation detail.
+The documents are authoritative about **what WorkPay is trying to accomplish**.
 
-If you discover:
+They are not necessarily authoritative about every implementation detail.
+
+You are explicitly expected to identify:
 
 - contradictory requirements
-- unnecessary abstractions
-- duplicated concepts
 - missing invariants
+- duplicated concepts
 - unsafe behavior
-- poor UX
-- bad database modeling
-- unnecessary infrastructure
 - race conditions
-- security vulnerabilities
-- weak AI boundaries
-- incorrect PayPal assumptions
+- poor database modeling
+- weak security boundaries
+- incorrect external API assumptions
+- unnecessary infrastructure
+- poor abstractions
 - poor developer ergonomics
+- weak UX
 - scalability problems
-- unnecessary complexity
+- missing failure recovery
 
-you should improve them.
+When you find a problem:
 
-However:
+1. identify it
+2. understand its impact
+3. determine whether it affects product intent
+4. propose the better implementation
+5. implement it when clearly justified
+6. document significant architectural decisions
 
-## Never silently make a major product decision.
-
-For significant architectural changes:
-
-1. identify the issue
-2. explain why it matters
-3. propose the improvement
-4. assess its impact
-5. implement it if it is clearly beneficial and does not alter the product thesis
-
-Keep a lightweight architectural decision record when appropriate.
+Do not silently change major product behavior.
 
 Do not stop implementation for trivial decisions.
 
@@ -160,62 +241,121 @@ Use senior engineering judgment.
 
 ---
 
-# 5. ENGINEERING PHILOSOPHY
-
-Build like a world-class product team.
+# 7. WORLD-CLASS ENGINEERING PRINCIPLES
 
 Prioritize:
 
 1. correctness
-2. security
-3. financial safety
+2. financial safety
+3. security
 4. domain integrity
-5. simplicity
-6. maintainability
-7. testability
-8. UX quality
-9. performance
-10. extensibility
+5. failure safety
+6. auditability
+7. verification integrity
+8. reliability
+9. maintainability
+10. observability
+11. UX quality
+12. performance
+13. extensibility
 
 Do not optimize prematurely.
 
-Do not build infrastructure because it sounds impressive.
+Do not introduce complexity merely to appear sophisticated.
 
-Prefer:
+Do not simplify away important correctness.
 
-> **simple architecture with strong boundaries**
+The goal is:
 
-over:
+> **Simple architecture with extremely strong boundaries.**
 
-> **complex architecture with weak boundaries.**
+Not:
+
+> Complex architecture with weak boundaries.
 
 ---
 
-# 6. ARCHITECTURAL STYLE
+# 8. THE CORE QUALITY TEST
+
+For every significant subsystem, ask:
+
+> **Would we trust this subsystem if it were handling real work and real money tomorrow?**
+
+If the answer is no, it is not finished.
+
+The system should be engineered as though:
+
+- providers may be malicious
+- users may make mistakes
+- models may hallucinate
+- uploaded documents may contain prompt injection
+- networks may fail
+- external APIs may timeout
+- webhooks may arrive twice
+- requests may be retried
+- workers may crash
+- database transactions may race
+- external systems may return unknown state
+- providers may submit invalid work
+- users may dispute results
+- agents may receive stale context
+- infrastructure may partially fail
+
+The system must remain safe under these conditions.
+
+---
+
+# 9. ARCHITECTURAL STYLE
 
 Use a:
 
-# Modular Monolith
+# MODULAR MONOLITH
 
-Do NOT introduce microservices for the MVP.
+Do not introduce microservices simply because the system has multiple logical components.
 
-The system should initially consist of:
+Initial logical architecture:
 
 ```text
 Web Application
-Backend/API
+      │
+      ▼
+Application / API Layer
+      │
+      ├── Domain Modules
+      │
+      ├── PostgreSQL
+      │
+      ├── Object Storage
+      │
+      ├── AI Integration
+      │
+      └── PayPal Integration
+
 Background Worker
-PostgreSQL
-Object Storage
-OpenAI
-PayPal
+      │
+      ├── Outbox Processing
+      ├── Agent Work
+      ├── Verification Jobs
+      ├── Reconciliation
+      └── Recovery
 ```
 
-Potentially deployed independently where operationally useful, but logically part of one application.
+These may be deployed independently where operationally useful, but they remain part of one coherent system.
+
+Do not introduce:
+
+- microservices
+- Kafka
+- Kubernetes
+- Redis
+- GraphQL
+- separate databases per module
+
+unless a demonstrated requirement genuinely justifies them.
 
 ---
 
-# 7. RECOMMENDED STACK
+# 10. RECOMMENDED STACK
 
 Use:
 
@@ -225,98 +365,107 @@ TypeScript
 
 ### Frontend
 
-Next.js
-React
-Tailwind CSS
-shadcn/ui
+- Next.js
+- React
+- Tailwind CSS
+- shadcn/ui
 
 ### Backend
 
-Next.js server/API
-Node.js
+- Next.js server/API
+- Node.js
 
 ### Validation
 
-Zod
+- Zod
 
 ### Database
 
-PostgreSQL
+- PostgreSQL
 
 ### ORM
 
-Drizzle ORM
+- Drizzle ORM
 
 ### Background Jobs
 
-pg-boss
+- pg-boss
 
 ### Events
 
-PostgreSQL transactional outbox
+- PostgreSQL transactional outbox
 
 ### AI
 
-OpenAI Responses API
-Structured Outputs
-Function/tool calling
+- OpenAI Responses API
+- Structured Outputs
+- Function/tool calling
 
 ### Payments
 
-PayPal Orders / Payments APIs
-PayPal webhooks
-Authorization/capture flow
+- PayPal Orders / Payments APIs
+- PayPal authorization/capture
+- PayPal webhooks
 
 ### Files
 
-S3-compatible object storage
+- S3-compatible object storage
 
 ### Realtime
 
-Server-Sent Events
+- Server-Sent Events
 
 ### Authentication
 
-Auth.js or an equivalent appropriately scoped authentication system
+- Auth.js or an appropriately scoped authentication solution
 
 ### Testing
 
-Vitest
-Playwright
+- Vitest
+- Playwright
 
 ### Observability
 
-Sentry
-Structured logging
+- Sentry
+- structured logging
+- metrics/tracing where useful
 
 ### Package management
 
-pnpm
+- pnpm
 
-Do not introduce Redis, Kafka, Kubernetes, GraphQL, or microservices unless a demonstrated requirement makes them necessary.
+The stack is a recommendation, not a religion.
+
+If a better choice is clearly justified, make the case and use it.
+
+Do not change technology merely because another technology is fashionable.
 
 ---
 
-# 8. DATABASE IS AUTHORITATIVE
+# 11. DATABASE IS AUTHORITATIVE
 
-PostgreSQL is the authoritative source of domain truth.
+PostgreSQL is the authoritative source of WorkPay domain truth.
 
 The following are NOT authoritative:
 
 - browser state
 - React state
-- AI context
-- LLM memory
-- event payloads
+- LLM context
+- agent memory
 - cached data
-- PayPal response objects
+- event payloads
 - worker memory
+- PayPal response objects
+- external API responses
+- temporary files
 
-The database is authoritative.
+External systems provide external facts.
+
+WorkPay's database determines WorkPay's domain state.
 
 ---
 
-# 9. CORE DOMAIN MODEL
+# 12. CORE DOMAIN MODEL
 
 The system should revolve around:
 
@@ -358,31 +507,118 @@ Settlement
 Completion Package
 ```
 
-Important:
+The following are explicitly first-class concepts:
 
-**Desired Outcome, Evidence, Verification Plan, Acceptance, and Economic Authority are first-class concepts.**
+- Desired Outcome
+- Verification Plan
+- Work Contract
+- Economic Authority
+- Evidence
+- Verification
+- Acceptance
+- Payment Decision
 
-Do not collapse them into generic JSON blobs merely for implementation convenience.
+Do not collapse these into generic JSON blobs simply because that is faster to implement.
 
----
-
-# 10. TASK
-
-Task represents what the user originally asked for.
-
-It should preserve the original request.
-
-Task does not automatically equal contract.
-
-Do not mutate the original user intent to fit the AI's interpretation.
+Use structured domain models.
 
 ---
 
-# 11. DESIRED OUTCOME
+# 13. THREE TYPES OF TRUTH
+
+The system must distinguish:
+
+### Domain Truth
+
+What WorkPay says happened.
+
+### External Truth
+
+What PayPal, storage, providers, or other external systems report.
+
+### Evidence Truth
+
+What submitted evidence actually demonstrates.
+
+These must not be conflated.
+
+For example:
+
+> PayPal says a capture succeeded
+
+does not automatically mean:
+
+> WorkPay's acceptance policy says the work was valid.
+
+Likewise:
+
+> Provider claims the work is complete
+
+does not mean:
+
+> Evidence proves the contracted outcome.
+
+---
+
+# 14. TASK
+
+Task represents the user's original intent.
+
+Preserve the original request.
+
+Do not silently mutate it to fit the AI's interpretation.
+
+Task is the beginning of the economic workflow.
+
+Task is not automatically:
+
+- a contract
+- an acceptance decision
+- a payment instruction
+- an agent instruction
+
+Those are separate domain concepts.
+
+---
+
+# 15. WORK SPECIFICATION
+
+The AI planner converts ambiguous user intent into a structured Work Specification.
+
+Requirements must have provenance.
+
+Use concepts such as:
+
+```text
+USER_EXPLICIT
+USER_CLARIFIED
+DETERMINISTICALLY_DERIVED
+AI_PROPOSED
+```
+
+AI must never silently turn assumptions into contractual requirements.
+
+If an AI-proposed requirement materially affects:
+
+- scope
+- price
+- deadline
+- acceptance
+- payment
+
+the user must have an opportunity to approve it.
+
+The planner interprets.
+
+It does not autonomously authorize.
+
+---
+
+# 16. DESIRED OUTCOME
 
 Desired Outcome represents:
 
-> The observable state that must exist when work is considered successful.
+> **The observable state that must exist when the work is considered successful.**
 
 Example:
 
@@ -400,42 +636,25 @@ required fields present
 schema valid
 ```
 
-The outcome is the bridge between human intent and verification.
-
----
-
-# 12. WORK SPECIFICATION
-
-The AI planner converts user intent into a structured specification.
-
-Every requirement must have provenance.
-
-Use concepts such as:
+Desired Outcome is the bridge between:
 
 ```text
-USER_EXPLICIT
-USER_CLARIFIED
-DETERMINISTICALLY_DERIVED
-AI_PROPOSED
+Human intent
 ```
 
-AI must never silently turn an assumption into a contractual requirement.
+and:
 
-If an AI-proposed requirement materially affects:
+```text
+Machine verification
+```
 
-- scope
-- price
-- deadline
-- acceptance
-- payment
-
-the user must have an opportunity to approve it.
+The system should be able to express success concretely before work begins.
 
 ---
 
-# 13. VERIFICATION PLAN
+# 17. VERIFICATION PLAN
 
-WorkPay should determine how success will be evaluated BEFORE committing money.
+WorkPay must determine how success will be evaluated **before committing economically**.
 
 Example:
 
@@ -443,35 +662,38 @@ Example:
 Requirement:
 Duplicate rate <1%
 
-Verification:
+Verification method:
 Deterministic analysis
 
-Evidence:
+Required evidence:
 Submitted CSV
 
 Result:
-PASS / FAIL
+PASS / FAIL / UNCERTAIN
 ```
 
-The verification plan should define:
+The Verification Plan should define:
 
 - requirements
 - verification methods
 - evidence requirements
-- escalation rules
 - verification level
+- escalation rules
+- confidence requirements where applicable
 
 The system should be able to answer:
 
-> How will we know this work was completed?
+> **How will we know this work was completed?**
 
-before execution starts.
+before execution begins.
+
+If a task cannot be meaningfully verified, WorkPay should not blindly proceed.
 
 ---
 
-# 14. CONTRACT
+# 18. WORK CONTRACT
 
-The Work Contract is the economic boundary.
+The Work Contract is the primary economic boundary.
 
 It defines:
 
@@ -491,17 +713,19 @@ It defines:
 - amendment policy
 - escalation policy
 
-Contract versions are immutable once economically active.
+Materially active contract versions are immutable.
 
-A material change creates a new version.
+A material change produces a new contract version.
+
+Every economically significant record should be reconstructable against the exact contract version that governed it.
 
 ---
 
-# 15. ECONOMIC AUTHORITY
+# 19. ECONOMIC AUTHORITY
 
 Never allow an AI agent to possess implicit unlimited authority.
 
-Authority must be explicit.
+Authority must be explicit and bounded.
 
 Examples:
 
@@ -517,19 +741,21 @@ approval thresholds
 recovery authority
 ```
 
-The agent can only operate within this envelope.
-
 Invariant:
 
 ```text
 agent authority <= user authority
 ```
 
+The agent cannot create authority for itself.
+
+An LLM cannot override economic authority.
+
 ---
 
-# 16. PROVIDER SELECTION
+# 20. PROVIDER MODEL
 
-Providers can be:
+Providers may be:
 
 ```text
 HUMAN
@@ -545,26 +771,25 @@ Provider selection should consider:
 - availability
 - verified history
 - first-pass success
-- expected revision cost
+- revision rate
 - delay risk
 - category-specific reputation
 - execution risk
+- expected total cost
 
-Do not optimize only for lowest price.
+Do not optimize only for the cheapest provider.
 
-Think in terms of expected successful outcome.
+The objective is:
+
+> **maximize probability of successful contracted outcome within authorized economic constraints.**
 
 ---
 
-# 17. REPUTATION
+# 21. REPUTATION
 
-Reputation should derive from verified work.
+Reputation should derive primarily from verified outcomes.
 
-Avoid relying primarily on:
-
-```text
-4.8 / 5 stars
-```
+Do not make generic star ratings the core trust mechanism.
 
 Prefer:
 
@@ -574,18 +799,18 @@ first-pass success
 revision rate
 on-time rate
 verified settlement history
-category-specific success
+category-specific performance
 ```
 
-Reputation should be capability-specific.
+Reputation should be capability-specific where possible.
 
 ---
 
-# 18. COMMERCIAL AGREEMENT
+# 22. COMMERCIAL AGREEMENT
 
-Negotiation occurs within the contract's authority envelope.
+Negotiation must operate inside the contract's authority envelope.
 
-The agent must not silently change:
+The agent cannot silently modify:
 
 - material scope
 - acceptance criteria
@@ -595,46 +820,59 @@ The agent must not silently change:
 
 Material changes require contract amendment.
 
-Every accepted offer should produce an immutable commercial agreement.
+Accepted offers should create immutable commercial agreements.
+
+Store the relevant:
+
+- price
+- provider
+- payment terms
+- deadline
+- contract version
+- authority snapshot
+- agreement hash
+- offer provenance
 
 ---
 
-# 19. PAYMENT ARCHITECTURE
+# 23. PAYMENT ARCHITECTURE
 
-AI does not directly control PayPal.
+AI never directly controls PayPal.
 
-The architecture is:
+The architecture must remain:
 
 ```text
 AI
  ↓
 Proposal
  ↓
-Authority validation
+Authority Validation
  ↓
-Domain policy
+Domain Policy
  ↓
-Payment service
+Payment Service
  ↓
-PayPal adapter
+PayPal Adapter
  ↓
 PayPal
 ```
 
-Never give the model unrestricted payment tools.
-
-The model can propose:
+The model may propose:
 
 ```text
 REQUEST_PAYMENT_AUTHORIZATION
 REQUEST_CAPTURE
 ```
 
-but deterministic application code decides whether the command is permitted.
+but deterministic application code decides whether the action is permitted.
+
+No prompt can directly authorize a payment.
+
+No model output can directly capture funds.
 
 ---
 
-# 20. MONEY
+# 24. MONEY
 
 Never use floating-point monetary values.
 
@@ -652,41 +890,62 @@ $135.00
 → 13500 USD cents
 ```
 
-Use integer/bigint-compatible representations where appropriate.
+Maintain explicit currency semantics.
+
+Core invariant:
+
+```text
+amount_minor >= 0
+```
+
+Agreement amount must remain within authorized contract limits.
 
 ---
 
-# 21. PAYPAL
+# 25. PAYPAL
 
-Use PayPal's appropriate authorization/capture APIs.
+Use the appropriate current PayPal APIs for:
 
-Do not casually describe this as legal "escrow."
+- order/payment creation
+- authorization
+- capture
+- cancellation/void where appropriate
+- refund where appropriate
+- status retrieval
+- webhooks
 
-Use accurate concepts such as:
+Do not casually describe the system as providing legal "escrow."
+
+Use accurate language such as:
 
 ```text
 payment authorized
 payment protected
 capture permitted
 payment captured
+payment refunded
 ```
 
 Implement:
 
 - idempotency
 - external IDs
-- verified webhooks
+- webhook verification
 - reconciliation
+- retry handling
 - timeout handling
 - UNKNOWN external states
+- internal/external state separation
 
-If PayPal behavior or API semantics are unclear or have changed, verify against current official PayPal documentation before implementation.
+If PayPal behavior or API semantics are unclear, changed, or undocumented in the provided material:
 
-Do not invent API behavior.
+> **Verify against current official PayPal documentation before implementation.**
+
+Never invent API behavior.
 
 ---
 
-# 22. EXTERNAL UNCERTAINTY
+# 26. EXTERNAL UNCERTAINTY
 
 Never convert an unknown external result into a false failure.
 
@@ -712,21 +971,27 @@ timeout
 FAILED
 ```
 
-This principle applies to external systems generally.
+This principle applies to every consequential external integration.
+
+Unknown state must remain unknown until resolved.
 
 ---
 
-# 23. EXECUTION
+# 27. EXECUTION
 
 Provider execution must reference:
 
+- task
 - contract version
 - commercial agreement
 - provider
 - desired outcome
 - verification plan
+- deadline
 
-Submissions are versioned and immutable.
+Execution should have explicit state transitions.
+
+Submissions must be versioned and immutable.
 
 Example:
 
@@ -736,17 +1001,19 @@ Submission v2
 Submission v3
 ```
 
-A revision is a new submission, not a mutation of historical evidence.
+A revision creates a new submission.
+
+Never rewrite historical evidence.
 
 ---
 
-# 24. EVIDENCE
+# 28. EVIDENCE
 
-Evidence is first-class.
+Evidence is a first-class domain concept.
 
-It should retain provenance.
+It represents observable support for completion.
 
-At minimum:
+At minimum, preserve:
 
 ```text
 source
@@ -755,16 +1022,21 @@ artifact
 artifact checksum
 contract version
 verification run
+provenance
 created_at
 ```
 
-Uploaded files are untrusted input.
+Evidence should allow the system to answer:
 
-Never allow uploaded content to become trusted agent instructions.
+> **What exactly supports this acceptance decision?**
+
+Uploaded files and provider-generated material are untrusted.
+
+Never allow artifact contents to silently become system instructions.
 
 ---
 
-# 25. VERIFICATION
+# 29. VERIFICATION
 
 Separate:
 
@@ -798,13 +1070,19 @@ FAIL
 UNCERTAIN
 ```
 
-Do not allow vague AI output to directly trigger financial actions.
+AI-generated verification must be structured and bounded.
+
+Vague language such as:
+
+> "This looks good."
+
+must never directly become economic authority.
 
 ---
 
-# 26. VERIFICATION LADDER
+# 30. VERIFICATION LADDER
 
-Support this conceptual model:
+Use a verification hierarchy:
 
 ```text
 Level 1
@@ -818,7 +1096,7 @@ Semantic AI checks
 ↓
 
 Level 3
-Independent verifier
+Independent verification
 
 ↓
 
@@ -826,23 +1104,27 @@ Level 4
 Human review
 ```
 
-MVP implementation should prioritize:
+The initial implementation should strongly support:
 
 ```text
-deterministic
+deterministic verification
 +
-semantic AI
+semantic verification
 +
 human escalation
 ```
 
-Do not overbuild independent verification unless the MVP genuinely needs it.
+The architecture should remain capable of introducing independent verification without rewriting the core model.
 
 ---
 
-# 27. ACCEPTANCE
+# 31. ACCEPTANCE
 
-Acceptance is a deterministic policy over verification results.
+Acceptance answers:
+
+> **Does the verified result satisfy the contractual acceptance conditions?**
+
+Acceptance must be deterministic wherever possible.
 
 Example:
 
@@ -854,20 +1136,23 @@ any mandatory requirement FAIL
 → REJECTED
 
 mandatory requirement UNCERTAIN
-→ HUMAN_REVIEW / escalation
+→ HUMAN_REVIEW
 ```
 
 Acceptance must reference:
 
 - contract version
 - verification run
-- verification policy version
+- acceptance policy version
+- evidence/result provenance
+
+Acceptance must never invent new requirements.
 
 ---
 
-# 28. PAYMENT DECISION
+# 32. PAYMENT DECISION
 
-Payment settlement requires a deterministic policy.
+Payment settlement requires deterministic policy.
 
 Conceptually:
 
@@ -889,15 +1174,21 @@ AND
 policy allows capture
 ```
 
-Only then may capture occur.
+Only then may capture become eligible.
 
 The agent cannot bypass this.
 
+The UI cannot bypass this.
+
+A human cannot casually bypass this.
+
+Any exceptional human action must itself be governed and auditable.
+
 ---
 
-# 29. CASES AND HUMAN ESCALATION
+# 33. CASES AND HUMAN ESCALATION
 
-Anything outside safe autonomous execution becomes a case.
+Anything outside safe autonomous execution becomes a Case.
 
 Examples:
 
@@ -909,24 +1200,35 @@ SCOPE_CHANGE
 DEADLINE_DISPUTE
 PROVIDER_FAILURE
 PAYMENT_EXCEPTION
+PAYMENT_DISPUTE
 TECHNICAL_FAILURE
+FRAUD_SUSPECTED
 ```
 
-Human actions must still be:
+Blocking cases freeze affected irreversible economic actions.
+
+Human actions must be:
 
 - authenticated
 - authorized
+- evidence-based
 - recorded
+- attributable
 - explainable
-- associated with evidence
 
-Never implement a magical "admin override everything" mechanism.
+Do not implement a magical:
+
+```text
+ADMIN_OVERRIDE_EVERYTHING
+```
+
+mechanism.
 
 ---
 
-# 30. AGENT ARCHITECTURE
+# 34. AGENT ARCHITECTURE
 
-The agent is the conductor, not the authority.
+The agent is the **conductor**, not the authority.
 
 Core loop:
 
@@ -950,7 +1252,7 @@ Record
 Observe
 ```
 
-The agent should operate through typed actions.
+Use typed actions.
 
 Examples:
 
@@ -969,34 +1271,41 @@ REQUEST_PAYMENT_AUTHORIZATION
 REQUEST_CAPTURE
 ```
 
-Avoid generic unrestricted tools.
+Avoid unrestricted generic tools.
+
+Every tool should have:
+
+- explicit input schema
+- explicit authorization requirements
+- explicit side effects
+- explicit result schema
+- validation
+- auditability
 
 ---
 
-# 31. AGENT CONTEXT IS NOT TRUTH
+# 35. AGENT CONTEXT IS NOT TRUTH
 
 The model may believe something.
 
 The database determines whether it is true.
 
-Before economically meaningful actions, refresh authoritative state.
-
-For example:
+Before economically meaningful actions:
 
 ```text
-Agent proposes capture
+Reload authoritative state
  ↓
-Reload payment
+Validate current contract
  ↓
-Reload contract
+Validate current authority
  ↓
-Reload acceptance
+Validate current payment
  ↓
-Reload cases
+Validate current acceptance
  ↓
-Check authority
+Validate current cases
  ↓
-Check policy
+Evaluate policy
  ↓
 Execute
 ```
@@ -1005,11 +1314,11 @@ Never trust stale model context for financial decisions.
 
 ---
 
-# 32. AGENT ACTION PROVENANCE
+# 36. AGENT ACTION PROVENANCE
 
 Persist meaningful agent actions.
 
-Store things like:
+Record:
 
 ```text
 action
@@ -1020,21 +1329,50 @@ result
 reason code
 timestamp
 correlation ID
+causation ID
 ```
 
-Do NOT store or expose chain-of-thought.
+Do not store or expose chain-of-thought.
 
-We want:
+The system needs:
 
-> **action provenance**
+> **Action provenance**
 
 not:
 
-> hidden reasoning transcripts.
+> **Hidden reasoning transcripts**
 
 ---
 
-# 33. EVENTS
+# 37. AGENT RECOVERY
+
+Agents must be restartable.
+
+Do not rely on:
+
+- in-memory agent state
+- conversational memory
+- worker process memory
+- LLM context
+
+for durable workflow state.
+
+A crashed agent run must be recoverable from authoritative state.
+
+The system should be able to resume after:
+
+- process crash
+- network failure
+- timeout
+- model failure
+- tool failure
+- worker restart
+
+without duplicating economic actions.
+
+---
+
+# 38. EVENTS
 
 Use PostgreSQL transactional outbox.
 
@@ -1050,57 +1388,68 @@ insert outbox event
 COMMIT
 ```
 
-Never publish an event that can claim something happened when the corresponding database transaction failed.
+Only after the transaction commits should the event become publishable.
 
 Use:
 
 - event IDs
+- event versions
 - correlation IDs
 - causation IDs
-- versions
-- processed event records
+- processed-event tracking
 - bounded retries
 - dead-letter handling
 
+Events are facts.
+
+Events are not the authoritative database.
+
 ---
 
-# 34. PERSISTENCE
+# 39. PERSISTENCE
 
-Use PostgreSQL as the single authoritative transactional database.
+Use one authoritative PostgreSQL database.
+
+Use clear domain/module ownership inside the database.
 
 Use object storage for binary artifacts.
 
 Do not create a database for every module.
 
-Use:
+The model should support:
 
 ```text
 one PostgreSQL database
 +
+strong relational constraints
++
 clear module ownership
 +
-strong constraints
-+
 transactions
++
+versioning
 ```
 
-Financial records should not be casually deleted.
+Financial records should never be casually deleted.
 
-Use immutable/versioned records for economically significant state.
+Economically significant records should be immutable or versioned.
 
 ---
 
-# 35. TRANSACTION RULE
+# 40. TRANSACTION BOUNDARIES
 
-Do not hold database transactions open across:
+Never hold a database transaction open across:
 
 - LLM calls
 - PayPal calls
+- network calls
 - file uploads
 - human waits
-- network requests
+- long-running verification
 
-Instead:
+Use explicit intermediate states.
+
+Prefer:
 
 ```text
 transaction
@@ -1114,13 +1463,13 @@ external operation
 persist result
 ```
 
-Use explicit intermediate states.
+Where an external operation is involved, model its lifecycle explicitly.
 
 ---
 
-# 36. IDEMPOTENCY
+# 41. IDEMPOTENCY
 
-Every externally meaningful operation must be designed for retry.
+Every externally meaningful operation must be designed for retries.
 
 Examples:
 
@@ -1128,44 +1477,87 @@ Examples:
 payment authorization
 payment capture
 webhook processing
+provider assignment
 provider submission
 agent commands
 background jobs
+verification jobs
+notifications
 ```
 
-A repeated request must not accidentally produce:
+Repeated execution must not accidentally produce:
 
 ```text
 two payments
-two agreements
 two captures
+two agreements
 two provider assignments
+two accepted submissions
 ```
 
-Use unique constraints and idempotency keys where appropriate.
+Use:
+
+- idempotency keys
+- unique constraints
+- state checks
+- transactional locking
+- external reconciliation
+
+where appropriate.
 
 ---
 
-# 37. DATABASE CONSTRAINTS ARE PART OF THE DOMAIN
+# 42. CONCURRENCY
 
-Do not rely exclusively on application code.
+Assume multiple workers, requests, webhooks, and agent runs may act simultaneously.
+
+Protect critical transitions using appropriate:
+
+- optimistic concurrency
+- pessimistic locking
+- version checks
+- unique constraints
+- transactional updates
+
+Financial operations must be particularly conservative.
+
+Never rely on:
+
+```text
+if state == X
+then do Y
+```
+
+without considering another process changing X between the read and write.
+
+---
+
+# 43. DATABASE CONSTRAINTS
+
+Important business invariants should not exist only in application code.
 
 Use:
 
 - foreign keys
 - unique constraints
 - check constraints
-- indexes
 - appropriate nullability
+- indexes
 - version constraints
 
-If a rule is important enough to protect money or domain integrity, consider enforcing it at the database level as well as in application code.
+If a rule protects money or domain integrity, consider enforcing it at both:
+
+```text
+application layer
++
+database layer
+```
+
+where practical.
 
 ---
 
-# 38. API
-
-Use REST.
+# 44. API
 
 Use:
 
@@ -1173,11 +1565,13 @@ Use:
 /api/v1
 ```
 
+Use REST.
+
 The API is not a database mirror.
 
-The API should expose product concepts.
+Expose product concepts and application operations.
 
-Every request should go through:
+Request lifecycle:
 
 ```text
 Request
@@ -1192,28 +1586,46 @@ Application service
  ↓
 Domain rules
  ↓
-Persistence / external integration
+Persistence / integration
  ↓
 Response
 ```
 
-Use appropriate status codes.
+Use appropriate HTTP semantics.
 
-Long-running work should return asynchronous semantics such as `202 Accepted` where appropriate.
+Long-running operations should use asynchronous semantics such as:
+
+```text
+202 Accepted
+```
+
+where appropriate.
+
+Support:
+
+- request IDs
+- correlation IDs
+- pagination
+- idempotency
+- structured errors
+- rate limiting
+- request size limits
+- safe file access
+- secure webhooks
 
 ---
 
-# 39. FRONTEND
+# 45. FRONTEND
 
-The UI should make WorkPay feel like:
+The interface should make WorkPay feel like:
 
-> "I am delegating a job."
+> **"I am delegating a job."**
 
 not:
 
-> "I am operating a distributed workflow engine."
+> **"I am operating a distributed workflow engine."**
 
-The user should see:
+The user should understand:
 
 ```text
 What I asked
@@ -1222,24 +1634,28 @@ What WorkPay understood
 ↓
 What success means
 ↓
-What it is allowed to spend
+What WorkPay is allowed to spend
 ↓
 Who will perform it
 ↓
 What is happening
 ↓
-Proof
+What evidence exists
 ↓
-Payment
+Whether the result passed
+↓
+What happened to the payment
 ```
 
-The Task Room is the central experience.
+The **Task Room** is the central product experience.
 
 ---
 
-# 40. FRONTEND STATUS LANGUAGE
+# 46. UX QUALITY BAR
 
-Do not expose internal state names unnecessarily.
+The UI should not merely expose backend state.
+
+It should make the system understandable.
 
 Prefer:
 
@@ -1254,7 +1670,7 @@ Payment released
 Completed
 ```
 
-rather than:
+over:
 
 ```text
 AUTHORIZATION_REQUESTED
@@ -1262,17 +1678,78 @@ VERIFICATION_RUNNING
 AGENT_STATE_17
 ```
 
-Internal state can remain precise.
+Internal state should remain precise.
 
-UX language should remain human.
+User-facing language should remain human.
 
 ---
 
-# 41. REALTIME
+# 47. EXPLAINABILITY
 
-Use SSE for MVP.
+Whenever WorkPay makes a consequential decision, the user should be able to understand the relevant reason.
 
-Push events such as:
+Examples:
+
+Instead of:
+
+> Provider rejected.
+
+Prefer:
+
+> The selected provider could not meet the deadline within your authorized budget. WorkPay is looking for another eligible provider.
+
+Instead of:
+
+> Capture forbidden.
+
+Prefer:
+
+> Payment remains protected because requirement 3 has not yet passed verification.
+
+The product should explain decisions without exposing chain-of-thought or internal security-sensitive details.
+
+---
+
+# 48. BLOCKED STATES
+
+A blocked workflow is not a failure of UX.
+
+It is an opportunity to communicate trust.
+
+When blocked, explain:
+
+```text
+Why
++
+What is required
++
+What happens next
++
+What the user can do
+```
+
+Example:
+
+> The best eligible provider costs $175, but your authorized budget is $150.
+
+Then:
+
+```text
+Increase budget
+Extend deadline
+Choose another provider
+Cancel
+```
+
+Safety should feel useful rather than arbitrary.
+
+---
+
+# 49. REALTIME
+
+Use SSE for the initial implementation.
+
+Useful events include:
 
 ```text
 provider selected
@@ -1284,41 +1761,19 @@ verification started
 verification failed
 revision requested
 verification passed
+payment capture eligible
 payment captured
+case opened
+case resolved
 ```
 
-The frontend should update the Task Room without requiring manual refresh.
+The Task Room should update without requiring manual refresh.
 
 ---
 
-# 42. UX SAFETY
+# 50. FILE SECURITY
 
-When something is blocked, explain why.
-
-Bad:
-
-> Action forbidden.
-
-Good:
-
-> I couldn't proceed because the best eligible provider costs $175, but your authorized budget is $150.
-
-Then provide useful actions:
-
-```text
-Increase budget
-Extend deadline
-Choose another provider
-Cancel
-```
-
-Safety should feel helpful, not arbitrary.
-
----
-
-# 43. FILE SECURITY
-
-Treat all uploaded material as untrusted.
+Treat every external artifact as untrusted.
 
 Protect against:
 
@@ -1327,10 +1782,10 @@ Protect against:
 - oversized files
 - dangerous MIME types
 - path traversal
-- malicious document contents
 - embedded instructions
+- hostile document contents
 
-AI context should explicitly distinguish:
+AI context must explicitly distinguish:
 
 ```text
 SYSTEM / APPLICATION INSTRUCTIONS
@@ -1342,20 +1797,21 @@ from:
 USER DATA
 PROVIDER DATA
 UPLOADED ARTIFACTS
+EXTERNAL CONTENT
 ```
 
-Uploaded content must never override system instructions.
+Untrusted content must never override system instructions.
 
 ---
 
-# 44. SECURITY MODEL
+# 51. SECURITY MODEL
 
 Think in this order:
 
 ```text
 Identity
  ↓
-Authorization
+Resource Authorization
  ↓
 Task Authority
  ↓
@@ -1366,7 +1822,7 @@ Domain Policy
 External Action
 ```
 
-Threat model:
+Threat model at minimum:
 
 - account takeover
 - horizontal privilege escalation
@@ -1378,15 +1834,16 @@ Threat model:
 - webhook forgery
 - malicious files
 - race conditions
-- duplicate payment
+- duplicate payments
 - stale state
 - unauthorized contract amendment
+- unauthorized evidence modification
 
 ---
 
-# 45. OBSERVABILITY
+# 52. OBSERVABILITY
 
-Every economically meaningful operation should be traceable.
+Every economically meaningful operation must be traceable.
 
 Carry identifiers such as:
 
@@ -1394,6 +1851,7 @@ Carry identifiers such as:
 request_id
 task_id
 contract_id
+contract_version_id
 agreement_id
 payment_id
 execution_id
@@ -1406,19 +1864,82 @@ causation_id
 
 If someone asks:
 
-> Why did the system release this payment?
+> **Why did WorkPay release this payment?**
 
-we should be able to reconstruct the entire chain.
+we should be able to reconstruct the chain.
+
+That chain should connect:
+
+```text
+User Intent
+→ Contract
+→ Authority
+→ Provider
+→ Agreement
+→ Payment
+→ Execution
+→ Evidence
+→ Verification
+→ Acceptance
+→ Payment Decision
+→ PayPal
+```
 
 ---
 
-# 46. TESTING PHILOSOPHY
+# 53. THREE-LAYER AUDITABILITY
 
-Do not measure quality by test count.
+For consequential actions, preserve enough information to reconstruct:
 
-Test the invariants.
+### What happened?
 
-Especially:
+The domain event/state.
+
+### Why was it allowed?
+
+The authority and policy evaluation.
+
+### What supported it?
+
+The evidence and external confirmation.
+
+Do not rely on logs alone.
+
+The audit model must be part of the domain architecture.
+
+---
+
+# 54. TESTING STANDARD
+
+Do not measure quality by number of tests.
+
+Measure it by confidence in the system's invariants.
+
+Tests should cover:
+
+- domain invariants
+- state transitions
+- authorization
+- authority limits
+- contract versioning
+- payment safety
+- idempotency
+- concurrency
+- retries
+- external failures
+- unknown external states
+- webhook handling
+- verification correctness
+- evidence provenance
+- agent action validation
+- agent recovery
+- disputes
+- human review
+- malicious uploads
+- prompt injection boundaries
+- end-to-end economic workflows
+
+Especially prove that:
 
 ```text
 verification FAIL
@@ -1449,211 +1970,59 @@ malicious upload
 → never becomes trusted instruction
 ```
 
-Write domain tests before or alongside implementation.
+---
+
+# 55. PROPERTY AND INVARIANT THINKING
+
+Where useful, test properties rather than individual examples.
+
+Examples:
+
+> No accepted payment may exist without a valid acceptance decision.
+
+> No agent action may exceed its authority envelope.
+
+> No material contract change may mutate historical contract versions.
+
+> No external UNKNOWN state may automatically become a successful economic state.
+
+> No duplicate external payment command may result in duplicate settlement.
+
+The goal is to make entire classes of failure difficult or impossible.
 
 ---
 
-# 47. DEMO-CRITICAL WORKFLOW
+# 56. ERROR HANDLING
 
-The MVP should support one exceptional vertical.
-
-Recommended demo:
-
-```text
-1. User says:
-
-"Clean this 5,000-row customer CSV.
-Budget $150."
-
-2. WorkPay understands the desired outcome.
-
-3. WorkPay shows the user what success means.
-
-4. User approves.
-
-5. WorkPay selects a provider.
-
-6. Provider agrees to $135.
-
-7. PayPal payment is authorized.
-
-8. Provider submits a deliberately flawed CSV.
-
-9. Verification catches the failure.
-
-10. Payment remains protected.
-
-11. Provider revises.
-
-12. Verification passes.
-
-13. Payment capture becomes eligible.
-
-14. PayPal settles.
-
-15. WorkPay generates the Completion Package.
-```
-
-This is the primary end-to-end proof of the product.
-
----
-
-# 48. DO NOT BUILD THE WHOLE FUTURE
-
-Future-capable abstractions are good.
-
-Future features are not automatically good.
-
-Do NOT prematurely build:
-
-- full marketplace liquidity systems
-- complex bidding
-- multi-agent networks
-- independent verifier marketplaces
-- advanced reputation algorithms
-- generalized workflow engines
-- multi-provider execution plans
-- complex milestone systems
-- vector databases
-- microservices
-- Kafka
-- Kubernetes
-- generalized escrow infrastructure
-
-Build the smallest system that proves the thesis.
-
----
-
-# 49. DEVELOPMENT PROCESS
-
-Before implementing a major area:
-
-1. inspect the existing code
-2. understand current architecture
-3. identify domain dependencies
-4. identify invariants
-5. identify failure modes
-6. implement the smallest coherent solution
-7. write tests
-8. run type checking
-9. run linting
-10. run relevant tests
-11. inspect UX
-12. improve implementation if necessary
-
-Never overwrite functioning architecture just because you prefer another style.
-
----
-
-# 50. CODE QUALITY
-
-Write code that another senior engineer could inherit tomorrow.
-
-Prefer:
-
-- explicit names
-- small cohesive modules
-- strong types
-- pure domain logic where possible
-- dependency inversion at integration boundaries
-- clear interfaces
-- deterministic functions
-- meaningful errors
-- structured logging
-- explicit state transitions
-
-Avoid:
-
-- giant functions
-- magic strings
-- `any`
-- hidden global state
-- implicit financial behavior
-- generic "utils" dumping grounds
-- unnecessary abstractions
-- deeply nested conditionals
-- duplicated business rules
-
----
-
-# 51. DOMAIN LOGIC MUST NOT LIVE IN THE UI
-
-The frontend may display:
-
-> Payment protected.
-
-But it must not determine whether payment is safe to capture.
-
-That belongs in the backend domain/policy layer.
-
-Likewise:
-
-- acceptance
-- authority
-- contract validity
-- provider eligibility
-- payment policy
-
-must be server-side.
-
----
-
-# 52. DOMAIN LOGIC MUST NOT LIVE IN THE LLM
-
-The LLM may propose:
-
-```text
-select Provider A
-```
-
-It must not define:
-
-```text
-Provider A is authorized
-```
-
-The LLM may propose:
-
-```text
-capture payment
-```
-
-It must not decide:
-
-```text
-capture is permitted
-```
-
-The LLM is probabilistic.
-
-The domain policy must be deterministic wherever possible.
-
----
-
-# 53. ERROR HANDLING
-
-Errors should be classified.
+Errors must be explicit and typed.
 
 At minimum distinguish:
 
 ```text
 VALIDATION_ERROR
+AUTHENTICATION_ERROR
 AUTHORIZATION_ERROR
 DOMAIN_CONFLICT
+POLICY_DENIED
 EXTERNAL_FAILURE
 EXTERNAL_UNKNOWN
 NOT_FOUND
-POLICY_DENIED
 REQUIRES_HUMAN_REVIEW
+CONCURRENCY_CONFLICT
 ```
 
-Don't expose internal stack traces to users.
+Do not:
 
-Don't turn all failures into HTTP 500.
+- expose internal stack traces
+- convert every failure into HTTP 500
+- hide policy decisions inside generic exceptions
+- silently swallow failures
+
+Errors should carry useful structured context.
 
 ---
 
-# 54. DATABASE MIGRATIONS
+# 57. DATABASE MIGRATIONS
 
 Every schema change must be represented as a migration.
 
@@ -1663,14 +2032,15 @@ Migrations must be:
 
 - deterministic
 - reviewable
-- reversible where practical
 - tested
+- safe
+- reversible where practical
 
-Do not destroy production data during development convenience operations.
+Do not destroy production-like data for development convenience.
 
 ---
 
-# 55. ENVIRONMENT MANAGEMENT
+# 58. ENVIRONMENT MANAGEMENT
 
 Separate:
 
@@ -1683,7 +2053,9 @@ production
 
 Never commit secrets.
 
-At minimum:
+Validate required configuration at startup.
+
+Potential environment configuration includes:
 
 ```text
 DATABASE_URL
@@ -1696,120 +2068,216 @@ AUTH secrets
 SENTRY credentials
 ```
 
-Use environment validation at startup.
-
-Fail fast when required configuration is missing.
+Use proper secret management.
 
 ---
 
-# 56. IMPLEMENTATION PRIORITY
+# 59. DEVELOPMENT PROCESS
 
-Do not attempt to build everything simultaneously.
+Before implementing a major area:
 
-Use this order:
+1. inspect the existing code
+2. understand current architecture
+3. identify domain dependencies
+4. identify invariants
+5. identify security boundaries
+6. identify failure modes
+7. identify external dependencies
+8. implement the smallest coherent design
+9. write tests
+10. run type checking
+11. run linting
+12. run relevant tests
+13. inspect the UX
+14. review observability
+15. review failure behavior
+16. improve the implementation where necessary
 
-## Phase 1
+Do not blindly overwrite functioning architecture.
 
-Foundation:
+Do not accumulate hacks merely to move faster.
+
+---
+
+# 60. IMPLEMENTATION PHILOSOPHY
+
+Build in coherent vertical slices.
+
+Do not implement disconnected CRUD surfaces simply because they are easy.
+
+A feature should connect:
+
+```text
+Domain
++
+Persistence
++
+Business Rules
++
+API
++
+UI
++
+Observability
++
+Tests
+```
+
+where appropriate.
+
+Prefer proving the entire economic loop over creating dozens of incomplete features.
+
+---
+
+# 61. IMPLEMENTATION ORDER
+
+## Phase 1 — Foundation
+
+Build:
 
 ```text
 repository
 database
 migrations
-auth
+configuration
+authentication
+authorization primitives
 core types
 domain primitives
 logging
-configuration
+error model
+testing infrastructure
 ```
 
-## Phase 2
+Establish engineering quality from the beginning.
 
-Task + Outcome:
+---
+
+## Phase 2 — Intent and Outcome
+
+Build:
 
 ```text
 Task
 Work Specification
 Desired Outcome
 Clarification
+Requirement provenance
 ```
 
-## Phase 3
+The user should be able to express work and approve what WorkPay believes success means.
 
-Contract:
+---
+
+## Phase 3 — Contract and Authority
+
+Build:
 
 ```text
-Contract
-ContractVersion
-AcceptanceRules
-AuthorityPolicy
-VerificationPlan
+Work Contract
+Contract Version
+Verification Plan
+Acceptance Rules
+Authority Policy
 ```
 
-## Phase 4
+Establish immutable economic boundaries.
 
-Verification:
+---
+
+## Phase 4 — Evidence and Verification
+
+Build:
 
 ```text
+Artifacts
 Evidence
-VerificationRun
-VerificationResult
-AcceptanceDecision
+Verification Run
+Verification Result
+Acceptance Decision
 ```
 
-## Phase 5
+This phase is intentionally early.
 
-Provider execution:
+**Verification is not an afterthought. It is one of WorkPay's core technologies.**
+
+---
+
+## Phase 5 — Provider and Execution
+
+Build:
 
 ```text
 Provider
 Capabilities
-ProviderSelection
-Agreement
+Reputation
+Provider Selection
+Negotiation
+Offers
+Commercial Agreement
 Execution
 Submission
 ```
 
-## Phase 6
+Ensure provider selection and execution remain bounded by the contract.
 
-Payment:
+---
+
+## Phase 6 — Payment
+
+Build:
 
 ```text
 Payment
-PaymentDecision
-PayPal
+Payment Decision
+PayPal Adapter
 Authorization
 Capture
 Webhooks
 Reconciliation
 ```
 
-## Phase 7
+Treat this as real-money infrastructure.
 
-Agent:
+---
+
+## Phase 7 — Agent
+
+Build:
 
 ```text
 AgentRun
 AgentAction
-Tools
+Typed Tools
 Workflow
+Recovery
+State Refresh
+Authority Validation
+```
+
+The agent should coordinate the system without becoming the system's authority.
+
+---
+
+## Phase 8 — Cases and Human Review
+
+Build:
+
+```text
+Exceptions
+Disputes
+Human Review
+Provider Failure
+Payment Exceptions
+Scope Changes
 Recovery
 ```
 
-## Phase 8
+---
 
-Cases:
+## Phase 9 — Product Experience
 
-```text
-Disputes
-Exceptions
-Human Review
-Provider Failure
-```
-
-## Phase 9
-
-UX refinement:
+Build and refine:
 
 ```text
 Task Room
@@ -1817,21 +2285,434 @@ Outcome Review
 Contract Review
 Provider Recommendation
 Execution Timeline
-Verification
+Verification Experience
+Payment Experience
 Completion Package
 ```
 
+UX refinement should continue throughout the entire build rather than being postponed until the end.
+
 ---
 
-# 57. DEFINITION OF DONE
+# 62. DEMONSTRATION VERTICAL
 
-A feature is not complete because the code compiles.
+The initial system should prove one complete, real workflow.
 
-For a meaningful vertical:
+Recommended vertical:
 
 ```text
-✓ domain model implemented
-✓ database migration
+User:
+"Clean this 5,000-row customer CSV.
+Budget $150."
+```
+
+WorkPay should:
+
+```text
+1. Understand the request.
+
+2. Produce a Desired Outcome.
+
+3. Define how success will be verified.
+
+4. Present the outcome/contract to the user.
+
+5. Obtain approval.
+
+6. Select an eligible provider.
+
+7. Negotiate within authority.
+
+8. Agree on $135.
+
+9. Authorize the PayPal payment.
+
+10. Have the provider execute the work.
+
+11. Receive an intentionally flawed CSV.
+
+12. Detect the failure through verification.
+
+13. Keep the payment protected.
+
+14. Request or receive a revision.
+
+15. Receive the revised submission.
+
+16. Verify the revised work.
+
+17. Produce an acceptance decision.
+
+18. Determine capture eligibility.
+
+19. Capture through PayPal.
+
+20. Reconcile the external result.
+
+21. Generate the Completion Package.
+```
+
+This is not a toy workflow.
+
+It is the **first vertical expression of the full WorkPay architecture**.
+
+---
+
+# 63. FAILURE MUST BE PART OF THE DEMONSTRATION
+
+Do not optimize the demonstration around a perfect happy path.
+
+A convincing WorkPay demonstration should show that:
+
+```text
+Work fails
+→ system detects it
+→ evidence explains why
+→ payment remains protected
+→ provider gets an opportunity to correct it
+→ revised work is submitted
+→ verification passes
+→ payment becomes eligible
+→ settlement occurs
+```
+
+The failure path is part of the product.
+
+It demonstrates the thesis more strongly than a simple successful transaction.
+
+---
+
+# 64. DO NOT BUILD THE WHOLE FUTURE
+
+The system should be architecturally capable of becoming a broad WorkPay platform.
+
+That does not mean implementing every future feature now.
+
+Do not prematurely build:
+
+- full marketplace liquidity systems
+- complex bidding markets
+- multi-agent networks
+- independent verifier marketplaces
+- generalized workflow engines
+- advanced reputation algorithms
+- generalized milestone systems
+- complex multi-provider orchestration
+- vector databases
+- Kafka
+- Kubernetes
+- microservices
+- unnecessary infrastructure
+
+Future-capable architecture is good.
+
+Future-feature accumulation is not.
+
+---
+
+# 65. BUT DO NOT UNDERSIZE THE CORE
+
+Do not simplify away the concepts that make WorkPay WorkPay.
+
+Do not collapse:
+
+```text
+Outcome
+Contract
+Authority
+Evidence
+Verification
+Acceptance
+Payment Decision
+```
+
+into:
+
+```text
+Task.status
+```
+
+Do not collapse:
+
+```text
+Provider Selection
+Negotiation
+Agreement
+```
+
+into:
+
+```text
+provider_id
+```
+
+Do not collapse:
+
+```text
+Verification
+Acceptance
+Payment
+```
+
+into:
+
+```text
+completed = true
+```
+
+The depth of these concepts is the product.
+
+---
+
+# 66. CODE QUALITY
+
+Write code that another senior engineer could inherit tomorrow.
+
+Prefer:
+
+- explicit names
+- strong types
+- small cohesive modules
+- pure domain logic where possible
+- dependency inversion at integration boundaries
+- deterministic functions
+- clear interfaces
+- structured errors
+- explicit state machines
+- meaningful logs
+- typed integration contracts
+- testable application services
+
+Avoid:
+
+- giant functions
+- magic strings
+- `any`
+- hidden global state
+- implicit financial behavior
+- generic utility dumping grounds
+- unnecessary abstractions
+- duplicated business rules
+- deeply nested conditionals
+- framework-driven domain logic
+- LLM-driven business rules
+
+---
+
+# 67. DOMAIN LOGIC MUST NOT LIVE IN THE UI
+
+The UI may display:
+
+> Payment protected.
+
+It must not decide whether payment is safe to capture.
+
+These belong server-side:
+
+- acceptance
+- authority
+- contract validity
+- provider eligibility
+- payment policy
+- economic limits
+- settlement eligibility
+
+The frontend represents domain state.
+
+It does not define it.
+
+---
+
+# 68. DOMAIN LOGIC MUST NOT LIVE IN THE LLM
+
+The LLM may propose:
+
+```text
+Select Provider A
+```
+
+It cannot define:
+
+```text
+Provider A is authorized.
+```
+
+The LLM may propose:
+
+```text
+Capture payment.
+```
+
+It cannot define:
+
+```text
+Capture is permitted.
+```
+
+The LLM may propose:
+
+```text
+Requirement appears satisfied.
+```
+
+It cannot independently authorize:
+
+```text
+Payment is now economically justified.
+```
+
+The domain remains authoritative.
+
+---
+
+# 69. EXTERNAL INTEGRATIONS
+
+Integrations should exist behind explicit adapters/interfaces.
+
+Examples:
+
+```text
+PayPal
+AI provider
+Object storage
+Authentication
+Notifications
+```
+
+Keep external identifiers separate from internal identifiers.
+
+External failures must not corrupt domain state.
+
+Integration code should handle:
+
+- timeout
+- retry
+- idempotency
+- malformed responses
+- unknown state
+- authentication failures
+- rate limits
+- reconciliation
+
+If an external service changes behavior, the rest of the domain should remain insulated.
+
+---
+
+# 70. OBSERVABILITY AND OPERATIONS
+
+The system should be operable by someone other than its original author.
+
+Provide:
+
+- structured logs
+- meaningful metrics
+- error reporting
+- health checks
+- worker visibility
+- job failure visibility
+- payment reconciliation visibility
+- agent run visibility
+- audit trails
+- correlation IDs
+
+Operational failures should be diagnosable.
+
+Do not rely on:
+
+> "Check the server logs and see what happened."
+
+The architecture should make the answer discoverable.
+
+---
+
+# 71. PERFORMANCE
+
+Do not prematurely optimize.
+
+But do not create obviously dangerous bottlenecks.
+
+Consider:
+
+- database indexing
+- pagination
+- background jobs
+- streaming where useful
+- bounded concurrency
+- connection management
+- artifact handling
+- LLM latency
+- PayPal latency
+- verification workload
+
+Performance must never undermine financial or domain correctness.
+
+---
+
+# 72. SCALABILITY
+
+The initial architecture is a modular monolith.
+
+That is intentional.
+
+However, modules should have clear boundaries so that expensive workloads can later be isolated if necessary.
+
+Do not design for hypothetical millions of users at the expense of correctness.
+
+Design for:
+
+> **clean scaling paths without premature distributed systems.**
+
+---
+
+# 73. SECURITY REVIEW BEFORE COMPLETION
+
+Before considering a major subsystem complete, ask:
+
+```text
+Can an unauthorized user access another user's task?
+
+Can an agent exceed authority?
+
+Can a provider manipulate verification?
+
+Can uploaded content inject instructions?
+
+Can a webhook be forged?
+
+Can a payment be duplicated?
+
+Can a contract be modified after economic commitment?
+
+Can stale state cause an unsafe decision?
+
+Can two workers race into settlement?
+
+Can a human bypass policy without audit?
+
+Can external UNKNOWN state cause an incorrect transition?
+```
+
+If any answer is yes, fix the boundary.
+
+---
+
+# 74. DEFINITION OF DONE
+
+A feature is not complete because:
+
+- it compiles
+- the happy path works
+- the UI looks good
+- the API responds
+- an LLM can call it
+
+A meaningful feature is complete when appropriate parts of the following are addressed:
+
+```text
+✓ domain model
+✓ invariants
+✓ persistence
+✓ migration
 ✓ constraints
 ✓ authorization
 ✓ business rules
@@ -1840,12 +2721,13 @@ For a meaningful vertical:
 ✓ loading states
 ✓ empty states
 ✓ failure states
-✓ tests
+✓ concurrency
+✓ idempotency
 ✓ observability
-✓ idempotency where required
 ✓ auditability
-✓ security review
-✓ documentation
+✓ security
+✓ tests
+✓ recovery behavior
 ```
 
 For financial functionality additionally:
@@ -1853,19 +2735,20 @@ For financial functionality additionally:
 ```text
 ✓ duplicate protection
 ✓ race-condition protection
-✓ external reconciliation
-✓ webhook handling
-✓ UNKNOWN state
-✓ immutable audit record
+✓ external state tracking
+✓ reconciliation
+✓ webhook verification
+✓ UNKNOWN state handling
+✓ immutable audit trail
 ```
 
 ---
 
-# 58. YOUR ROLE AS THE CODING AGENT
+# 75. YOUR ROLE AS PRINCIPAL ENGINEER
 
 You are not merely implementing tickets.
 
-You should continuously ask:
+Continuously ask:
 
 ### Is this actually the simplest correct design?
 
@@ -1877,9 +2760,11 @@ You should continuously ask:
 
 ### What happens if this operation runs twice?
 
+### What happens if two workers execute this simultaneously?
+
 ### What happens if state changes between reading and writing?
 
-### Can this decision be reconstructed later?
+### Can this decision be reconstructed six months later?
 
 ### Can a malicious provider exploit this?
 
@@ -1895,99 +2780,348 @@ You should continuously ask:
 
 ### What happens if PayPal gives us no response?
 
-### Does the UX communicate the system's actual state honestly?
+### What happens if the model is unavailable?
 
-Think about these questions before declaring a subsystem complete.
+### Can the workflow resume after a worker crash?
 
----
+### Does the UX communicate the actual system state honestly?
 
-# 59. BE CREATIVE, BUT CONSTRAINED
+### Are we building the real product or merely simulating it?
 
-Use your engineering creativity to improve:
-
-- abstractions
-- algorithms
-- UX
-- reliability
-- performance
-- security
-- developer experience
-- testability
-- failure recovery
-
-Do not use creativity to randomly expand scope.
-
-A good improvement is:
-
-> "This abstraction eliminates three sources of inconsistency."
-
-A bad improvement is:
-
-> "Let's add a distributed event-sourcing architecture because it could scale."
-
-A good improvement is:
-
-> "We should make Evidence first-class because verification and audit depend on provenance."
-
-A bad improvement is:
-
-> "Let's build an entire provider marketplace before proving the payment loop."
-
-Always optimize for:
-
-# **maximum product truth per line of code.**
+Think through these questions before declaring a subsystem complete.
 
 ---
 
-# 60. FINAL PRODUCT STANDARD
+# 76. NO FAKE SOPHISTICATION
 
-At the end of the MVP, the system should feel like this:
+Never create superficial implementations of difficult capabilities.
 
-The user says:
+Do not call:
 
-> "I need this done."
+```text
+LLM output
+```
 
-WorkPay responds:
+"verification" unless it actually evaluates evidence against contractual requirements.
 
-> "Here's what I understand. Here's what success means. Here's what I'm authorized to spend. Here's how I'll verify it."
+Do not call:
 
-Then WorkPay acts.
+```text
+database flag
+```
 
-It finds someone.
+"payment protection" unless the payment lifecycle is actually safe.
 
-It agrees on terms.
+Do not call:
 
-It protects the payment.
+```text
+static provider list
+```
 
-The work happens.
+"provider intelligence."
 
-Evidence arrives.
+Do not call:
 
-WorkPay checks it.
+```text
+generated summary
+```
 
-If it fails:
+"auditing."
 
-> "The work did not satisfy requirement 3. Your payment remains protected."
+Do not call:
 
-If it succeeds:
+```text
+happy-path state machine
+```
 
-> "The agreed outcome has been verified."
+"autonomous recovery."
+
+Do not simulate a critical external integration where real behavior is required.
+
+If a capability cannot yet be implemented correctly:
+
+> **Make the limitation explicit rather than pretending the capability exists.**
+
+---
+
+# 77. NO PREMATURE COMPLEXITY
+
+At the same time, do not add complexity for prestige.
+
+Bad:
+
+> "Let's introduce event sourcing everywhere because this is a financial system."
+
+Bad:
+
+> "Let's use Kafka because there are events."
+
+Bad:
+
+> "Let's create a microservice for every architecture component."
+
+Bad:
+
+> "Let's build a generalized agent framework."
+
+Good:
+
+> "This transaction needs an outbox because state and event publication must remain atomic."
+
+Good:
+
+> "This payment operation needs a lock because concurrent capture attempts must be impossible."
+
+Good:
+
+> "Evidence must be first-class because verification and audit depend on provenance."
+
+Good:
+
+> "This operation belongs in a worker because it can run for several minutes."
+
+The standard is:
+
+> **Complexity must earn its existence.**
+
+---
+
+# 78. PRODUCT EXPERIENCE STANDARD
+
+The final product should feel dramatically simpler than the machinery underneath it.
+
+The user should be able to think:
+
+> **"I need this done."**
+
+WorkPay should respond:
+
+> **"Here's what I understand."**
 
 Then:
 
-> **Payment is released.**
+> **"Here's what success means."**
 
-The user receives:
+Then:
 
-> **Proof of what happened.**
+> **"Here's what I'm authorized to spend."**
 
-That is the product.
+Then:
+
+> **"Here's who can do it."**
+
+Then:
+
+> **"The work is happening."**
+
+Then:
+
+> **"Here's the evidence."**
+
+Then:
+
+> **"The result has been verified."**
+
+Then:
+
+> **"Payment has been released."**
+
+Finally:
+
+> **"Here's your proof of completion."**
+
+The complexity belongs inside WorkPay.
+
+The confidence belongs with the user.
 
 ---
 
-# 61. THE FINAL ENGINEERING PRINCIPLE
+# 79. COMPLETION PACKAGE
 
-When uncertain between two implementations, prefer the one that makes this chain more explicit:
+A completed task should produce a durable, human-readable proof artifact.
+
+Conceptually:
+
+```text
+COMPLETION PACKAGE
+
+Contract
+✓ Version 2
+
+Deliverable
+✓ output.csv
+
+Evidence
+✓ 5,000 records
+✓ 0 missing IDs
+✓ 0.4% duplicates
+✓ schema valid
+
+Verification
+✓ 5/5 requirements passed
+
+Payment
+✓ $135 settled
+```
+
+The Completion Package should connect:
+
+```text
+what was requested
++
+what was agreed
++
+what was delivered
++
+what was verified
++
+what was paid
+```
+
+This should become one of the strongest product artifacts in WorkPay.
+
+---
+
+# 80. FUTURE-PROOFING WITHOUT FUTURE-BLOAT
+
+The system should make it possible to add future capabilities such as:
+
+```text
+research
+web scraping
+document processing
+software development
+design
+QA
+business operations
+API-based work
+human labor
+AI agents
+multi-provider workflows
+independent verification
+milestones
+```
+
+without replacing the fundamental economic model.
+
+The core remains:
+
+```text
+Intent
+→ Outcome
+→ Contract
+→ Authority
+→ Execution
+→ Evidence
+→ Verification
+→ Acceptance
+→ Settlement
+```
+
+Future features should plug into this model rather than bypass it.
+
+---
+
+# 81. MAXIMUM PRODUCT TRUTH PER LINE OF CODE
+
+Use engineering creativity to improve:
+
+- correctness
+- abstractions
+- reliability
+- security
+- verification
+- recovery
+- UX
+- performance
+- developer experience
+- observability
+
+Do not use creativity to expand scope unnecessarily.
+
+A good improvement:
+
+> "This abstraction eliminates three sources of inconsistent payment state."
+
+A bad improvement:
+
+> "Let's build a distributed event-sourcing platform because it might scale someday."
+
+A good improvement:
+
+> "Evidence should be immutable and content-addressed because verification depends on knowing exactly what was evaluated."
+
+A bad improvement:
+
+> "Let's build a complete provider economy before proving the core transaction."
+
+Always optimize for:
+
+# **Maximum product truth per line of code.**
+
+---
+
+# 82. FINAL ACCEPTANCE STANDARD
+
+Before considering WorkPay complete, ask whether the system can honestly demonstrate all of the following:
+
+### Intent
+
+The system preserves what the user actually asked for.
+
+### Outcome
+
+The system can express what successful completion means.
+
+### Contract
+
+The economic agreement is explicit and versioned.
+
+### Authority
+
+The agent's power is bounded.
+
+### Execution
+
+Work is performed against a specific agreement.
+
+### Evidence
+
+The result is supported by observable evidence.
+
+### Verification
+
+The evidence is evaluated against predefined criteria.
+
+### Acceptance
+
+The system determines whether the contracted outcome was actually achieved.
+
+### Payment
+
+Money moves only when the economic policy permits it.
+
+### Recovery
+
+Failures do not create unsafe economic states.
+
+### Auditability
+
+The system can explain what happened and why.
+
+### Security
+
+Untrusted actors and content cannot silently gain authority.
+
+### UX
+
+The user understands what is happening without needing to understand the underlying distributed system.
+
+---
+
+# 83. THE FINAL ENGINEERING PRINCIPLE
+
+When uncertain between two implementations, prefer the one that makes this chain more explicit, enforceable, observable, and recoverable:
 
 ```text
 INTENT
@@ -2009,8 +3143,72 @@ ACCEPTANCE
 SETTLEMENT
 ```
 
-Every major piece of code should have a clear place in this model.
+Every major subsystem should have a clear relationship to this model.
 
 If it does not, question whether it belongs.
 
-Build WorkPay as if **real money, real work, and real trust** depend on its correctness as it does in deed.your 
+Do not optimize for:
+
+> "How quickly can we make the demo work?"
+
+Optimize for:
+
+> **"How correctly can we make the core WorkPay mechanism real?"**
+
+Do not optimize for:
+
+> "How many features can we ship?"
+
+Optimize for:
+
+> **"How much of the WorkPay thesis can we make undeniable?"**
+
+Do not optimize for:
+
+> "Is this good enough for an MVP?"
+
+Ask:
+
+> **"Would this architecture embarrass us if WorkPay became a real company?"**
+
+If yes, improve it now.
+
+---
+
+# 84. FINAL PRODUCT STANDARD
+
+Build WorkPay as if:
+
+- real users will depend on it
+- real providers will execute work through it
+- real money will move through it
+- real disputes will occur
+- real attackers will test it
+- real infrastructure failures will happen
+- real autonomous agents will operate inside it
+
+Because eventually they will.
+
+The initial system may be narrow.
+
+The engineering must not be shallow.
+
+The implementation must not be disposable.
+
+The core mechanisms must be real.
+
+The failure paths must be real.
+
+The verification must be real.
+
+The payment integration must be real.
+
+The audit trail must be real.
+
+The agent boundaries must be real.
+
+The user experience must feel trustworthy because the underlying system **actually is trustworthy**.
+
+Build WorkPay to be the system we would want to inherit if it became the foundation of a much larger company.
+
+# **World-class robustness is not a future phase. It is the standard from the first commit.**()
