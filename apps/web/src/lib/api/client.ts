@@ -13,6 +13,45 @@ export interface ApiResponse<T> {
   status: number;
 }
 
+export async function apiUpload<T = unknown>(
+  path: string,
+  formData: FormData,
+  idempotencyKey?: string,
+): Promise<ApiResponse<T>> {
+  const url = path.startsWith("/") ? path : `/${path}`;
+  try {
+    const headers = new Headers();
+    if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
+    const res = await fetch(url, { method: "POST", headers, body: formData, cache: "no-store" });
+
+    let data: T | null = null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      try {
+        data = (await res.json()) as T;
+      } catch {
+        data = null;
+      }
+    }
+    if (!res.ok) {
+      return {
+        data,
+        error: new ApiError(res.statusText || "Upload failed", res.status, {
+          requestId: res.headers.get("x-request-id") ?? undefined,
+          details: data,
+        }),
+        status: res.status,
+      };
+    }
+    return { data, error: null, status: res.status };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    return { data: null, error: new ApiError(err.message, 0), status: 0 };
+  }
+}
+
+export { ApiError };
+
 function buildHeaders(options: ApiRequestOptions): HeadersInit {
   const h = new Headers(options.headers ?? {});
   h.set("Accept", "application/json");

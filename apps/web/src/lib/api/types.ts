@@ -390,3 +390,34 @@ export interface ApprovalResultDto {
   status: ContractStatus;
   contractHash: string;
 }
+
+/** A provider's view of an assigned piece of work (B's provider portal). */
+export interface ProviderWorkFileDto {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  downloadUrl?: string | null;
+}
+
+export interface ProviderWorkRequirementDto {
+  key: string;
+  statement: string;
+  acceptanceRelevant: boolean;
+}
+
+export interface ProviderWorkDto {
+  executionId: string;
+  taskId: string;
+  taskTitle: string;
+  taskRequest: string;
+  status: ExecutionStatus;
+  pay: Money;
+  deadline: string | null;
+  requirements: ProviderWorkRequirementDto[];
+  inputFiles: ProviderWorkFileDto[];
+  latestSubmission: SubmissionDto | null;
+  revisionReason: string | null;
+  acceptedAt: string | null;
+  startedAt: string | null;
+}

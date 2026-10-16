@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProviderWorkList } from "@/components/provider/provider-work-list";
 
 export default function ProviderPortalPage() {
   return (
@@ -9,17 +9,7 @@ export default function ProviderPortalPage() {
           Available work, accept assignments, submit deliverables.
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Available work</CardTitle>
-          <CardDescription>Nothing available yet.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Seeded providers can see eligible work here and accept within budget/deadline.
-          </p>
-        </CardContent>
-      </Card>
+      <ProviderWorkList />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { apiFetch, type ApiResponse } from "./client";
+import { apiFetch, apiUpload, type ApiResponse } from "./client";
 import type {
   ActivityEntryDto,
   ApprovalResultDto,
@@ -7,6 +7,8 @@ import type {
   NotificationDto,
   PaymentDto,
   ProviderSelectionDto,
+  ProviderWorkDto,
+  SubmissionDto,
   TaskDto,
   TaskRoomDto,
   VerificationDto,
@@ -104,6 +106,48 @@ export function resolveCase(
 
 export function listNotifications(): Promise<ApiResponse<NotificationDto[]>> {
   return apiFetch<NotificationDto[]>(`${BASE}/notifications`);
+}
+
+/** Provider portal (B). */
+export function listProviderWork(): Promise<ApiResponse<ProviderWorkDto[]>> {
+  return apiFetch<ProviderWorkDto[]>(`${BASE}/provider/work`);
+}
+
+export function getProviderWork(executionId: string): Promise<ApiResponse<ProviderWorkDto>> {
+  return apiFetch<ProviderWorkDto>(`${BASE}/provider/work/${executionId}`);
+}
+
+export function acceptProviderWork(
+  executionId: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<ProviderWorkDto>> {
+  return apiFetch<ProviderWorkDto>(`${BASE}/provider/work/${executionId}/accept`, {
+    method: "POST",
+    idempotencyKey,
+  });
+}
+
+export function startProviderWork(
+  executionId: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<ProviderWorkDto>> {
+  return apiFetch<ProviderWorkDto>(`${BASE}/provider/work/${executionId}/start`, {
+    method: "POST",
+    idempotencyKey,
+  });
+}
+
+export function submitDeliverable(
+  executionId: string,
+  file: File,
+  note: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<SubmissionDto>> {
+  const form = new FormData();
+  form.set("executionId", executionId);
+  form.set("note", note);
+  form.set("file", file);
+  return apiUpload<SubmissionDto>(`${BASE}/submissions`, form, idempotencyKey);
 }
 
 export { apiFetch };
