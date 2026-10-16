@@ -5,8 +5,20 @@
  * Only this package talks to the outside world. Domain modules depend on the
  * interfaces here, never on a concrete SDK.
  */
+export * as ai from "./ai/index.js";
 export * as payments from "./payments/index.js";
 export * as storage from "./storage/index.js";
+
+export { getAIClient, setAIClient, FakeAI, OpenAIAI } from "./ai/index.js";
+export type {
+  AIClient,
+  WorkPlan,
+  PlanTaskInput,
+  SemanticAssessment,
+  AssessRequirementInput,
+  OfferDraft,
+  DraftOfferInput,
+} from "./ai/index.js";
 
 export {
   getPaymentGateway,
