@@ -2013,4 +2013,4 @@ Every major piece of code should have a clear place in this model.
 
 If it does not, question whether it belongs.
 
-Build WorkPay as if **real money, real work, and real trust** depend on its correctness as it does in deed.
+Build WorkPay as if **real money, real work, and real trust** depend on its correctness as it does in deed.your 
