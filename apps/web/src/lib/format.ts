@@ -1,7 +1,7 @@
-import { formatMoney, type Money } from "@workpay/shared";
+import { formatMoney, type Currency, type Money } from "@workpay/shared";
 
-export function formatMinorMoney(m: Money | { amountMinor: number; currency: string }) {
-  return formatMoney({ amountMinor: m.amountMinor, currency: m.currency as any });
+export function formatMinorMoney(m: { amountMinor: number; currency: string }) {
+  return formatMoney({ amountMinor: m.amountMinor, currency: m.currency as Currency });
 }
 
 export function formatDateTime(iso: string): string {
@@ -19,3 +19,5 @@ export function formatDate(iso: string): string {
     return iso;
   }
 }
+
+export type { Money };
