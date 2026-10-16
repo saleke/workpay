@@ -1,0 +1,31 @@
+{
+  "name": "workpay",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @workpay/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @workpay/shared test",
+    "e2e": "pnpm --filter @workpay/web e2e",
+    "worker": "pnpm --filter @workpay/worker dev",
+    "worker:start": "pnpm --filter @workpay/worker start",
+    "db:generate": "pnpm --filter @workpay/shared db:generate",
+    "db:migrate": "pnpm --filter @workpay/shared db:migrate",
+    "db:seed": "pnpm --filter @workpay/shared db:seed",
+    "reset-demo": "pnpm --filter @workpay/shared reset-demo",
+    "openapi": "pnpm --filter @workpay/web openapi",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}

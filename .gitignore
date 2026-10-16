@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+out/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.turbo/
+playwright-report/
+test-results/
+*.tsbuildinfo
+apps/web/public/seed/
