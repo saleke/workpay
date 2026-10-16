@@ -120,6 +120,9 @@ importers:
       '@workpay/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.38.3
+        version: 0.38.4(@types/pg@8.23.1)(@types/react@19.3.0)(pg@8.23.1)(react@19.0.0)
       pg:
         specifier: ^8.13.1
         version: 8.23.1

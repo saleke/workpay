@@ -2,12 +2,15 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Bell } from "lucide-react";
+import { NotificationsBell } from "@/components/notifications/notifications-bell";
 
 const navItems = [
   { href: "/tasks", label: "My Tasks" },
   { href: "/payments", label: "Payments" },
   { href: "/activity", label: "Activity" },
   { href: "/settings", label: "Settings" },
+  { href: "/provider", label: "Provider Portal" },
+  { href: "/review", label: "Review" },
 ];
 
 function SidebarNav() {
@@ -35,10 +38,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <span>WorkPay</span>
             </Link>
-            <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
-              <Bell className="h-4 w-4" />
-              <span className="sr-only">Notifications</span>
-            </Button>
+            <div className="ml-auto">
+              <NotificationsBell />
+            </div>
           </div>
           <div className="flex-1">
             <div className="px-3 py-2 lg:px-4">
@@ -61,10 +63,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1" />
-          <Button variant="outline" size="icon" className="h-8 w-8 md:hidden">
-            <Bell className="h-4 w-4" />
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <div className="md:hidden">
+            <NotificationsBell />
+          </div>
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">{children}</main>
       </div>
