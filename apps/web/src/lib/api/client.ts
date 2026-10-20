@@ -35,7 +35,7 @@ export async function apiUpload<T = unknown>(
     }
     if (!res.ok) {
       return {
-        data,
+        data: null,
         error: new ApiError(res.statusText || "Upload failed", res.status, {
           requestId: res.headers.get("x-request-id") ?? undefined,
           details: data,
@@ -92,7 +92,7 @@ export async function apiFetch<T = unknown>(
         requestId: res.headers.get("x-request-id") ?? undefined,
         details: data,
       });
-      return { data, error: err, status: res.status };
+      return { data: null, error: err, status: res.status };
     }
     return { data, error: null, status: res.status };
   } catch (e) {

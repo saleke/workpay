@@ -45,8 +45,20 @@ export async function GET(
           controller.enqueue(encoder.encode(message));
         }
 
-        // Send a ping/heartbeat
+        // Send initial ping/heartbeat and keep stream alive
         controller.enqueue(encoder.encode(`event: ping\ndata: {}\n\n`));
+
+        const interval = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`event: ping\ndata: {}\n\n`));
+          } catch {
+            clearInterval(interval);
+          }
+        }, 15000);
+
+        req.signal.addEventListener("abort", () => {
+          clearInterval(interval);
+        });
       } catch (err) {
         controller.error(err);
       }

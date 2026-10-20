@@ -26,7 +26,8 @@ export function NotificationsBell() {
     reload();
   }, [open, reload]);
 
-  const unread = (data ?? []).filter((n) => !n.readAt).length;
+  const items = Array.isArray(data) ? data : [];
+  const unread = items.filter((n) => !n.readAt).length;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -44,10 +45,10 @@ export function NotificationsBell() {
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel>Notifications</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {(data ?? []).length === 0 ? (
+        {items.length === 0 ? (
           <DropdownMenuItem disabled>No notifications yet.</DropdownMenuItem>
         ) : (
-          (data ?? []).slice(0, 10).map((n) => (
+          items.slice(0, 10).map((n) => (
             <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 py-2">
               <span className="text-sm font-medium">{n.title}</span>
               <span className="line-clamp-2 text-xs text-muted-foreground">{n.body}</span>

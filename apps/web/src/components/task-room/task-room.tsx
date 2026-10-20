@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Loader2, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,11 +59,19 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     verification.reload();
   }, [room, activity, payment, verification]);
 
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refresh();
+    }, 350);
+  }, [refresh]);
+
   // Live updates with a cursor fallback if the stream drops (plan section 4).
   const stream = useEventStream({
     url: `/api/v1/tasks/${taskId}/events`,
     withSince: true,
-    onEvent: () => refresh(),
+    onEvent: debouncedRefresh,
   });
 
   const onApprove = useCallback(

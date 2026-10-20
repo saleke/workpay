@@ -28,7 +28,8 @@ export function useApi<T>(
   useEffect(() => {
     const current = ++seq.current;
     let cancelled = false;
-    setState((s) => ({ ...s, loading: true }));
+    // Only show full loading state when there is no existing data
+    setState((s) => (s.data !== null ? s : { ...s, loading: true }));
     fetcher()
       .then((res) => {
         if (cancelled || current !== seq.current) return;

@@ -14,7 +14,7 @@ export default function PaymentsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Payments will appear after authorization. Authorized means funds are reserved — they are
+            Payments will appear after authorization. Authorized means funds are reserved: they are
             not released until verification passes.
           </p>
         </CardContent>
