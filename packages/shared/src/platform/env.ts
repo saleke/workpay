@@ -41,6 +41,8 @@ const optionalString = z
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    WORKPAY_MODE: z.enum(["demo", "production"]).default("demo"),
+    NEXT_PUBLIC_DEMO_MODE: booleanish.default(true),
     APP_URL: z.string().url().default("http://localhost:3000"),
 
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -49,9 +51,13 @@ export const envSchema = z
     AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 characters"),
     AUTH_TRUST_HOST: booleanish.default(true),
 
-    AI_PROVIDER: z.enum(["fake", "openai"]).default("fake"),
+    AI_PROVIDER: z.enum(["fake", "openai", "cloudflare"]).default("fake"),
     OPENAI_API_KEY: optionalString,
+    OPENAI_BASE_URL: optionalString,
     OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+    CLOUDFLARE_ACCOUNT_ID: optionalString,
+    CLOUDFLARE_API_TOKEN: optionalString,
+    CLOUDFLARE_AI_MODEL: z.string().default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
     AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
     AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
 
@@ -81,6 +87,22 @@ export const envSchema = z
         path: ["OPENAI_API_KEY"],
         message: "OPENAI_API_KEY is required when AI_PROVIDER=openai",
       });
+    }
+    if (env.AI_PROVIDER === "cloudflare") {
+      if (!env.CLOUDFLARE_ACCOUNT_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["CLOUDFLARE_ACCOUNT_ID"],
+          message: "CLOUDFLARE_ACCOUNT_ID is required when AI_PROVIDER=cloudflare",
+        });
+      }
+      if (!env.CLOUDFLARE_API_TOKEN) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["CLOUDFLARE_API_TOKEN"],
+          message: "CLOUDFLARE_API_TOKEN is required when AI_PROVIDER=cloudflare",
+        });
+      }
     }
     if (env.PAYMENT_GATEWAY === "paypal") {
       for (const key of [

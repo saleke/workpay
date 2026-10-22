@@ -17,11 +17,28 @@ export function getAIClient(): AIClient {
     cached = new FakeAI();
     return cached;
   }
+  if (env.AI_PROVIDER === "cloudflare") {
+    if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required when AI_PROVIDER=cloudflare",
+      );
+    }
+    cached = new OpenAIAI({
+      apiKey: env.CLOUDFLARE_API_TOKEN,
+      baseURL: `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
+      model: env.CLOUDFLARE_AI_MODEL,
+      timeoutMs: env.AI_TIMEOUT_MS,
+      maxRetries: env.AI_MAX_RETRIES,
+    });
+    return cached;
+  }
   if (!env.OPENAI_API_KEY) {
     throw new AppError("VALIDATION_ERROR", "OPENAI_API_KEY is required when AI_PROVIDER=openai");
   }
   cached = new OpenAIAI({
     apiKey: env.OPENAI_API_KEY,
+    baseURL: env.OPENAI_BASE_URL,
     model: env.OPENAI_MODEL,
     timeoutMs: env.AI_TIMEOUT_MS,
     maxRetries: env.AI_MAX_RETRIES,

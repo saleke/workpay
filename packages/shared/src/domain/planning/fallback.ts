@@ -19,6 +19,18 @@ export function deterministicFallbackPlan(input: PlanTaskInput): WorkPlan {
       ? `Deliver: ${input.title}. ${trimmed}`.slice(0, 600)
       : `Deliver: ${input.title}`.slice(0, 600);
 
+  const lower = `${input.title} ${input.rawRequest}`.toLowerCase();
+  const capabilityTags = ["general"];
+  if (
+    lower.includes("clean") ||
+    lower.includes("csv") ||
+    lower.includes("data") ||
+    lower.includes("dedupe") ||
+    lower.includes("duplicate")
+  ) {
+    capabilityTags.push("data_cleaning", "csv", "spreadsheet");
+  }
+
   return {
     summary,
     requirements: [
@@ -39,7 +51,7 @@ export function deterministicFallbackPlan(input: PlanTaskInput): WorkPlan {
     ],
     scopeIncluded: [input.title],
     scopeExcluded: [],
-    capabilityTags: ["general"],
+    capabilityTags,
     estimatedBudgetMinor: Math.floor(input.budgetMinor * 0.8),
   };
 }

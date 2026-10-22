@@ -15,3 +15,11 @@ test-results/
 *.tsbuildinfo
 apps/web/public/seed/
 .workpay-storage/
+bin/
+screenshots/
+packages/shared/screenshots/
+*.png
+*.jpg
+*.jpeg
+*.webp
+scripts/capture-screens.ts

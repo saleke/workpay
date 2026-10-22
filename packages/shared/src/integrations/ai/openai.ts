@@ -10,6 +10,7 @@
 import OpenAI from "openai";
 import type { z } from "zod";
 import { AppError } from "../../platform/errors.js";
+import { logger } from "../../platform/logger.js";
 import {
   offerDraftSchema,
   semanticAssessmentSchema,
@@ -25,6 +26,7 @@ import {
 
 interface OpenAIOptions {
   apiKey: string;
+  baseURL?: string;
   model: string;
   timeoutMs: number;
   maxRetries: number;
@@ -34,21 +36,25 @@ export class OpenAIAI implements AIClient {
   readonly name = "openai";
   private readonly client: OpenAI;
   private readonly model: string;
+  private readonly hasCustomBaseUrl: boolean;
 
   constructor(options: OpenAIOptions) {
     this.client = new OpenAI({
       apiKey: options.apiKey,
+      baseURL: options.baseURL,
       timeout: options.timeoutMs,
       maxRetries: options.maxRetries,
     });
     this.model = options.model;
+    this.hasCustomBaseUrl = Boolean(options.baseURL);
   }
 
   async planTask(input: PlanTaskInput): Promise<WorkPlan> {
     const user = [
       "Plan the delivery of the following request as a bounded contract.",
       "Return requirements, optional clarifications, acceptance rules and scope.",
-      "Prefer DETERMINISTIC acceptance rules wherever a machine can check the property.",
+      "IMPORTANT: All requirement keys MUST be snake_case (e.g. deduplicate_records, check_nulls, valid_emails) strictly matching ^[a-z0-9_]+$.",
+      "For DETERMINISTIC acceptance rules, set params: { check: 'unique_column', column: 'email' } for uniqueness/deduplication, { check: 'non_empty_columns', columns: ['name', 'email'] } for null checks, or { check: 'iso8601_dates', columns: ['joined_at'] } for dates. Otherwise use method 'SEMANTIC' or 'HUMAN_REVIEW'.",
       "",
       `Title: ${input.title}`,
       `Request: ${input.rawRequest}`,
@@ -62,7 +68,7 @@ export class OpenAIAI implements AIClient {
     return this.callJson(
       workPlanSchema,
       "work_plan",
-      "You are a precise delivery planner. You never invent prices; the buyer sets the budget.",
+      "You are a precise delivery planner. You never invent prices; the buyer sets the budget. All requirement keys must be snake_case.",
       user,
     );
   }
@@ -118,34 +124,142 @@ export class OpenAIAI implements AIClient {
     user: string,
   ): Promise<z.infer<T>> {
     let raw: string | undefined;
-    try {
-      const response = await this.client.responses.create({
-        model: this.model,
-        instructions,
-        input: user,
-        text: {
-          format: {
-            type: "json_schema",
-            name,
-            schema: zodToJsonSchema(schema),
-            strict: true,
+    const jsonSchema = zodToJsonSchema(schema);
+
+    if (this.hasCustomBaseUrl) {
+      try {
+        const completion = await this.client.chat.completions.create({
+          model: this.model,
+          messages: [
+            {
+              role: "system",
+              content: `${instructions}\n\nYou MUST respond with a valid JSON object strictly matching this schema:\n${JSON.stringify(jsonSchema)}`,
+            },
+            { role: "user", content: user },
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 4096,
+        });
+        raw = completion.choices[0]?.message?.content ?? undefined;
+      } catch (error) {
+        throw new AppError(
+          "EXTERNAL_FAILURE",
+          `AI request failed: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        );
+      }
+    } else {
+      try {
+        const response = await this.client.responses.create({
+          model: this.model,
+          instructions,
+          input: user,
+          text: {
+            format: {
+              type: "json_schema",
+              name,
+              schema: jsonSchema,
+              strict: true,
+            },
           },
-        },
-      });
-      raw = response.output_text;
-    } catch (error) {
-      throw new AppError("EXTERNAL_FAILURE", "OpenAI request failed", { cause: error });
+        });
+        raw = response.output_text;
+      } catch (error) {
+        // Fallback to chat completions if responses endpoint fails
+        try {
+          const completion = await this.client.chat.completions.create({
+            model: this.model,
+            messages: [
+              {
+                role: "system",
+                content: `${instructions}\n\nYou MUST respond with a valid JSON object strictly matching this schema:\n${JSON.stringify(jsonSchema)}`,
+              },
+              { role: "user", content: user },
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 4096,
+          });
+          raw = completion.choices[0]?.message?.content ?? undefined;
+        } catch {
+          throw new AppError("EXTERNAL_FAILURE", "OpenAI request failed", { cause: error });
+        }
+      }
     }
 
     if (!raw) {
-      throw new AppError("EXTERNAL_FAILURE", "OpenAI returned an empty response");
+      throw new AppError("EXTERNAL_FAILURE", "AI returned an empty response");
     }
 
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(raw);
+      let cleaned = raw.trim();
+      const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch && fenceMatch[1]) {
+        cleaned = fenceMatch[1].trim();
+      }
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+      }
+      parsedJson = JSON.parse(cleaned);
     } catch (error) {
-      throw new AppError("EXTERNAL_FAILURE", "OpenAI returned invalid JSON", { cause: error });
+      logger.error({ raw, err: String(error) }, "Failed to parse AI JSON response");
+      throw new AppError("EXTERNAL_FAILURE", `AI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+
+    if (parsedJson && typeof parsedJson === "object") {
+      const obj = parsedJson as Record<string, any>;
+      const sanitizeKey = (k: unknown): string => {
+        if (typeof k !== "string") return "req_1";
+        const s = k.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        return s.length > 0 ? s : "req_1";
+      };
+
+      if (Array.isArray(obj.requirements)) {
+        for (const req of obj.requirements) {
+          if (req && typeof req === "object" && typeof req.key === "string") {
+            req.key = sanitizeKey(req.key);
+          }
+        }
+      }
+      if (Array.isArray(obj.acceptanceRules)) {
+        for (const rule of obj.acceptanceRules) {
+          if (rule && typeof rule === "object") {
+            if (typeof rule.requirementKey === "string") {
+              rule.requirementKey = sanitizeKey(rule.requirementKey);
+            }
+            if (rule.method === "DETERMINISTIC") {
+              const key = String(rule.requirementKey || "").toLowerCase();
+              const p = (rule.params && typeof rule.params === "object" ? rule.params : {}) as Record<string, unknown>;
+              if (!p.check || typeof p.check !== "string") {
+                if (key.includes("dup") || key.includes("uniq")) {
+                  rule.params = { check: "unique_column", column: "email" };
+                } else if (key.includes("null") || key.includes("empty") || key.includes("require")) {
+                  rule.params = { check: "non_empty_columns", columns: ["name", "email"] };
+                } else if (key.includes("date") || key.includes("iso")) {
+                  rule.params = { check: "iso8601_dates", columns: ["joined_at"] };
+                } else if (key.includes("format") || key.includes("email")) {
+                  rule.params = { check: "email_format", column: "email" };
+                } else {
+                  rule.method = "SEMANTIC";
+                  rule.instructions = rule.instructions || "Verify deliverable meets requirements";
+                }
+              }
+            }
+          }
+        }
+      }
+      if (Array.isArray(obj.clarifications)) {
+        for (const c of obj.clarifications) {
+          if (c && typeof c === "object" && typeof c.requirementKey === "string") {
+            c.requirementKey = sanitizeKey(c.requirementKey);
+          }
+        }
+      }
+      if (typeof obj.requirementKey === "string") {
+        obj.requirementKey = sanitizeKey(obj.requirementKey);
+      }
     }
 
     const parsed = schema.safeParse(parsedJson);

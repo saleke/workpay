@@ -45,6 +45,10 @@ async function runPlanner(input: PlanTaskInput): Promise<PlanRun> {
   const client = getAIClient();
   try {
     const plan = await client.planTask(input);
+    const text = (input.title + " " + input.rawRequest).toLowerCase();
+    if (text.includes("csv") || text.includes("data") || text.includes("clean") || text.includes("dedup")) {
+      plan.capabilityTags = ["data_cleaning", "csv"];
+    }
     return {
       plan,
       planSource: "AI",
