@@ -110,7 +110,9 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
   const providerSpecs = [
     {
       id: "pro_dataclean_apex",
-      displayName: "Apex Data Solutions",
+      userId: providerUserId,
+      displayName: "Apex Data Solutions (Bob)",
+      payoutEmail: "bob.dataclean@example.com",
       hourlyRateMinor: 4500, // $45/hr
       tags: [
         "data_cleaning",
@@ -176,11 +178,13 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
     if (existing.length === 0) {
       await db.insert(providers).values({
         id: spec.id,
+        userId: (spec as any).userId ?? null,
         displayName: spec.displayName,
         type: "HUMAN",
         status: "ACTIVE",
         hourlyRateMinor: spec.hourlyRateMinor,
         currency: "USD",
+        payoutEmail: (spec as any).payoutEmail ?? null,
       });
 
       await db.insert(capabilities).values(
@@ -208,6 +212,14 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
         firstPassAcceptancePct: spec.firstPassAcceptancePct.toFixed(2),
         avgSettlementMinor: spec.hourlyRateMinor * 3,
       });
+    } else {
+      await db
+        .update(providers)
+        .set({
+          userId: (spec as any).userId ?? null,
+          payoutEmail: (spec as any).payoutEmail ?? null,
+        })
+        .where(eq(providers.id, spec.id));
     }
   }
 

@@ -1,5 +1,5 @@
 /**
- * Appendix D — Invariant Test Suite.
+ * Appendix D: Invariant Test Suite.
  *
  * Automated verification of the architectural invariants defined in
  * ENGINEERING_PLAN.md Appendix D and engineering_quality_constitution.md.

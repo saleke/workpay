@@ -15,6 +15,13 @@
       "when": 1792116630423,
       "tag": "0001_immutability_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792116640000,
+      "tag": "0002_provider_user_payout",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@
 
 export interface ProviderCandidate {
   providerId: string;
+  userId?: string | null;
   displayName: string;
   status: "ACTIVE" | "SUSPENDED" | "INACTIVE";
   capabilities: Array<{ tag: string; proficiency: number }>;
@@ -37,6 +38,8 @@ export interface SelectProviderInput {
   candidates: ProviderCandidate[];
   /** Optional cap on how many alternatives to return. */
   maxAlternatives?: number;
+  /** Exclude a provider owned by this user (prevents self-hiring). */
+  excludeUserId?: string;
 }
 
 export interface ScoredCandidate {
@@ -91,6 +94,10 @@ export function selectProvider(input: SelectProviderInput): SelectionResult {
     if (candidate.status !== "ACTIVE") {
       eligible = false;
       reasons.push(`status ${candidate.status}`);
+    }
+    if (input.excludeUserId && candidate.userId && candidate.userId === input.excludeUserId) {
+      eligible = false;
+      reasons.push("task creator cannot hire self");
     }
     if (!candidate.available) {
       eligible = false;

@@ -15,6 +15,8 @@ import type {
   CaptureRequest,
   CaptureResult,
   PaymentGateway,
+  PayoutRequest,
+  PayoutResult,
   RefundRequest,
   RefundResult,
   VoidRequest,
@@ -99,6 +101,14 @@ export class FakePayPal implements PaymentGateway {
 
   async refund(request: RefundRequest): Promise<RefundResult> {
     return { status: "SUCCESS", refundId: deterministicId("fake_ref", request.idempotencyKey) };
+  }
+
+  async payout(request: PayoutRequest): Promise<PayoutResult> {
+    return {
+      status: "SUCCESS",
+      payoutBatchId: deterministicId("fake_batch", request.idempotencyKey),
+      payoutItemId: deterministicId("fake_item", request.idempotencyKey),
+    };
   }
 
   async verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult> {

@@ -72,6 +72,21 @@ export interface RefundResult {
   errorMessage?: string;
 }
 
+export interface PayoutRequest {
+  recipientEmail: string;
+  amount: Money;
+  note?: string;
+  idempotencyKey: string;
+}
+
+export interface PayoutResult {
+  status: "SUCCESS" | "DECLINED" | "UNKNOWN";
+  payoutBatchId?: string;
+  payoutItemId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
 export interface WebhookVerificationInput {
   headers: Record<string, string | undefined>;
   /** Raw request body, exactly as received, required for signature checks. */
@@ -94,5 +109,6 @@ export interface PaymentGateway {
   capture(request: CaptureRequest): Promise<CaptureResult>;
   void(request: VoidRequest): Promise<VoidResult>;
   refund(request: RefundRequest): Promise<RefundResult>;
+  payout(request: PayoutRequest): Promise<PayoutResult>;
   verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult>;
 }

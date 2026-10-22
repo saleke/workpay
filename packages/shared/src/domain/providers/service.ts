@@ -15,6 +15,7 @@ import {
   providerSelections,
 } from "../../db/schema/providers.js";
 import { workContracts } from "../../db/schema/contracts.js";
+import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
 import { newId } from "../../platform/ids.js";
 import { notFound } from "../../platform/errors.js";
@@ -49,6 +50,12 @@ export async function runProviderSelection(
     .limit(1);
   if (!contract) throw notFound("Contract");
 
+  const [task] = await tx
+    .select({ userId: tasks.userId })
+    .from(tasks)
+    .where(eq(tasks.id, options.taskId))
+    .limit(1);
+
   await appendEvent(tx, {
     type: "PROVIDER_SEARCH_STARTED",
     aggregateId: options.contractId,
@@ -81,6 +88,7 @@ export async function runProviderSelection(
     const rep = latestReputation.get(provider.id);
     return {
       providerId: provider.id,
+      userId: provider.userId ?? null,
       displayName: provider.displayName,
       status: provider.status,
       capabilities: capabilityRows
@@ -102,6 +110,7 @@ export async function runProviderSelection(
     requiredTags: options.requiredTags,
     budgetMinor: contract.budgetMinor,
     candidates,
+    excludeUserId: task?.userId,
   });
 
   const selectionId = newId("sel");

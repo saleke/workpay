@@ -22,6 +22,8 @@ import { withTransaction } from "../../db/client.js";
 import { cases } from "../../db/schema/cases.js";
 import { workContracts } from "../../db/schema/contracts.js";
 import { commercialAgreements } from "../../db/schema/negotiation.js";
+import { providers } from "../../db/schema/providers.js";
+import { users } from "../../db/schema/identity.js";
 import {
   paymentCommands,
   paymentDecisions,
@@ -544,6 +546,48 @@ export async function executeCapture(options: {
       );
     }
   });
+
+  if (result.status === "SUCCESS") {
+    try {
+      const [agreement] = await withTransaction((tx) =>
+        tx
+          .select({ providerId: commercialAgreements.providerId })
+          .from(commercialAgreements)
+          .where(eq(commercialAgreements.id, payment.agreementId))
+          .limit(1),
+      );
+      if (agreement) {
+        const [provider] = await withTransaction((tx) =>
+          tx
+            .select({ payoutEmail: providers.payoutEmail, userId: providers.userId })
+            .from(providers)
+            .where(eq(providers.id, agreement.providerId))
+            .limit(1),
+        );
+        let targetEmail = provider?.payoutEmail;
+        if (!targetEmail && provider?.userId) {
+          const [user] = await withTransaction((tx) =>
+            tx.select({ email: users.email }).from(users).where(eq(users.id, provider.userId!)).limit(1),
+          );
+          targetEmail = user?.email;
+        }
+        if (targetEmail) {
+          const payoutResult = await gateway.payout({
+            recipientEmail: targetEmail,
+            amount,
+            note: `WorkPay settlement for deliverable on task ${payment.taskId}`,
+            idempotencyKey: `${command.idempotencyKey}:payout`,
+          });
+          logger.info(
+            { payoutResult, targetEmail, taskId: payment.taskId },
+            "disbursed settlement payout to provider",
+          );
+        }
+      }
+    } catch (payoutErr) {
+      logger.warn({ err: String(payoutErr) }, "payout dispatch failed; queued for reconciliation");
+    }
+  }
 
   return { status: result.status, ...(result.captureId ? { captureId: result.captureId } : {}) };
 }

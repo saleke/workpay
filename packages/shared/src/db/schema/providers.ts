@@ -23,22 +23,26 @@ import {
 } from "drizzle-orm/pg-core";
 import { providerSelectionStatusEnum, providerStatusEnum, providerTypeEnum } from "../enums";
 import { workContracts } from "./contracts";
+import { users } from "./identity";
 
 export const providers = pgTable(
   "providers",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
+    userId: varchar("user_id", { length: 64 }).references(() => users.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
-    type: providerTypeEnum("type").notNull(),
+    type: providerTypeEnum("type").notNull().default("HUMAN"),
     status: providerStatusEnum("status").notNull().default("ACTIVE"),
     /** Free-text capabilities for display and coarse filtering. */
     bio: text("bio"),
     hourlyRateMinor: bigint("hourly_rate_minor", { mode: "number" }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    payoutEmail: text("payout_email"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    userIdIdx: uniqueIndex("providers_user_id_unique").on(t.userId),
     statusIdx: index("providers_status_idx").on(t.status),
     typeIdx: index("providers_type_idx").on(t.type),
     rateCheck: check(

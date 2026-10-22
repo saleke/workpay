@@ -18,6 +18,8 @@ import type {
   CaptureRequest,
   CaptureResult,
   PaymentGateway,
+  PayoutRequest,
+  PayoutResult,
   RefundRequest,
   RefundResult,
   VoidRequest,
@@ -231,6 +233,48 @@ export class SandboxPayPal implements PaymentGateway {
         return { status: "UNKNOWN", errorMessage: `PayPal refund ${result.status}` };
       if (result.status >= 400) return this.declinedFromBody(result.status, result.json);
       return { status: "SUCCESS", refundId: (result.json as { id?: string }).id };
+    } catch (error) {
+      return { status: "UNKNOWN", errorMessage: String(error) };
+    }
+  }
+
+  async payout(request: PayoutRequest): Promise<PayoutResult> {
+    try {
+      const result = await this.request(
+        "POST",
+        "/v1/payments/payouts",
+        {
+          sender_batch_header: {
+            sender_batch_id: `batch_${request.idempotencyKey.slice(0, 30)}`,
+            email_subject: "You received a payment on WorkPay",
+            email_message: request.note ?? "Payment for verified deliverable on WorkPay",
+          },
+          items: [
+            {
+              recipient_type: "EMAIL",
+              amount: {
+                value: minorToDecimalString(request.amount.amountMinor),
+                currency: request.amount.currency,
+              },
+              receiver: request.recipientEmail,
+              note: request.note ?? "WorkPay verified deliverable settlement",
+              sender_item_id: `item_${request.idempotencyKey.slice(0, 30)}`,
+            },
+          ],
+        },
+        request.idempotencyKey,
+      );
+      if (result.status >= 500) {
+        return { status: "UNKNOWN", errorMessage: `PayPal payout ${result.status}` };
+      }
+      if (result.status >= 400) {
+        return this.declinedFromBody(result.status, result.json);
+      }
+      const batchHeader = (result.json as { batch_header?: { payout_batch_id?: string } })?.batch_header;
+      return {
+        status: "SUCCESS",
+        payoutBatchId: batchHeader?.payout_batch_id,
+      };
     } catch (error) {
       return { status: "UNKNOWN", errorMessage: String(error) };
     }

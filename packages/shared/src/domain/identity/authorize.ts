@@ -110,9 +110,9 @@ function isOwner(actor: Actor, resource: ResourceFacts): boolean {
  */
 const POLICIES: Partial<Record<Action, PolicyFn>> = {
   [ACTIONS.taskCreate]: (actor) =>
-    actor.kind === "USER" && actor.role === "buyer"
-      ? allow("Buyer may create tasks")
-      : deny("Only an authenticated buyer may create a task"),
+    actor.kind === "USER"
+      ? allow("Authenticated user may create tasks")
+      : deny("Only an authenticated user may create a task"),
 
   [ACTIONS.taskView]: (actor, resource) => {
     if (actor.role === "admin_reviewer") return allow("Reviewer may view tasks");
