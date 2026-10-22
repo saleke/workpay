@@ -21,7 +21,7 @@ export const EVENT_LABELS: Record<string, { title: string; description: string }
   },
   PAYMENT_AUTHORIZED: {
     title: "Payment authorized",
-    description: "Payment has been authorized through PayPal — not yet released.",
+    description: "Payment has been authorized through PayPal (not yet released).",
   },
   SUBMISSION_SUBMITTED: {
     title: "Submission received",
@@ -37,7 +37,7 @@ export const EVENT_LABELS: Record<string, { title: string; description: string }
   },
   VERIFICATION_FAILED: {
     title: "Verification failed",
-    description: "Verification found issues — payment remains protected.",
+    description: "Verification found issues: payment remains protected.",
   },
   VERIFICATION_PASSED: {
     title: "Verification passed",

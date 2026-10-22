@@ -84,7 +84,7 @@ export function contractStatusLabel(status: ContractStatus): string {
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {
   PENDING: "Preparing",
   AUTHORIZATION_REQUESTED: "Authorizing",
-  AUTHORIZED: "Authorized — not yet released",
+  AUTHORIZED: "Authorized (not yet released)",
   CAPTURE_REQUESTED: "Releasing payment",
   CAPTURED: "Paid",
   VOIDED: "Voided",

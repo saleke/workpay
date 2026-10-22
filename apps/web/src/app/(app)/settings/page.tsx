@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useSystemMode, type SystemMode } from "@/lib/mode";
+import { ProviderProfileManager } from "@/components/provider/provider-profile-manager";
 
 interface AuthUser {
   id: string;
@@ -294,7 +295,10 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Card 3: PayPal Escrow & Gateway Invariants */}
+        {/* Card 3: Provider Profile & Direct PayPal Settlement */}
+        <ProviderProfileManager />
+
+        {/* Card 4: PayPal Escrow & Gateway Invariants */}
         <Card className="border-border/80 shadow-xs">
           <CardHeader className="bg-muted/15 border-b border-border/60 pb-4">
             <div className="flex items-center justify-between">

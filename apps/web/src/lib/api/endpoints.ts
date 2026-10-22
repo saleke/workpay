@@ -158,5 +158,47 @@ export function submitDeliverable(
   return apiUpload<SubmissionDto>(`${BASE}/submissions`, form, idempotencyKey);
 }
 
+export interface ProviderProfileDto {
+  id: string;
+  userId: string | null;
+  displayName: string;
+  bio: string | null;
+  hourlyRateMinor: number | null;
+  currency: string;
+  payoutEmail: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  capabilities: Array<{ tag: string; proficiency: number }>;
+}
+
+export interface ProviderProfileResponse {
+  isListed: boolean;
+  provider: ProviderProfileDto | null;
+}
+
+export function getProviderProfile(): Promise<ApiResponse<ProviderProfileResponse>> {
+  return apiFetch<ProviderProfileResponse>(`${BASE}/provider/profile`);
+}
+
+export function updateProviderProfile(
+  body: {
+    displayName: string;
+    bio?: string | null;
+    hourlyRateMinor?: number | null;
+    currency?: string;
+    payoutEmail: string;
+    status: "ACTIVE" | "INACTIVE";
+    capabilities: Array<{ tag: string; proficiency: number }>;
+  },
+): Promise<ApiResponse<ProviderProfileResponse>> {
+  return apiFetch<ProviderProfileResponse>(`${BASE}/provider/profile`, {
+    method: "PUT",
+    body,
+  });
+}
+
+export function listProviders(): Promise<ApiResponse<ProviderProfileDto[]>> {
+  return apiFetch<ProviderProfileDto[]>(`${BASE}/providers`);
+}
+
 export { apiFetch };
 export type { ContractDto };

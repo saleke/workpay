@@ -258,6 +258,7 @@ export interface PaymentDto {
   status: PaymentStatus;
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
+  payoutEmail?: string | null;
   authorizedAt: string | null;
   capturedAt: string | null;
   latestDecision: PaymentDecisionDto | null;

@@ -223,7 +223,7 @@ export default function PaymentsPage() {
                       PayPal Capture ID
                     </span>
                     <span className="font-mono text-foreground select-all break-all">
-                      {p.paypalCaptureId ?? (isAuthorized ? "Escrow Reserved" : "—")}
+                      {p.paypalCaptureId ?? (isAuthorized ? "Escrow Reserved" : "N/A")}
                     </span>
                   </div>
 
@@ -232,7 +232,7 @@ export default function PaymentsPage() {
                       Authorized At
                     </span>
                     <span className="text-foreground">
-                      {p.authorizedAt ? formatDateTime(p.authorizedAt) : "—"}
+                      {p.authorizedAt ? formatDateTime(p.authorizedAt) : "Pending"}
                     </span>
                   </div>
 
@@ -241,7 +241,7 @@ export default function PaymentsPage() {
                       Settled / Captured At
                     </span>
                     <span className="text-foreground">
-                      {p.capturedAt ? formatDateTime(p.capturedAt) : isAuthorized ? "Pending Verification" : "—"}
+                      {p.capturedAt ? formatDateTime(p.capturedAt) : isAuthorized ? "Pending Verification" : "Pending"}
                     </span>
                   </div>
                 </CardContent>

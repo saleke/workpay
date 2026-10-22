@@ -15,6 +15,7 @@ import { newCorrelationId, newId, type IdPrefix } from "@workpay/shared/platform
 import { hashObject } from "@workpay/shared/platform";
 import { AppError, type ErrorCode } from "@workpay/shared/platform";
 import type { Actor } from "@workpay/shared/domain";
+import { getSessionUser, SESSION_COOKIE_NAME } from "./session";
 
 const HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   VALIDATION_ERROR: 422,
@@ -52,13 +53,57 @@ export function resolveActor(
   const match = cookieHeader.match(/workpay_persona=([^;]+)/);
   const cookiePersona = match && match[1] ? decodeURIComponent(match[1]) : null;
 
-  if (cookiePersona === "provider" || defaultRole === "provider") {
+  if (cookiePersona === "provider") {
     return { kind: "PROVIDER", id: "usr_provider_bob" };
   }
-  if (cookiePersona === "admin_reviewer" || defaultRole === "admin_reviewer") {
+  if (cookiePersona === "admin_reviewer") {
+    return { kind: "REVIEWER", id: "usr_admin_carol", role: "admin_reviewer" };
+  }
+  if (cookiePersona === "buyer") {
+    return { kind: "USER", id: "usr_buyer_alice", role: "buyer" };
+  }
+
+  if (defaultRole === "provider") {
+    return { kind: "PROVIDER", id: "usr_provider_bob" };
+  }
+  if (defaultRole === "admin_reviewer") {
     return { kind: "REVIEWER", id: "usr_admin_carol", role: "admin_reviewer" };
   }
   return { kind: "USER", id: "usr_buyer_alice", role: "buyer" };
+}
+
+export async function resolveActorAsync(
+  req: Request,
+  defaultRole: "buyer" | "provider" | "admin_reviewer" = "buyer",
+): Promise<Actor> {
+  const userIdHeader = req.headers.get("x-user-id");
+  const roleHeader = (req.headers.get("x-role") as Actor["role"]) ?? defaultRole;
+
+  if (userIdHeader) {
+    if (roleHeader === "provider") {
+      return { kind: "PROVIDER", id: userIdHeader };
+    }
+    if (roleHeader === "admin_reviewer") {
+      return { kind: "REVIEWER", id: userIdHeader, role: "admin_reviewer" };
+    }
+    return { kind: "USER", id: userIdHeader, role: roleHeader ?? "buyer" };
+  }
+
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  const sessionToken = sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
+
+  if (sessionToken) {
+    const authUser = await getSessionUser(sessionToken);
+    if (authUser) {
+      if (authUser.role === "admin_reviewer") {
+        return { kind: "REVIEWER", id: authUser.id, role: "admin_reviewer" };
+      }
+      return { kind: "USER", id: authUser.id, role: authUser.role };
+    }
+  }
+
+  return resolveActor(req, defaultRole);
 }
 
 export function getCorrelationId(req: Request): string {

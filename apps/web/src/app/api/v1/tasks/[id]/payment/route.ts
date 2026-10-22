@@ -2,6 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { getPaymentForTask } from "@workpay/shared/domain";
 import { paymentDecisions, paymentPolicyChecks } from "@workpay/shared/db/schema/payments";
+import { commercialAgreements } from "@workpay/shared/db/schema/negotiation";
+import { providers } from "@workpay/shared/db/schema/providers";
 import type { PaymentDto, PaymentDecisionDto } from "@/lib/api/types";
 
 export async function GET(
@@ -52,6 +54,23 @@ export async function GET(
       };
     }
 
+    let payoutEmail: string | null = null;
+    if (payment.agreementId) {
+      const [agreement] = await db
+        .select({ providerId: commercialAgreements.providerId })
+        .from(commercialAgreements)
+        .where(eq(commercialAgreements.id, payment.agreementId))
+        .limit(1);
+      if (agreement) {
+        const [prov] = await db
+          .select({ payoutEmail: providers.payoutEmail })
+          .from(providers)
+          .where(eq(providers.id, agreement.providerId))
+          .limit(1);
+        payoutEmail = prov?.payoutEmail ?? null;
+      }
+    }
+
     const data: PaymentDto = {
       id: payment.id,
       taskId: payment.taskId,
@@ -61,6 +80,7 @@ export async function GET(
       status: payment.status,
       paypalAuthorizationId: payment.providerAuthorizationId,
       paypalCaptureId: payment.providerCaptureId,
+      payoutEmail,
       authorizedAt: payment.authorizedAt?.toISOString() ?? null,
       capturedAt: payment.capturedAt?.toISOString() ?? null,
       latestDecision: latestDecisionDto,

@@ -41,7 +41,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
           <div>
             <div className="font-semibold text-base">Escrow Capture Succeeded</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              {amount} has been captured and disbursed via PayPal Payments v2. Release was triggered only after deterministic acceptance proof completed with zero defects.
+              {amount} has been captured from buyer escrow hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "provider account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
             </p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
           <div>
             <div className="font-semibold text-base">PayPal Authorization Hold Active</div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              {amount} is secured in PayPal authorization hold: funds cannot be claimed until deliverable verification passes. Buyer funds remain 100% protected.
+              {amount} is secured in PayPal buyer authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned provider"}.
             </p>
           </div>
         </div>
@@ -70,13 +70,13 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             </StatusBadge>
           </div>
           <CardDescription className="mt-0.5">
-            Immutable financial state tracked via PostgreSQL outbox and synced with PayPal Orders v2.
+            Immutable financial state tracked via PostgreSQL outbox and synced with PayPal Orders v2 and Payouts v1.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="grid gap-6 p-6">
           {/* Key Financial Data Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                 Agreed Amount
@@ -105,6 +105,16 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
                 {payment.paypalCaptureId ?? "Awaiting Verification"}
               </span>
               <span className="text-[11px] text-muted-foreground">Final settlement token</span>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Provider Payout Destination
+              </span>
+              <span className="text-xs font-mono font-semibold text-foreground mt-1 block truncate" title={payment.payoutEmail ?? "Pending Assignment"}>
+                {payment.payoutEmail ?? "Pending Assignment"}
+              </span>
+              <span className="text-[11px] text-muted-foreground">Direct PayPal recipient</span>
             </div>
           </div>
 
