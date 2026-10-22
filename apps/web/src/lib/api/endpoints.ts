@@ -53,6 +53,14 @@ export function approveContract(
   });
 }
 
+export function listPayments(): Promise<ApiResponse<PaymentDto[]>> {
+  return apiFetch<PaymentDto[]>(`${BASE}/payments`);
+}
+
+export function listActivity(): Promise<ApiResponse<ActivityEntryDto[]>> {
+  return apiFetch<ActivityEntryDto[]>(`${BASE}/activity`);
+}
+
 export function getTaskActivity(taskId: string): Promise<ApiResponse<ActivityEntryDto[]>> {
   return apiFetch<ActivityEntryDto[]>(`${BASE}/tasks/${taskId}/activity`);
 }

@@ -13,6 +13,30 @@ export interface ApiResponse<T> {
   status: number;
 }
 
+function getActivePersonaHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const authUserStr = window.localStorage.getItem("workpay_auth_user");
+    if (authUserStr) {
+      const u = JSON.parse(authUserStr);
+      if (u && u.id && u.role) {
+        return { "x-user-id": u.id, "x-role": u.role };
+      }
+    }
+
+    const p = window.localStorage.getItem("workpay_persona") || "buyer";
+    if (p === "provider") {
+      return { "x-user-id": "usr_provider_bob", "x-role": "provider" };
+    }
+    if (p === "admin_reviewer") {
+      return { "x-user-id": "usr_admin_carol", "x-role": "admin_reviewer" };
+    }
+    return { "x-user-id": "usr_buyer_alice", "x-role": "buyer" };
+  } catch {
+    return {};
+  }
+}
+
 export async function apiUpload<T = unknown>(
   path: string,
   formData: FormData,
@@ -22,6 +46,10 @@ export async function apiUpload<T = unknown>(
   try {
     const headers = new Headers();
     if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
+    const personaHeaders = getActivePersonaHeaders();
+    for (const [k, v] of Object.entries(personaHeaders)) {
+      if (!headers.has(k)) headers.set(k, v);
+    }
     const res = await fetch(url, { method: "POST", headers, body: formData, cache: "no-store" });
 
     let data: T | null = null;
@@ -60,6 +88,10 @@ function buildHeaders(options: ApiRequestOptions): HeadersInit {
   }
   if (options.idempotencyKey) {
     h.set("Idempotency-Key", options.idempotencyKey);
+  }
+  const personaHeaders = getActivePersonaHeaders();
+  for (const [k, v] of Object.entries(personaHeaders)) {
+    if (!h.has(k)) h.set(k, v);
   }
   return h;
 }

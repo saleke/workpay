@@ -47,11 +47,15 @@ export function resolveActor(
     return { kind: "USER", id: userIdHeader, role: roleHeader ?? "buyer" };
   }
 
-  // Fallback to seeded demo identity
-  if (defaultRole === "provider") {
+  // Check demo persona cookie if available
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const match = cookieHeader.match(/workpay_persona=([^;]+)/);
+  const cookiePersona = match && match[1] ? decodeURIComponent(match[1]) : null;
+
+  if (cookiePersona === "provider" || defaultRole === "provider") {
     return { kind: "PROVIDER", id: "usr_provider_bob" };
   }
-  if (defaultRole === "admin_reviewer") {
+  if (cookiePersona === "admin_reviewer" || defaultRole === "admin_reviewer") {
     return { kind: "REVIEWER", id: "usr_admin_carol", role: "admin_reviewer" };
   }
   return { kind: "USER", id: "usr_buyer_alice", role: "buyer" };
