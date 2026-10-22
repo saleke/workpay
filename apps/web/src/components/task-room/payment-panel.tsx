@@ -41,7 +41,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
           <div>
             <div className="font-semibold text-base">Escrow Capture Succeeded</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              {amount} has been captured from buyer escrow hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "provider account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
+              {amount} has been captured from escrow authorization hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "specialist account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
             </p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
           <div>
             <div className="font-semibold text-base">PayPal Authorization Hold Active</div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              {amount} is secured in PayPal buyer authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned provider"}.
+              {amount} is secured in PayPal escrow authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned specialist"}.
             </p>
           </div>
         </div>

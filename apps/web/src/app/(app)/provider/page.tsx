@@ -11,10 +11,10 @@ export default function ProviderPortalPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight md:text-2xl text-foreground">
-              Provider Hub &amp; Talent Registry
+              Work Studio &amp; Talent Network
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Review assigned contracts, submit deliverables, explore discoverable providers, and configure direct PayPal settlement payouts.
+              Manage assignments, submit deliverables, explore specialists across the talent network, and configure direct PayPal settlement payouts.
             </p>
           </div>
         </div>
@@ -24,15 +24,15 @@ export default function ProviderPortalPage() {
         <TabsList className="bg-muted/60 p-1 border border-border/60">
           <TabsTrigger value="assignments" className="gap-2 text-xs font-semibold">
             <ListTodo className="h-3.5 w-3.5" />
-            <span>My Assigned Work</span>
+            <span>Active Assignments</span>
           </TabsTrigger>
           <TabsTrigger value="registry" className="gap-2 text-xs font-semibold">
             <Users className="h-3.5 w-3.5" />
-            <span>Open Talent Registry</span>
+            <span>Specialist Talent Network</span>
           </TabsTrigger>
           <TabsTrigger value="profile" className="gap-2 text-xs font-semibold">
             <Sliders className="h-3.5 w-3.5" />
-            <span>Profile &amp; Payout Settings</span>
+            <span>Specialist Profile &amp; Payouts</span>
           </TabsTrigger>
         </TabsList>
 

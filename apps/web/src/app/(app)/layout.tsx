@@ -26,8 +26,8 @@ const navItems = [
   { href: "/tasks", label: "My Tasks", icon: ClipboardList },
   { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/provider", label: "Provider Portal", icon: Briefcase },
-  { href: "/review", label: "Human Review", icon: Scale },
+  { href: "/provider", label: "Work Studio", icon: Briefcase },
+  { href: "/review", label: "Arbitration", icon: Scale },
   { href: "/settings", label: "Settings", icon: Sliders },
 ];
 

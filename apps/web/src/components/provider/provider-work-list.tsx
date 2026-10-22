@@ -28,7 +28,7 @@ export function ProviderWorkList() {
     return (
       <EmptyState
         title="No work assignments yet"
-        description="Eligible assignments appear here once a buyer approves a contract and your provider profile is selected."
+        description="Eligible assignments appear here once a work agreement is approved and your specialist profile is selected."
       />
     );
   }

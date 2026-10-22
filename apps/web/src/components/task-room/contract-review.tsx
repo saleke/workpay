@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, XCircle, Plus, Trash2, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,6 +20,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMinorMoney, formatDateTime } from "@/lib/format";
 import { contractStatusLabel, requirementSourceLabel } from "@/lib/status";
 import type { ContractDto, RequirementDto } from "@/lib/api/types";
+import { modifyContractCriteria } from "@/lib/api/endpoints";
 import { AuthorityPanel } from "./authority-panel";
 
 export function ContractReview({
@@ -26,45 +28,107 @@ export function ContractReview({
   specRequirements = [],
   onApprove,
   approving = false,
+  onContractUpdated,
 }: {
   contract: ContractDto;
   specRequirements?: RequirementDto[];
   onApprove?: (expectedHash: string) => void | Promise<void>;
   approving?: boolean;
+  onContractUpdated?: () => void;
 }) {
+  const [currentContract, setCurrentContract] = useState<ContractDto>(contract);
   const [open, setOpen] = useState(false);
+  const [newCriterion, setNewCriterion] = useState("");
+  const [isModifying, setIsModifying] = useState(false);
+  const [criteriaError, setCriteriaError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentContract(contract);
+  }, [contract]);
 
   const sourceByKey = new Map(specRequirements.map((r) => [r.key, r.source]));
   const ruleByKey = new Map(
-    (contract.acceptancePlan?.rules ?? []).map((r) => [r.requirementKey, r]),
+    (currentContract.acceptancePlan?.rules ?? []).map((r) => [r.requirementKey, r]),
   );
 
-  const included = contract.scope.filter((s) => s.type === "INCLUDED");
-  const excluded = contract.scope.filter((s) => s.type === "EXCLUDED");
-  const isAwaiting = contract.status === "AWAITING_APPROVAL";
+  const included = currentContract.scope.filter((s) => s.type === "INCLUDED");
+  const excluded = currentContract.scope.filter((s) => s.type === "EXCLUDED");
+  const isAwaiting = currentContract.status === "AWAITING_APPROVAL";
+  const canEdit = isAwaiting || currentContract.status === "DRAFT";
+
+  const handleAddCriterion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const statement = newCriterion.trim();
+    if (!statement) return;
+
+    setIsModifying(true);
+    setCriteriaError(null);
+    const res = await modifyContractCriteria(currentContract.id, {
+      action: "ADD",
+      statement,
+      acceptanceRelevant: true,
+    });
+    setIsModifying(false);
+
+    if (res.error) {
+      setCriteriaError("Failed to add criterion. Please try again.");
+      return;
+    }
+
+    if (res.data) {
+      setCurrentContract(res.data);
+      setNewCriterion("");
+      onContractUpdated?.();
+    }
+  };
+
+  const handleDeleteCriterion = async (key: string) => {
+    if (currentContract.requirements.length <= 1) {
+      setCriteriaError("A work agreement must retain at least one completion criterion.");
+      return;
+    }
+
+    setIsModifying(true);
+    setCriteriaError(null);
+    const res = await modifyContractCriteria(currentContract.id, {
+      action: "DELETE",
+      key,
+    });
+    setIsModifying(false);
+
+    if (res.error) {
+      setCriteriaError("Failed to remove criterion.");
+      return;
+    }
+
+    if (res.data) {
+      setCurrentContract(res.data);
+      onContractUpdated?.();
+    }
+  };
 
   return (
     <div className="grid gap-6">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">{contract.title}</CardTitle>
+            <CardTitle className="text-base font-semibold">{currentContract.title}</CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">Version {contract.version}</Badge>
+              <Badge variant="outline">Version {currentContract.version}</Badge>
               <StatusBadge
                 tone={
-                  contract.status === "ACTIVE"
+                  currentContract.status === "ACTIVE"
                     ? "success"
-                    : contract.status === "AWAITING_APPROVAL"
+                    : currentContract.status === "AWAITING_APPROVAL"
                       ? "attention"
                       : "neutral"
                 }
               >
-                {contractStatusLabel(contract.status)}
+                {contractStatusLabel(currentContract.status)}
               </StatusBadge>
             </div>
           </div>
-          <CardDescription>{contract.summary}</CardDescription>
+          <CardDescription>{currentContract.summary}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -72,8 +136,8 @@ export function ContractReview({
               <div className="text-xs uppercase text-muted-foreground">Budget ceiling</div>
               <div className="mt-1 text-lg font-semibold">
                 {formatMinorMoney({
-                  amountMinor: contract.budgetMinor,
-                  currency: contract.currency,
+                  amountMinor: currentContract.budgetMinor,
+                  currency: currentContract.currency,
                 })}
               </div>
               <div className="text-xs text-muted-foreground">The agent cannot spend more.</div>
@@ -81,32 +145,55 @@ export function ContractReview({
             <div className="rounded-lg border p-3">
               <div className="text-xs uppercase text-muted-foreground">Deadline</div>
               <div className="mt-1 text-sm font-medium">
-                {contract.deadline ? formatDateTime(contract.deadline) : "No fixed deadline"}
+                {currentContract.deadline ? formatDateTime(currentContract.deadline) : "No fixed deadline"}
               </div>
             </div>
             <div className="rounded-lg border p-3">
-              <div className="text-xs uppercase text-muted-foreground">Contract hash</div>
-              <div className="mt-1 truncate font-mono text-xs" title={contract.contractHash}>
-                {contract.contractHash.slice(0, 16)}…
+              <div className="text-xs uppercase text-muted-foreground">Agreement hash</div>
+              <div className="mt-1 truncate font-mono text-xs" title={currentContract.contractHash}>
+                {currentContract.contractHash.slice(0, 16)}...
               </div>
-              <div className="text-xs text-muted-foreground">Approval binds to this hash.</div>
+              <div className="text-xs text-muted-foreground">Approval binds strictly to this hash.</div>
             </div>
           </div>
 
           <Separator />
 
+          {/* Definition of Done Section */}
           <div className="grid gap-3">
-            <div className="text-sm font-medium">What will be delivered (requirements)</div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <span>Definition of Done (Criteria for Completion)</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Explicit criteria that must be satisfied for task verification and PayPal funds release.
+                  {canEdit ? " You can add, edit, or remove criteria before approval." : ""}
+                </p>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                {currentContract.requirements.length} {currentContract.requirements.length === 1 ? "Criterion" : "Criteria"}
+              </Badge>
+            </div>
+
+            {criteriaError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {criteriaError}
+              </div>
+            ) : null}
+
             <ul className="grid gap-2">
-              {contract.requirements.map((r) => {
+              {currentContract.requirements.map((r) => {
                 const source = sourceByKey.get(r.key);
                 return (
                   <li
                     key={r.id}
-                    className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                    className="flex items-start justify-between gap-3 rounded-lg border p-3 bg-card transition-colors hover:bg-muted/30"
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 text-sm">{r.statement}</span>
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-1 h-2 w-2 rounded-full bg-primary/70 shrink-0" />
+                      <span className="text-sm leading-relaxed">{r.statement}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {source ? (
@@ -117,11 +204,52 @@ export function ContractReview({
                       {r.acceptanceRelevant ? (
                         <StatusBadge tone="progress">verified</StatusBadge>
                       ) : null}
+                      {canEdit ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => void handleDeleteCriterion(r.key)}
+                          disabled={isModifying || currentContract.requirements.length <= 1}
+                          title={
+                            currentContract.requirements.length <= 1
+                              ? "At least one criterion is required"
+                              : "Remove this criterion"
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </div>
                   </li>
                 );
               })}
             </ul>
+
+            {canEdit ? (
+              <form onSubmit={handleAddCriterion} className="mt-2 flex gap-2">
+                <Input
+                  value={newCriterion}
+                  onChange={(e) => setNewCriterion(e.target.value)}
+                  placeholder="Add custom completion criterion (e.g. Include interactive preview chart)..."
+                  className="text-sm"
+                  disabled={isModifying}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isModifying || !newCriterion.trim()}
+                  className="shrink-0 gap-1.5"
+                >
+                  {isModifying ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                  <span>Add Criterion</span>
+                </Button>
+              </form>
+            ) : null}
           </div>
 
           {included.length > 0 || excluded.length > 0 ? (
@@ -156,9 +284,9 @@ export function ContractReview({
             <>
               <Separator />
               <div className="grid gap-3">
-                <div className="text-sm font-medium">How it will be verified</div>
+                <div className="text-sm font-semibold">Automated Verification Rules</div>
                 <ul className="grid gap-2">
-                  {contract.requirements
+                  {currentContract.requirements
                     .filter((r) => ruleByKey.has(r.key))
                     .map((r) => {
                       const rule = ruleByKey.get(r.key);
@@ -167,10 +295,10 @@ export function ContractReview({
                           key={`${r.id}-rule`}
                           className="grid gap-1 rounded-lg border p-3 text-sm"
                         >
-                          <span>{r.statement}</span>
+                          <span className="font-medium">{r.statement}</span>
                           <span className="text-xs text-muted-foreground">
-                            Checked by {rule?.method.toLowerCase().replace("_", " ") ?? "a check"}
-                            {rule?.method === "SEMANTIC" ? " (AI assessment, advisory)" : ""}
+                            Evaluated via {rule?.method.toLowerCase().replace("_", " ") ?? "a check"}
+                            {rule?.method === "SEMANTIC" ? " (AI assessment, advisory guidance)" : ""}
                           </span>
                         </li>
                       );
@@ -181,24 +309,27 @@ export function ContractReview({
           ) : null}
 
           {isAwaiting && onApprove ? (
-            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between pt-2">
               <p className="text-sm text-muted-foreground">
-                Approving freezes these terms. The agent may then find a provider and authorize
-                payment up to the ceiling.
+                Approving cryptographically freezes these terms. The agent can then match qualified
+                specialists and authorize payment up to the ceiling.
               </p>
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button disabled={approving}>Approve &amp; Let AI Hire</Button>
+                  <Button disabled={approving} className="gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Approve Agreement &amp; Match Specialist</span>
+                  </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Approve this contract?</DialogTitle>
+                    <DialogTitle>Approve this work agreement?</DialogTitle>
                     <DialogDescription>
-                      You are approving version {contract.version} (hash{" "}
+                      You are approving version {currentContract.version} (hash{" "}
                       <span className="font-mono text-xs">
-                        {contract.contractHash.slice(0, 12)}…
+                        {currentContract.contractHash.slice(0, 12)}...
                       </span>
-                      ). Amounts come only from this agreement, never from the browser.
+                      ). Payout amounts are strictly derived from this agreement and cannot be altered by browsers or third parties.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -209,10 +340,10 @@ export function ContractReview({
                       disabled={approving}
                       onClick={() => {
                         setOpen(false);
-                        void onApprove(contract.contractHash);
+                        void onApprove(currentContract.contractHash);
                       }}
                     >
-                      {approving ? "Approving…" : "Approve contract"}
+                      {approving ? "Approving..." : "Confirm & Approve"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -226,3 +357,4 @@ export function ContractReview({
     </div>
   );
 }
+

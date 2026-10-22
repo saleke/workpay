@@ -183,12 +183,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           <div className="mt-4 pt-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground font-mono">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              <span>SHA-256 Contract Hash:</span>
+              <span>SHA-256 Agreement Hash:</span>
               <code className="bg-muted px-2 py-0.5 rounded text-foreground font-semibold">
                 {activeContract.contractHash.slice(0, 16)}...{activeContract.contractHash.slice(-8)}
               </code>
             </span>
-            <span className="text-[11px]">Approved by Buyer with Zero Tamper Invariant</span>
+            <span className="text-[11px]">Approved with Cryptographic Zero-Tamper Seal</span>
           </div>
         ) : null}
       </div>
@@ -204,11 +204,11 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         <TabsList className="grid w-full grid-cols-4 p-1 bg-muted/60 rounded-xl h-12">
           <TabsTrigger value="outcome" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             <FileCheck className="h-4 w-4" />
-            <span>Outcome & Contract</span>
+            <span>Outcome &amp; Work Agreement</span>
           </TabsTrigger>
           <TabsTrigger value="state" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             <Workflow className="h-4 w-4" />
-            <span>Agent State & Match</span>
+            <span>Agent State &amp; Match</span>
           </TabsTrigger>
           <TabsTrigger value="evidence" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             <ShieldCheck className="h-4 w-4" />
@@ -243,12 +243,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               specRequirements={workSpecification?.requirements ?? []}
               onApprove={onApprove}
               approving={approving}
+              onContractUpdated={debouncedRefresh}
             />
           ) : (
             <Card className="border-border/70 shadow-xs">
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Contract Draft</CardTitle>
-                <CardDescription>No contract has been drafted yet.</CardDescription>
+                <CardTitle className="text-base font-semibold">Work Agreement Draft</CardTitle>
+                <CardDescription>No work agreement has been drafted yet.</CardDescription>
               </CardHeader>
             </Card>
           )}

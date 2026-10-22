@@ -164,12 +164,12 @@ export function ProviderProfileManager() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />
-            Provider Profile &amp; Direct PayPal Payouts
+            Specialist Profile &amp; Direct PayPal Settlements
           </CardTitle>
           <div className="flex items-center gap-2">
             <StatusBadge tone={isListed && status === "ACTIVE" ? "success" : "neutral"}>
               {isListed && status === "ACTIVE"
-                ? "Active in Talent Registry"
+                ? "Active in Talent Network"
                 : isListed
                   ? "Profile Paused"
                   : "Unlisted"}
@@ -177,7 +177,7 @@ export function ProviderProfileManager() {
           </div>
         </div>
         <CardDescription className="text-xs sm:text-sm">
-          WorkPay operates on a dual-role architecture: any user account can post work orders and earn as an independent service provider. Matchmaking discovers active providers automatically.
+          WorkPay operates on a dual-role architecture: any user account can commission work and earn as an independent specialist. Matchmaking pairs active profiles with relevant objectives automatically.
         </CardDescription>
       </CardHeader>
 
@@ -401,7 +401,7 @@ export function ProviderProfileManager() {
                   Saving Profile...
                 </>
               ) : (
-                "Save Provider Profile"
+                "Save Specialist Profile"
               )}
             </Button>
           </div>

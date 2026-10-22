@@ -146,7 +146,7 @@ export default function ActivityPage() {
       {filteredEntries.length === 0 ? (
         <EmptyState
           title="No events recorded"
-          description="Activity appears automatically as buyers create tasks, agents orchestrate work, and payments settle."
+          description="Activity appears automatically as tasks are created, agents orchestrate work, and payments settle."
         />
       ) : (
         <div className="relative border-l-2 border-border/70 ml-4 sm:ml-6 space-y-4 py-2">

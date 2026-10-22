@@ -141,7 +141,7 @@ export default function LoginPage() {
               >
                 <User className="h-3.5 w-3.5 text-blue-500" />
                 <span className="font-semibold text-foreground">Alice</span>
-                <span className="text-[9px] text-muted-foreground">Buyer</span>
+                <span className="text-[9px] text-muted-foreground">Task Owner</span>
               </Button>
 
               <Button
@@ -153,7 +153,7 @@ export default function LoginPage() {
               >
                 <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
                 <span className="font-semibold text-foreground">Bob</span>
-                <span className="text-[9px] text-muted-foreground">Provider</span>
+                <span className="text-[9px] text-muted-foreground">Specialist</span>
               </Button>
 
               <Button
@@ -165,7 +165,7 @@ export default function LoginPage() {
               >
                 <Scale className="h-3.5 w-3.5 text-purple-500" />
                 <span className="font-semibold text-foreground">Carol</span>
-                <span className="text-[9px] text-muted-foreground">Reviewer</span>
+                <span className="text-[9px] text-muted-foreground">Arbitrator</span>
               </Button>
             </div>
           </>

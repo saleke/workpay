@@ -128,12 +128,18 @@ export function ProviderWorkDetail({
           <Separator />
 
           <div className="grid gap-2">
-            <div className="text-sm font-medium">Requirements</div>
-            <ul className="grid gap-1.5">
+            <div className="text-sm font-semibold flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span>Definition of Done (Criteria for Completion)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These criteria are strictly validated by automated checks and evaluation before payment releases.
+            </p>
+            <ul className="grid gap-2 mt-1">
               {work.requirements.map((r) => (
-                <li key={r.key} className="flex items-start gap-2 text-sm">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span>{r.statement}</span>
+                <li key={r.key} className="flex items-start gap-2.5 rounded-md border p-2.5 text-sm bg-muted/20">
+                  <span className="mt-1 h-2 w-2 rounded-full bg-primary/70 shrink-0" />
+                  <span className="leading-relaxed">{r.statement}</span>
                 </li>
               ))}
             </ul>
@@ -195,7 +201,7 @@ export function ProviderWorkDetail({
                   className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
                 />
                 <Textarea
-                  placeholder="Note for the buyer (optional)"
+                  placeholder="Note for the task owner (optional)"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={3}

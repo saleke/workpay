@@ -157,7 +157,7 @@ export default function PaymentsPage() {
       {filteredPayments.length === 0 ? (
         <EmptyState
           title="No transactions match this filter"
-          description="Transactions appear when buyers approve contracts and authorize payment via PayPal."
+          description="Transactions appear when work agreements are approved and payments are authorized via PayPal."
         />
       ) : (
         <div className="grid gap-4">

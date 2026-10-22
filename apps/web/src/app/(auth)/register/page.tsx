@@ -91,10 +91,10 @@ export default function RegisterPage() {
               >
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mb-0.5">
                   <User className="h-3.5 w-3.5 text-primary" />
-                  <span>Task Buyer</span>
+                  <span>Task Owner</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground leading-tight">
-                  I need work done and want escrow payment safety.
+                  I commission work and want escrow safety and verified delivery.
                 </span>
               </button>
 
@@ -109,10 +109,10 @@ export default function RegisterPage() {
               >
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mb-0.5">
                   <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Service Provider</span>
+                  <span>Specialist / Expert</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground leading-tight">
-                  I want assignments and guaranteed PayPal payouts.
+                  I accept matched assignments and receive instant PayPal payouts.
                 </span>
               </button>
             </div>

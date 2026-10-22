@@ -53,6 +53,23 @@ export function approveContract(
   });
 }
 
+export interface ModifyCriteriaInput {
+  action: "ADD" | "EDIT" | "DELETE";
+  statement?: string;
+  key?: string;
+  acceptanceRelevant?: boolean;
+}
+
+export function modifyContractCriteria(
+  contractId: string,
+  input: ModifyCriteriaInput,
+): Promise<ApiResponse<ContractDto>> {
+  return apiFetch<ContractDto>(`${BASE}/contracts/${contractId}/criteria`, {
+    method: "POST",
+    body: input,
+  });
+}
+
 export function listPayments(): Promise<ApiResponse<PaymentDto[]>> {
   return apiFetch<PaymentDto[]>(`${BASE}/payments`);
 }

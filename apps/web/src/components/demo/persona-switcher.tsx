@@ -60,20 +60,20 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "buyer",
     name: "Alice",
-    roleTitle: "Task Buyer",
-    badge: "BUYER",
+    roleTitle: "Task Owner / Lead",
+    badge: "TASK OWNER",
     badgeColor: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-    description: "Posts tasks, approves contracts, and authorizes PayPal escrow funds.",
+    description: "Posts tasks, tunes Definition of Done, approves work agreements, and authorizes escrow.",
     homeUrl: "/tasks",
     icon: User,
   },
   {
     key: "provider",
     name: "Bob",
-    roleTitle: "Apex Data Solutions",
-    badge: "PROVIDER",
+    roleTitle: "Apex Data (Specialist)",
+    badge: "SPECIALIST",
     badgeColor: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-    description: "Receives work assignments, submits deliverable files, receives captured payouts.",
+    description: "Receives matched work, fulfills Definition of Done, and receives PayPal settlements.",
     homeUrl: "/provider",
     icon: Briefcase,
   },
@@ -81,9 +81,9 @@ const PERSONAS: PersonaConfig[] = [
     key: "admin_reviewer",
     name: "Carol",
     roleTitle: "Dispute Arbitrator",
-    badge: "REVIEWER",
+    badge: "ARBITRATOR",
     badgeColor: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
-    description: "Inspects failed/uncertain verifications, reviews evidence diffs, resolves dispute cases.",
+    description: "Inspects failed or disputed verifications, reviews evidence diffs, and rules on escrow.",
     homeUrl: "/review",
     icon: Scale,
   },
@@ -370,30 +370,30 @@ export function PersonaSwitcher() {
             <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <h4 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">1</span>
-                Buyer Step (Alice)
+                Task Owner Step (Alice)
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Click <strong>"New Escrow Task"</strong> or select an existing task. Review the AI-compiled contract and click <strong>"Approve Contract"</strong>. The agent reserves funds via PayPal Authorization hold into escrow.
+                Click <strong>"New Escrow Task"</strong> or select an existing task. Review the Definition of Done, add or customize criteria as needed, and click <strong>"Approve Agreement &amp; Match Specialist"</strong>. The agent reserves funds via PayPal Authorization hold into escrow.
               </p>
             </div>
 
             <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
               <h4 className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">2</span>
-                Provider Step (Bob)
+                Specialist Step (Bob)
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Switch persona to <strong>Bob (Provider)</strong> and visit the <strong>Provider Portal</strong>. Accept the assigned task, start work, and submit the deliverable file.
+                Switch persona to <strong>Bob (Specialist)</strong> and visit the <strong>Work Studio</strong>. Review the transparent Definition of Done, accept the assignment, start work, and submit your deliverable file.
               </p>
             </div>
 
             <div className="rounded-xl border border-purple-200/70 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
               <h4 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">3</span>
-                Verification & PayPal Settlement
+                Verification &amp; PayPal Settlement
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                WorkPay automatically inspects the deliverable. If flawed, it rejects it and keeps funds safe in escrow. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment and completing the task.
+                WorkPay automatically inspects the deliverable against the agreed Definition of Done. If flawed, it rejects it and keeps funds safe in escrow. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment and completing the task.
               </p>
             </div>
 

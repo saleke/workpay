@@ -295,7 +295,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Card 3: Provider Profile & Direct PayPal Settlement */}
+        {/* Card 3: Specialist Profile & Direct PayPal Settlement */}
         <ProviderProfileManager />
 
         {/* Card 4: PayPal Escrow & Gateway Invariants */}
