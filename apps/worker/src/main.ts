@@ -45,18 +45,18 @@ function getNotificationContent(
       };
     case "CONTRACT_CREATED":
       return {
-        title: "Contract ready for review",
-        body: `A new contract draft is ready for review on "${taskTitle}".`,
+        title: "Work agreement ready for review",
+        body: `A new work agreement draft is ready for review on "${taskTitle}".`,
       };
     case "CONTRACT_APPROVED":
       return {
-        title: "Contract approved",
-        body: `Contract approved for "${taskTitle}". Agent is now searching for matching providers.`,
+        title: "Work agreement approved",
+        body: `Work agreement approved for "${taskTitle}". Agent is now searching for matching specialists.`,
       };
     case "PROVIDER_SELECTED":
       return {
-        title: "Provider selected",
-        body: `Candidate provider selected for "${taskTitle}". Negotiation started.`,
+        title: "Specialist matched",
+        body: `Candidate specialist matched for "${taskTitle}". Negotiation started.`,
       };
     case "OFFER_CREATED":
       return {
@@ -71,17 +71,17 @@ function getNotificationContent(
     case "PAYMENT_AUTHORIZED":
       return {
         title: "Payment authorized",
-        body: `Escrow hold authorized for "${taskTitle}". Provider is starting work.`,
+        body: `Escrow hold authorized for "${taskTitle}". Specialist is starting work.`,
       };
     case "WORK_STARTED":
       return {
         title: "Work in progress",
-        body: `The provider has started working on "${taskTitle}".`,
+        body: `The specialist has started working on "${taskTitle}".`,
       };
     case "WORK_SUBMITTED":
       return {
         title: "Deliverable submitted",
-        body: `Provider submitted work for "${taskTitle}". Automated verification has commenced.`,
+        body: `Specialist submitted work for "${taskTitle}". Automated verification against Definition of Done has commenced.`,
       };
     case "VERIFICATION_COMPLETED": {
       const outcome = String(payload.outcome || "COMPLETED");
@@ -93,7 +93,7 @@ function getNotificationContent(
     case "PAYMENT_CAPTURED":
       return {
         title: "Payment released",
-        body: `Payment captured and released to provider for "${taskTitle}".`,
+        body: `Payment captured and released to specialist for "${taskTitle}".`,
       };
     case "TASK_COMPLETED":
       return {
