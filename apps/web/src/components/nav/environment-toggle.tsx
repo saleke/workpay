@@ -31,10 +31,10 @@ export function EnvironmentToggle() {
         <button
           type="button"
           aria-label="Select execution environment"
-          className="flex items-center gap-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2.5 py-1.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer"
+          className="h-8 flex items-center gap-1.5 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2 sm:px-2.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
         >
           <span
-            className={`h-2 w-2 rounded-full ${
+            className={`h-2 w-2 rounded-full shrink-0 ${
               isDemo ? "bg-[var(--wp-accent)] shadow-[0_0_8px_rgba(183,121,45,0.4)]" : "bg-[var(--wp-success)] shadow-[0_0_8px_rgba(40,122,83,0.4)]"
             }`}
           />

@@ -36,19 +36,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <TopProgressBar />
 
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-[var(--wp-border)] px-4 sm:px-6 transition-all duration-150">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 lg:gap-4 py-2.5">
           {/* Brand Wordmark & Nav */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 lg:gap-6 min-w-0">
             <Link
               href="/"
-              className="flex items-center gap-2 text-lg font-bold tracking-tight text-[var(--wp-text-primary)] hover:opacity-90 active:scale-[0.98] transition-all"
+              className="flex items-center gap-2 text-lg font-bold tracking-tight text-[var(--wp-text-primary)] hover:opacity-90 active:scale-[0.98] transition-all shrink-0"
             >
               <span>WorkPay</span>
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)] shadow-[0_0_8px_rgba(183,121,45,0.5)]" />
             </Link>
 
             {/* Navigation links - Desktop */}
-            <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
+            <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 text-sm font-medium shrink-0">
               {navItems.map((item) => {
                 const isActive =
                   item.href === "/"
@@ -63,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 active:scale-[0.98]",
+                      "h-8 px-2.5 lg:px-3 rounded-lg text-xs lg:text-sm font-medium transition-all duration-150 inline-flex items-center justify-center whitespace-nowrap shrink-0 active:scale-[0.98]",
                       isActive
                         ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-xs border border-[var(--wp-border)]"
                         : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] border border-transparent",
@@ -77,15 +77,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <EnvironmentToggle />
             <UserNav />
             <NotificationsBell />
             <Link
               href="/tasks/new"
-              className="flex items-center gap-1.5 bg-[var(--wp-text-primary)] text-white hover:bg-black px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 shadow-xs hover:shadow-sm active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] shrink-0"
+              className="h-8 flex items-center gap-1.5 bg-[var(--wp-text-primary)] text-white hover:bg-black px-3 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 shadow-xs hover:shadow-sm active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] shrink-0 whitespace-nowrap"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">New task</span>
             </Link>
 
@@ -93,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--wp-border)] bg-white/90 text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] active:scale-[0.98] transition-all"
+              className="md:hidden flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--wp-border)] bg-white/90 text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] active:scale-[0.98] transition-all shrink-0"
               aria-label="Toggle mobile menu"
             >
               {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}

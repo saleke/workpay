@@ -98,7 +98,7 @@ export function NotificationsBell() {
         <Button
           variant="outline"
           size="icon"
-          className="relative h-9 w-9 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] transition-all duration-150 shadow-xs active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] cursor-pointer"
+          className="relative h-8 w-8 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] transition-all duration-150 shadow-xs active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] cursor-pointer shrink-0"
         >
           <Bell className="h-4 w-4 text-[var(--wp-text-primary)]" />
           {unreadCount > 0 ? (

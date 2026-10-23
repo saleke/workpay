@@ -103,43 +103,53 @@ export function UserNav() {
   useEffect(() => {
     setMounted(true);
 
-    // 1. Check for stored authenticated user
-    const storedAuth = window.localStorage.getItem("workpay_auth_user");
-    if (storedAuth) {
-      try {
-        const parsed = JSON.parse(storedAuth) as AuthUser;
-        if (parsed?.id) {
-          setUser(parsed);
-          return;
+    const syncUser = () => {
+      // 1. Check for stored authenticated user
+      const storedAuth = window.localStorage.getItem("workpay_auth_user");
+      if (storedAuth) {
+        try {
+          const parsed = JSON.parse(storedAuth) as AuthUser;
+          if (parsed?.id) {
+            setUser(parsed);
+            return;
+          }
+        } catch {
+          // Ignore parse error
         }
-      } catch {
-        // Ignore parse error
       }
-    }
 
-    // 2. Check for explicit signed-out flag
-    const explicitlySignedOut = window.localStorage.getItem("workpay_signed_out") === "true";
-    if (explicitlySignedOut && !isDemo) {
-      setUser(null);
-      return;
-    }
+      // 2. Check for explicit signed-out flag
+      const explicitlySignedOut = window.localStorage.getItem("workpay_signed_out") === "true";
+      if (explicitlySignedOut) {
+        setUser(null);
+        return;
+      }
 
-    // 3. Check for active persona or fallback to Alice
-    const storedPersona = window.localStorage.getItem("workpay_persona") as "buyer" | "provider" | "admin_reviewer" | null;
-    const personaConfig = PERSONAS.find((p) => p.key === storedPersona) ?? PERSONAS[0]!;
+      // 3. Check for active persona or fallback to Alice
+      const storedPersona = window.localStorage.getItem("workpay_persona") as "buyer" | "provider" | "admin_reviewer" | null;
+      const personaConfig = PERSONAS.find((p) => p.key === storedPersona) ?? PERSONAS[0]!;
 
-    const defaultUser: AuthUser = {
-      id: personaConfig.key === "provider" ? "usr_provider_bob" : personaConfig.key === "admin_reviewer" ? "usr_admin_carol" : "usr_buyer_alice",
-      name: personaConfig.name,
-      email: personaConfig.email,
-      role: personaConfig.key,
+      const defaultUser: AuthUser = {
+        id: personaConfig.key === "provider" ? "usr_provider_bob" : personaConfig.key === "admin_reviewer" ? "usr_admin_carol" : "usr_buyer_alice",
+        name: personaConfig.name,
+        email: personaConfig.email,
+        role: personaConfig.key,
+      };
+
+      setUser(defaultUser);
+      window.localStorage.setItem("workpay_auth_user", JSON.stringify(defaultUser));
+      window.localStorage.setItem("workpay_persona", personaConfig.key);
+      document.cookie = `workpay_persona=${personaConfig.key}; path=/; max-age=31536000`;
     };
 
-    setUser(defaultUser);
-    window.localStorage.setItem("workpay_auth_user", JSON.stringify(defaultUser));
-    window.localStorage.setItem("workpay_persona", personaConfig.key);
-    document.cookie = `workpay_persona=${personaConfig.key}; path=/; max-age=31536000`;
-  }, [isDemo]);
+    syncUser();
+    window.addEventListener("storage", syncUser);
+    window.addEventListener("workpay_auth_change", syncUser);
+    return () => {
+      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("workpay_auth_change", syncUser);
+    };
+  }, []);
 
   const switchPersona = (persona: PersonaConfig, navigate = false) => {
     const nextUser: AuthUser = {
@@ -154,6 +164,7 @@ export function UserNav() {
     window.localStorage.setItem("workpay_persona", persona.key);
     window.localStorage.removeItem("workpay_signed_out");
     document.cookie = `workpay_persona=${persona.key}; path=/; max-age=31536000`;
+    window.dispatchEvent(new Event("workpay_auth_change"));
 
     if (navigate) {
       router.push(persona.homeUrl);
@@ -173,6 +184,7 @@ export function UserNav() {
     window.localStorage.removeItem("workpay_persona");
     window.localStorage.setItem("workpay_signed_out", "true");
     document.cookie = "workpay_persona=; path=/; max-age=0";
+    window.dispatchEvent(new Event("workpay_auth_change"));
     setUser(null);
     router.push("/login");
     router.refresh();
@@ -212,17 +224,17 @@ export function UserNav() {
 
   if (!user) {
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1 shrink-0">
         <Link
           href="/login"
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] transition-all duration-150"
+          className="h-8 flex items-center gap-1 px-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] rounded-lg transition-all duration-150 shrink-0 whitespace-nowrap"
         >
           <LogIn className="h-3.5 w-3.5" />
           <span>Sign In</span>
         </Link>
         <Link
           href="/register"
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--wp-text-primary)] text-white hover:bg-black transition-all duration-150 shadow-xs"
+          className="h-8 flex items-center gap-1 px-2.5 text-xs font-medium bg-[var(--wp-text-primary)] text-white hover:bg-black rounded-lg transition-all duration-150 shadow-xs shrink-0 whitespace-nowrap"
         >
           <UserPlus className="h-3.5 w-3.5" />
           <span>Register</span>
@@ -256,18 +268,15 @@ export function UserNav() {
           <button
             type="button"
             aria-label="User account and perspective navigation"
-            className="flex items-center gap-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2.5 py-1.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer"
+            className="h-8 flex items-center gap-1.5 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2 sm:px-2.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--wp-surface-subtle)] text-[10px] font-bold text-[var(--wp-text-primary)] border border-[var(--wp-border)]">
               {initials}
             </span>
-            <span className="text-[var(--wp-text-primary)] font-medium max-w-[120px] truncate">
+            <span className="text-[var(--wp-text-primary)] font-medium max-w-[80px] sm:max-w-[100px] truncate whitespace-nowrap">
               {displayName}
             </span>
-            <span className="text-[11px] text-[var(--wp-text-secondary)] opacity-80 font-normal hidden sm:inline">
-              ({roleTitle})
-            </span>
-            <ChevronDown className="h-3 w-3 text-[var(--wp-text-secondary)] opacity-60" />
+            <ChevronDown className="h-3 w-3 text-[var(--wp-text-secondary)] opacity-60 shrink-0" />
           </button>
         </DropdownMenuTrigger>
 

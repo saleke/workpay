@@ -46,7 +46,9 @@ export default function RegisterPage() {
       if (user) {
         window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
         window.localStorage.setItem("workpay_persona", "buyer");
+        window.localStorage.removeItem("workpay_signed_out");
         document.cookie = "workpay_persona=buyer; path=/; max-age=31536000";
+        window.dispatchEvent(new Event("workpay_auth_change"));
         router.push("/tasks");
         router.refresh();
       }

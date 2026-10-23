@@ -43,6 +43,7 @@ export default function LoginPage() {
         window.localStorage.setItem("workpay_persona", user.role);
         window.localStorage.removeItem("workpay_signed_out");
         document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
+        window.dispatchEvent(new Event("workpay_auth_change"));
         router.push(user.role === "provider" ? "/provider" : "/tasks");
         router.refresh();
       }
@@ -66,6 +67,7 @@ export default function LoginPage() {
     window.localStorage.setItem("workpay_persona", role);
     window.localStorage.removeItem("workpay_signed_out");
     document.cookie = `workpay_persona=${role}; path=/; max-age=31536000`;
+    window.dispatchEvent(new Event("workpay_auth_change"));
     router.push(homeUrl);
     router.refresh();
   };
