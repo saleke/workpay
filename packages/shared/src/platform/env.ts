@@ -79,6 +79,14 @@ export const envSchema = z
 
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
     SENTRY_DSN: optionalString,
+
+    // GitHub OAuth
+    GITHUB_CLIENT_ID: optionalString,
+    GITHUB_CLIENT_SECRET: optionalString,
+
+    // Google OAuth (Sign-Up and Login)
+    GOOGLE_CLIENT_ID: optionalString,
+    GOOGLE_CLIENT_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.AI_PROVIDER === "openai" && !env.OPENAI_API_KEY) {

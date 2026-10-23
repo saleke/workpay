@@ -108,17 +108,29 @@ export async function POST(req: Request) {
     }).onConflictDoNothing();
 
     const verifyToken = randomBytes(32).toString("hex");
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await db
       .insert(verificationTokens)
-      .values({
-        identifier: parsed.email.toLowerCase(),
-        token: verifyToken,
-        expires: tokenExpires,
-      })
+      .values([
+        {
+          identifier: parsed.email.toLowerCase(),
+          token: verifyToken,
+          expires: tokenExpires,
+        },
+        {
+          identifier: parsed.email.toLowerCase(),
+          token: otpCode,
+          expires: tokenExpires,
+        },
+      ])
       .onConflictDoNothing();
 
-    logger.info({ email: parsed.email, verifyToken }, "issued email verification token for new user");
+    const envUrl = process.env.APP_URL || "http://localhost:3000";
+    const appUrl = envUrl.replace(/\/$/, "");
+    const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${verifyToken}`;
+
+    logger.info({ email: parsed.email, verifyToken, otpCode }, "issued email verification token and otp for new user");
 
     const sessionToken = await createSession(userId);
     const res = NextResponse.json({
@@ -133,6 +145,9 @@ export async function POST(req: Request) {
           idVerificationStatus: "UNVERIFIED",
           paypalVerified: false,
         },
+        requiresEmailVerification: true,
+        otpCode,
+        verificationUrl,
       },
     });
 

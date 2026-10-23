@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, jsonError, resolveActorAsync } from "@/lib/server/api";
@@ -32,32 +32,47 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const token = randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const identifier = user.email.toLowerCase();
+    const linkToken = randomBytes(32).toString("hex");
+    const otpCode = randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    // Clean up previous tokens for this email
     await db.delete(verificationTokens).where(eq(verificationTokens.identifier, identifier));
-    await db.insert(verificationTokens).values({
-      identifier,
-      token,
-      expires,
-    });
+
+    // Insert both the 1-click URL link token and the 6-digit OTP code
+    await db.insert(verificationTokens).values([
+      {
+        identifier,
+        token: linkToken,
+        expires,
+      },
+      {
+        identifier,
+        token: otpCode,
+        expires,
+      },
+    ]);
 
     const env = getEnv();
     const appUrl = env.APP_URL.replace(/\/$/, "");
-    const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${token}`;
+    const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${linkToken}`;
 
-    logger.info({ userId: actorId, email: identifier, verificationUrl }, "generated authentic email verification link");
+    logger.info(
+      { userId: actorId, email: identifier, otpCode, verificationUrl },
+      "generated hybrid email verification link and 6-digit otp code",
+    );
 
     return NextResponse.json({
       success: true,
       email: identifier,
+      otpCode,
       verificationUrl,
       expiresAt: expires.toISOString(),
-      message: `A verification link has been generated for ${identifier}. Click below or check server logs to verify.`,
+      message: `A verification link and 6-digit code have been dispatched for ${identifier}.`,
     });
   } catch (error) {
-    logger.error({ err: String(error) }, "failed to generate email verification link");
-    return jsonError({ code: "INTERNAL_ERROR", message: "Failed to send verification email" }, 500);
+    logger.error({ err: String(error) }, "failed to generate email verification link and code");
+    return jsonError({ code: "INTERNAL_ERROR", message: "Failed to dispatch verification email" }, 500);
   }
 }

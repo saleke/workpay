@@ -155,8 +155,12 @@ function SettingsContent() {
 
   // Email verification (Step 1)
   const [sendingVerifyEmail, setSendingVerifyEmail] = useState(false);
+  const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
+  const [emailOtpInput, setEmailOtpInput] = useState("");
+  const [emailVerifyStep, setEmailVerifyStep] = useState<"initial" | "otp">("initial");
   const [emailVerificationResult, setEmailVerificationResult] = useState<{
     verificationUrl?: string;
+    otpCode?: string;
     message?: string;
   } | null>(null);
 
@@ -191,6 +195,7 @@ function SettingsContent() {
   } | null>(null);
   const [requestingChallenge, setRequestingChallenge] = useState(false);
   const [verifyingGithub, setVerifyingGithub] = useState(false);
+  const [connectingGithubOAuth, setConnectingGithubOAuth] = useState(false);
 
   // Identity Verification (Step 3 - Government ID & Milestone Threshold)
   const [idModalOpen, setIdModalOpen] = useState(false);
@@ -264,6 +269,10 @@ function SettingsContent() {
       router.replace(`/settings?${params.toString()}`, { scroll: false });
     } else if (success === "email_verified") {
       toast.success("Email address verified successfully!");
+      params.delete("success");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    } else if (success === "github_linked") {
+      toast.success("GitHub developer profile verified via authorized GitHub OAuth!");
       params.delete("success");
       router.replace(`/settings?${params.toString()}`, { scroll: false });
     } else if (error) {
@@ -374,11 +383,66 @@ function SettingsContent() {
         return;
       }
       setEmailVerificationResult(json);
-      toast.success(json.message || "Email verification link generated");
+      setEmailVerifyStep("otp");
+      toast.success(json.message || "Email verification code and link generated");
     } catch {
       toast.error("Network error while generating verification link");
     } finally {
       setSendingVerifyEmail(false);
+    }
+  };
+
+  const handleConfirmEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailOtpInput.trim()) {
+      toast.error("Please enter the 6-digit verification code");
+      return;
+    }
+    setVerifyingEmailOtp(true);
+    try {
+      const res = await fetch("/api/v1/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: emailOtpInput.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message || "Invalid or expired verification code");
+        return;
+      }
+      toast.success("Email address verified successfully!");
+      setEmailOtpInput("");
+      setEmailVerifyStep("initial");
+      setEmailVerificationResult(null);
+      await loadProfile();
+    } catch {
+      toast.error("Network error while verifying code");
+    } finally {
+      setVerifyingEmailOtp(false);
+    }
+  };
+
+  const handleConnectGithubOAuth = async () => {
+    setConnectingGithubOAuth(true);
+    try {
+      const res = await fetch("/api/v1/user/github/connect", {
+        headers: { Accept: "application/json" },
+      });
+      const json = await res.json();
+      if (json.configured === false) {
+        toast.error(json.message || "GitHub OAuth is not configured. Please use the manual bio verification option.");
+        setGithubModalOpen(true);
+        return;
+      }
+      if (json.authorizeUrl) {
+        window.location.href = json.authorizeUrl;
+        return;
+      }
+      window.location.href = "/api/v1/user/github/connect";
+    } catch {
+      window.location.href = "/api/v1/user/github/connect";
+    } finally {
+      setConnectingGithubOAuth(false);
     }
   };
 
@@ -761,21 +825,69 @@ function SettingsContent() {
                           </p>
                         </div>
 
-                        {/* Verified Account Email */}
+                        {/* Account Email with Verification Badge and Inline Actions */}
                         <div className="space-y-1.5">
-                          <Label htmlFor="profileEmail" className="text-xs">Account Email</Label>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="profileEmail" className="text-xs">Account Email</Label>
+                            {userProfile?.emailVerified ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] flex items-center gap-1 font-semibold">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Verified
+                              </Badge>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-[10px]">
+                                  Unverified
+                                </Badge>
+                                <button
+                                  type="button"
+                                  onClick={handleSendEmailVerification}
+                                  disabled={sendingVerifyEmail}
+                                  className="text-[10px] text-primary hover:underline font-semibold"
+                                >
+                                  {sendingVerifyEmail ? "Sending..." : "Verify"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           <div className="relative">
                             <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                               id="profileEmail"
                               value={authUser.email}
                               disabled
-                              className="pl-9 text-xs bg-muted/40 cursor-not-allowed"
+                              className="pl-9 text-xs bg-muted/40 cursor-not-allowed select-all"
                             />
                           </div>
                           <p className="text-[11px] text-[var(--wp-text-secondary)]">
                             Your verified account email used for authentication and security alerts.
                           </p>
+
+                          {emailVerifyStep === "otp" && !userProfile?.emailVerified && (
+                            <form onSubmit={handleConfirmEmailOtp} className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2">
+                              <div className="flex items-center justify-between text-xs font-semibold">
+                                <span>Enter 6-Digit Email Code</span>
+                                {emailVerificationResult?.otpCode && (
+                                  <span className="font-mono text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    Code: {emailVerificationResult.otpCode}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="123456"
+                                  value={emailOtpInput}
+                                  onChange={(e) => setEmailOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  maxLength={6}
+                                  className="font-mono text-center text-xs tracking-widest max-w-[140px]"
+                                  autoFocus
+                                />
+                                <Button type="submit" size="sm" disabled={verifyingEmailOtp || emailOtpInput.length < 6} className="text-xs">
+                                  {verifyingEmailOtp ? "Verifying..." : "Confirm"}
+                                </Button>
+                              </div>
+                            </form>
+                          )}
                         </div>
 
                         <Button type="submit" size="sm" disabled={savingProfile} className="text-xs font-semibold">
@@ -785,104 +897,13 @@ function SettingsContent() {
                     </CardContent>
                   </Card>
 
-                  {/* Step 1: Institutional Email Verification */}
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Step 1: Email Address Verification
-                        </CardTitle>
-                        {userProfile?.emailVerified ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Email Verified
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
-                            Unverified Email
-                          </Badge>
-                        )}
-                      </div>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Step 1 of platform verification: Rejects disposable burner domains and verifies authentic address ownership.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6 space-y-3">
-                      {userProfile?.emailVerified ? (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              <CheckCircle2 className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                                {userProfile.email}
-                              </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                Verified personal or institutional address. Protected against Sybil attacks.
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0">
-                            Anti-Sybil Defense Active
-                          </Badge>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
-                            <div>
-                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                                Unverified Address: {userProfile?.email || authUser.email}
-                              </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                                Confirm ownership of this address to receive automated payment settlement alerts and unlock full platform capabilities.
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={handleSendEmailVerification}
-                              disabled={sendingVerifyEmail}
-                              className="text-xs font-semibold shrink-0"
-                            >
-                              <Mail className="h-3.5 w-3.5 mr-1.5" />
-                              {sendingVerifyEmail ? "Issuing Link..." : "Send Verification Email"}
-                            </Button>
-                          </div>
-
-                          {emailVerificationResult?.verificationUrl && (
-                            <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
-                              <div className="font-semibold text-blue-700 dark:text-blue-400">
-                                Verification Link Generated (Testing &amp; Demo Mode)
-                              </div>
-                              <div className="font-mono text-[11px] p-2 rounded bg-background border break-all select-all">
-                                {emailVerificationResult.verificationUrl}
-                              </div>
-                              <Button
-                                asChild
-                                size="sm"
-                                variant="outline"
-                                className="text-xs font-semibold text-blue-600 border-blue-400/40"
-                              >
-                                <a href={emailVerificationResult.verificationUrl}>
-                                  Click Here to Complete Email Verification
-                                </a>
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Step 2: Developer Quality Verification (GitHub) */}
+                  {/* Step 1: Developer Quality Verification (GitHub) */}
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                     <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Github className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Step 2: Developer Quality Verification
+                          Step 1: Developer Quality Verification
                         </CardTitle>
                         {userProfile?.githubUsername ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
@@ -896,7 +917,7 @@ function SettingsContent() {
                         )}
                       </div>
                       <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Connect your GitHub profile to unlock specialist assignments, display developer trust badges, and qualify for high-tier engineering tasks.
+                        Connect your GitHub profile via authorized OAuth login or challenge handshake to qualify for high-tier engineering tasks.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="p-5 sm:p-6">
@@ -948,30 +969,45 @@ function SettingsContent() {
                               No GitHub Account Connected
                             </div>
                             <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                              Link your public GitHub handle to demonstrate technical track record and verify developer identity for automated task matching.
+                              Authorize your GitHub profile in 1 click or use the manual bio verification challenge to demonstrate developer credentials.
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => setGithubModalOpen(true)}
-                            className="text-xs font-semibold shrink-0"
-                          >
-                            <Github className="h-3.5 w-3.5 mr-1.5" />
-                            Verify GitHub Profile
-                          </Button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleConnectGithubOAuth}
+                              disabled={connectingGithubOAuth}
+                              className="text-xs font-semibold"
+                            >
+                              <Github className="h-3.5 w-3.5 mr-1.5" />
+                              {connectingGithubOAuth ? "Connecting..." : "Authorize with GitHub"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGithubStep("input");
+                                setGithubModalOpen(true);
+                              }}
+                              className="text-xs"
+                            >
+                              Bio Challenge
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
 
-                  {/* Step 3: Government Identity & Milestone Threshold */}
+                  {/* Step 2: Government Identity & Milestone Threshold */}
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                     <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Identity Verification &amp; Payout Thresholds
+                          Step 2: Legal Identity Verification
                         </CardTitle>
                         {userProfile?.idVerificationStatus === "VERIFIED" ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
@@ -1658,9 +1694,40 @@ function SettingsContent() {
                   <DialogTitle className="text-base font-semibold">Verify GitHub Developer Profile</DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                  Connect your public GitHub username to demonstrate engineering credentials and earn the Verified Developer trust badge.
+                  Authenticate your GitHub account via 1-click authorized access or generate a manual bio challenge.
                 </DialogDescription>
               </DialogHeader>
+
+              <div className="pt-3 pb-1 space-y-3">
+                <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 space-y-2">
+                  <div className="font-semibold text-xs text-[var(--wp-text-primary)] flex items-center justify-between">
+                    <span>Authorized GitHub Login (Recommended)</span>
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">1-Click Fast</Badge>
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                    Log in with GitHub to securely verify ownership without modifying your profile bio or creating gists.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleConnectGithubOAuth}
+                    disabled={connectingGithubOAuth}
+                    className="w-full text-xs font-semibold mt-1"
+                  >
+                    <Github className="h-3.5 w-3.5 mr-1.5" />
+                    {connectingGithubOAuth ? "Connecting to GitHub..." : "Authorize with GitHub (1-Click)"}
+                  </Button>
+                </div>
+
+                <div className="relative my-3">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-[var(--wp-border)]" />
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-semibold text-[var(--wp-text-secondary)]">
+                    <span className="bg-background px-2">Or verify manually via bio challenge</span>
+                  </div>
+                </div>
+              </div>
 
               <div className="py-4 space-y-3">
                 <div className="space-y-1.5">
