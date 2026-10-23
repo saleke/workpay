@@ -42,18 +42,20 @@ export async function POST(req: Request) {
       role: parsed.role,
     });
 
-    // If registered as a provider, register provider entry
-    if (parsed.role === "provider") {
-      await db.insert(providers).values({
-        id: `pro_${userId.slice(5)}`,
-        displayName: parsed.name,
-        type: "HUMAN",
-        status: "ACTIVE",
-        bio: `Verified execution provider: ${parsed.name}`,
-        hourlyRateMinor: 4500, // $45.00 default
-        currency: "USD",
-      }).onConflictDoNothing();
-    }
+    // Automatically provision specialist capabilities so every account
+    // can both commission work and fulfill assignments in Work Studio.
+    const providerId = newId("provider");
+    await db.insert(providers).values({
+      id: providerId,
+      userId,
+      displayName: parsed.name,
+      type: "HUMAN",
+      status: "ACTIVE",
+      bio: `Verified specialist: ${parsed.name}`,
+      hourlyRateMinor: 5000,
+      currency: "USD",
+      payoutEmail: parsed.email,
+    }).onConflictDoNothing();
 
     const sessionToken = await createSession(userId);
     const res = NextResponse.json({

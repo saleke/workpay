@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Briefcase, Lock, Mail, ShieldCheck, User } from "lucide-react";
+import { Lock, Mail, ShieldCheck, Sparkles, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"buyer" | "provider">("buyer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +32,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const json = await res.json();
@@ -46,9 +45,9 @@ export default function RegisterPage() {
       const user = json.data?.user;
       if (user) {
         window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
-        window.localStorage.setItem("workpay_persona", user.role);
-        document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
-        router.push(user.role === "provider" ? "/provider" : "/tasks");
+        window.localStorage.setItem("workpay_persona", "buyer");
+        document.cookie = "workpay_persona=buyer; path=/; max-age=31536000";
+        router.push("/tasks");
         router.refresh();
       }
     } catch {
@@ -61,10 +60,10 @@ export default function RegisterPage() {
     <Card className="border-border/80 shadow-lg bg-card">
       <CardHeader className="space-y-1 pb-4">
         <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-          Create an Account
+          Create Your Account
         </CardTitle>
         <CardDescription className="text-xs">
-          Register to buy or provide work with escrow protection and verified milestone settlement.
+          One unified account to commission verified work, automate escrow safety, and fulfill assignments.
         </CardDescription>
       </CardHeader>
 
@@ -75,69 +74,30 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Role Selection Tabs */}
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div className="space-y-1.5">
-            <Label className="text-xs">Select Your Role</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setRole("buyer")}
-                className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition-all ${
-                  role === "buyer"
-                    ? "border-primary bg-primary/10 ring-1 ring-primary"
-                    : "border-border/80 bg-muted/20 hover:bg-muted/50"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mb-0.5">
-                  <User className="h-3.5 w-3.5 text-primary" />
-                  <span>Task Owner</span>
-                </div>
-                <span className="text-[10px] text-muted-foreground leading-tight">
-                  I commission work and want escrow safety and verified delivery.
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRole("provider")}
-                className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition-all ${
-                  role === "provider"
-                    ? "border-primary bg-primary/10 ring-1 ring-primary"
-                    : "border-border/80 bg-muted/20 hover:bg-muted/50"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mb-0.5">
-                  <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Specialist / Expert</span>
-                </div>
-                <span className="text-[10px] text-muted-foreground leading-tight">
-                  I accept matched assignments and receive instant PayPal payouts.
-                </span>
-              </button>
+            <Label htmlFor="name" className="text-xs">Full Name</Label>
+            <div className="relative">
+              <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="name"
+                placeholder="Elena Rostova"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="pl-9 text-xs"
+              />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="name" className="text-xs">Full Name</Label>
-            <Input
-              id="name"
-              placeholder="Alice Johnson"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="text-xs"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email Address</Label>
+            <Label htmlFor="email" className="text-xs">Work Email</Label>
             <div className="relative">
               <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 id="email"
                 type="email"
-                placeholder="alice@example.com"
+                placeholder="elena@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -163,7 +123,17 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full text-xs font-semibold mt-2" disabled={loading}>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
+            <div className="flex items-center gap-1.5 font-medium text-foreground text-[11px]">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              <span>Full Dual-Capability Account</span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              Your account allows you to commission tasks with cryptographic escrow protection, or receive assignments and earn PayPal payouts in Work Studio.
+            </p>
+          </div>
+
+          <Button type="submit" className="w-full text-xs font-semibold" disabled={loading}>
             {loading ? "Creating account..." : "Create Account"}
           </Button>
         </form>

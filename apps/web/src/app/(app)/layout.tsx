@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
+import { EnvironmentToggle } from "@/components/nav/environment-toggle";
 import { PersonaSwitcher } from "@/components/demo/persona-switcher";
 import { UserNav } from "@/components/nav/user-nav";
 import { useSystemMode } from "@/lib/mode";
@@ -144,10 +145,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Dynamic Header: Persona Switcher in Demo Mode, User Profile in Production Mode */}
+            <EnvironmentToggle />
             {isDemo ? <PersonaSwitcher /> : <UserNav />}
-
-            {/* Notifications Bell */}
             <NotificationsBell />
           </div>
         </header>

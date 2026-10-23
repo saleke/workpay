@@ -101,7 +101,7 @@ export function UserNav() {
             {user.name || user.email.split("@")[0]}
           </span>
           <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[9px] font-bold text-primary uppercase">
-            {user.role}
+            VERIFIED
           </span>
         </Button>
       </DropdownMenuTrigger>

@@ -12,6 +12,7 @@ import {
   Cpu,
   Database,
   ExternalLink,
+  FlaskConical,
   Lock,
   LogIn,
   LogOut,
@@ -110,99 +111,99 @@ export default function SettingsPage() {
               variant="outline"
               className={
                 isDemo
-                  ? "border-blue-500/30 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-semibold"
+                  ? "border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-semibold"
                   : "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold"
               }
             >
-              Mode: {isDemo ? "Hackathon Showcase (Default)" : "Production SaaS"}
+              Environment: {isDemo ? "Sandbox (Simulated Settlement)" : "Live Production Escrow"}
             </Badge>
           </div>
         </div>
       </div>
 
       <div className="grid gap-6">
-        {/* Card 1: System Mode & Evaluation Switcher */}
+        {/* Card 1: Execution Environment & Gateway Configuration */}
         <Card className="border-border/80 shadow-xs">
           <CardHeader className="bg-muted/15 border-b border-border/60 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Sliders className="h-4 w-4 text-primary" />
-                Operating Mode Configuration
+                Execution Environment &amp; Gateway Configuration
               </CardTitle>
               <span className="text-xs text-muted-foreground font-mono">
-                Environment Default: {envDefault}
+                System Default: {envDefault === "demo" ? "Sandbox" : "Live"}
               </span>
             </div>
             <CardDescription className="text-xs sm:text-sm">
-              WorkPay runs in frictionless <strong>Demo Mode by default</strong> so hackathon judges can immediately test the platform without signup friction or credit card entry. You can toggle between modes in real-time.
+              WorkPay operates in two distinct execution environments. You can toggle between Sandbox simulation and Live Production Escrow at any time.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 grid gap-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              {/* Demo Mode Option Card */}
+              {/* Sandbox Mode Option Card */}
               <div
                 onClick={() => setMode("demo")}
                 className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
                   isDemo
-                    ? "border-primary bg-primary/5 shadow-xs"
+                    ? "border-amber-500 bg-amber-500/5 shadow-xs"
                     : "border-border/70 hover:border-border hover:bg-muted/20"
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-sm flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Hackathon Demo Showcase
+                    <span className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                      <FlaskConical className="h-4 w-4 text-amber-500" />
+                      Sandbox (Simulated Settlement)
                     </span>
                     {isDemo && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Zero-friction evaluator mode. Includes the persona switcher (Alice, Bob, Carol), built-in walkthrough guide, instant database reset, and simulated PayPal authorization holds.
+                    Deterministic testing environment with simulated PayPal authorizations, mock verification execution, and simulated actor perspectives. Ideal for testing protocols, integration validation, and workflow debugging.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-2 text-[11px] font-semibold text-primary">
-                  <span>Recommended for Hackathon Evaluators</span>
+                <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                  <span>Recommended for Development &amp; Protocol Testing</span>
                 </div>
               </div>
 
-              {/* Production SaaS Mode Option Card */}
+              {/* Live Production Escrow Option Card */}
               <div
                 onClick={() => setMode("production")}
                 className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
                   !isDemo
-                    ? "border-primary bg-primary/5 shadow-xs"
+                    ? "border-emerald-500 bg-emerald-500/5 shadow-xs"
                     : "border-border/70 hover:border-border hover:bg-muted/20"
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-sm flex items-center gap-2">
+                    <span className="font-semibold text-sm flex items-center gap-2 text-foreground">
                       <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                      Production SaaS Mode
+                      Live Production Escrow
                     </span>
                     {!isDemo && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Pure enterprise SaaS experience. Hides all persona switchers and demo banners. Enforces strict email/password registration, NIST scrypt hashing, and live PayPal credentials.
+                    Production gateway environment with real-time PayPal authorizations, cryptographic escrow verification, and live account authentication. Authorizations and captures lock and release actual currency.
                   </p>
                 </div>
-                <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
-                  <span>Option B through C: Enterprise Ready</span>
+                <div className="mt-4 pt-3 border-t border-border/50 flex items-center gap-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span>Production Ready</span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground">
-                Runtime mode can also be controlled via <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">NEXT_PUBLIC_DEMO_MODE=false</code> in <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">.env</code>.
+                Runtime environment can also be controlled via <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">NEXT_PUBLIC_DEMO_MODE=false</code> in <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">.env</code>.
               </span>
               <Button
                 variant="ghost"
@@ -210,7 +211,7 @@ export default function SettingsPage() {
                 onClick={() => setMode(null)}
                 className="h-7 text-xs text-muted-foreground hover:text-foreground"
               >
-                Reset to Env Default
+                Reset to System Default
               </Button>
             </div>
           </CardContent>

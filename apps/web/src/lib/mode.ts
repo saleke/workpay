@@ -7,8 +7,8 @@ export type SystemMode = "demo" | "production";
 const MODE_OVERRIDE_KEY = "workpay_mode_override";
 
 /**
- * Returns true if the system should run in Demo Showcase mode.
- * Defaults to true for hackathon evaluation unless explicitly configured
+ * Returns true if the system should run in Sandbox mode.
+ * Defaults to true for test evaluation unless explicitly configured
  * via NEXT_PUBLIC_DEMO_MODE="false" or client-side runtime override.
  */
 export function isDemoMode(): boolean {

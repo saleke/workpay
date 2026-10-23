@@ -204,13 +204,13 @@ export function PersonaSwitcher() {
                 <CurrentIcon className="h-3 w-3" />
               </span>
               <span className="hidden sm:inline text-muted-foreground">
-                {authUser ? "Account:" : "Acting as:"}
+                {authUser ? "Account:" : "Perspective:"}
               </span>
               <strong className="text-foreground font-semibold">
                 {authUser ? authUser.name || authUser.email.split("@")[0] : current.name}
               </strong>
               <span className={`rounded-md border px-1.5 py-0.2 text-[10px] font-bold ${current.badgeColor}`}>
-                {authUser ? "LOGGED IN" : current.badge}
+                {authUser ? "ACTIVE" : current.badge}
               </span>
               <ChevronDown className="h-3 w-3 text-muted-foreground opacity-60" />
             </Button>
@@ -232,15 +232,15 @@ export function PersonaSwitcher() {
                   className="flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  <span className="text-xs font-medium">Sign Out (Return to Demo)</span>
+                  <span className="text-xs font-medium">Sign Out</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-1.5" />
               </>
             ) : null}
 
             <DropdownMenuLabel className="flex items-center justify-between px-2 py-1 text-xs text-muted-foreground font-medium">
-              <span>Demo Personas</span>
-              <span className="text-[10px] text-primary font-mono font-normal">1-Click Switch</span>
+              <span>Sandbox Perspectives</span>
+              <span className="text-[10px] text-muted-foreground font-mono font-normal">Switch Actor</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="my-1" />
 
@@ -359,10 +359,10 @@ export function PersonaSwitcher() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-primary" />
-              WorkPay Evaluator Walkthrough (Hackathon Demo)
+              WorkPay Protocol Walkthrough: Automated Escrow Lifecycle
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Follow this 3-step loop to see programmable economic execution in action.
+              Interactive walkthrough of programmable escrow execution from agreement to verified PayPal release.
             </DialogDescription>
           </DialogHeader>
 
@@ -370,7 +370,7 @@ export function PersonaSwitcher() {
             <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <h4 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">1</span>
-                Task Owner Step (Alice)
+                Task Owner Step: Agreement &amp; Escrow Lock
               </h4>
               <p className="text-muted-foreground leading-relaxed">
                 Click <strong>"New Escrow Task"</strong> or select an existing task. Review the Definition of Done, add or customize criteria as needed, and click <strong>"Approve Agreement &amp; Match Specialist"</strong>. The agent reserves funds via PayPal Authorization hold into escrow.
@@ -380,17 +380,17 @@ export function PersonaSwitcher() {
             <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
               <h4 className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">2</span>
-                Specialist Step (Bob)
+                Specialist Step: Milestone Delivery
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Switch persona to <strong>Bob (Specialist)</strong> and visit the <strong>Work Studio</strong>. Review the transparent Definition of Done, accept the assignment, start work, and submit your deliverable file.
+                Switch perspective to <strong>Bob (Specialist)</strong> and visit the <strong>Work Studio</strong>. Review the transparent Definition of Done, accept the assignment, report progress check-ins, and submit your deliverable file.
               </p>
             </div>
 
             <div className="rounded-xl border border-purple-200/70 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
               <h4 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">3</span>
-                Verification &amp; PayPal Settlement
+                Verification Proofs &amp; PayPal Settlement
               </h4>
               <p className="text-muted-foreground leading-relaxed">
                 WorkPay automatically inspects the deliverable against the agreed Definition of Done. If flawed, it rejects it and keeps funds safe in escrow. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment and completing the task.
@@ -398,7 +398,7 @@ export function PersonaSwitcher() {
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t text-muted-foreground text-[11px]">
-              <span>Need a fresh slate? Click "Reset Data" in the Persona dropdown.</span>
+              <span>Need a fresh slate? Click "Reset Data" in the Perspective dropdown.</span>
               <Button size="sm" onClick={() => setGuideOpen(false)}>
                 Got it
               </Button>

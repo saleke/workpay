@@ -53,19 +53,19 @@ WorkPay mathematically enforces four invariants that protect buyer capital and p
 
 ---
 
-## Dual-Mode Operation
+## Execution Environments
 
-WorkPay ships with a hybrid runtime architecture designed for evaluators and production deployments alike:
+WorkPay ships with a hybrid runtime architecture designed for testing, integration, and production escrow deployments:
 
-### 1. Evaluator Demo Mode (Default)
-- **Zero Login Friction:** Hackathon judges and reviewers can explore all pages without mandatory account registration.
-- **Instant Persona Switcher:** Switch between **Alice (Buyer)**, **Bob (Provider)**, and **Carol (Admin Reviewer)** with one click in the navigation header.
-- **One-Click Demo Reset:** Clear the database and reseed clean fixtures directly from the UI banner.
+### 1. Sandbox Environment (Default)
+- **Zero Friction Evaluation:** Evaluators and engineers can explore all protocol flows without mandatory account registration.
+- **Actor Perspectives:** Switch between **Alice (Client)**, **Bob (Specialist)**, and **Carol (Arbitrator)** with one click in the navigation header.
+- **Protocol State Reset:** Reset the database to clean protocol fixtures directly from the perspective menu.
 
-### 2. Production SaaS Mode
+### 2. Live Production Escrow
 - **Protected Routes:** Next.js middleware guards `/tasks`, `/provider`, `/review`, and `/payments`, redirecting unauthenticated visitors to `/login`.
-- **Session Security:** Cryptographic JWT tokens stored in HTTP-only cookies, combined with scrypt password hashing for identity management.
-- **Activation:** Set `WORKPAY_MODE=production` and `NEXT_PUBLIC_DEMO_MODE=false` in `.env`.
+- **Session Security:** Cryptographic session tokens stored in HTTP-only cookies, combined with scrypt password hashing for identity management.
+- **Activation:** Set `WORKPAY_MODE=production` and `NEXT_PUBLIC_DEMO_MODE=false` in `.env`, or toggle via the environment switch in the navigation header.
 
 ---
 

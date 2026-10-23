@@ -125,12 +125,12 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
                 <span className="bg-card px-2 text-muted-foreground font-semibold">
-                  Or Evaluate as Demo Persona
+                  Sandbox Test Perspectives
                 </span>
               </div>
             </div>
 
-            {/* Demo Fast Login Pills */}
+            {/* Sandbox Fast Login Pills */}
             <div className="grid grid-cols-3 gap-2">
               <Button
                 type="button"
@@ -141,7 +141,7 @@ export default function LoginPage() {
               >
                 <User className="h-3.5 w-3.5 text-blue-500" />
                 <span className="font-semibold text-foreground">Alice</span>
-                <span className="text-[9px] text-muted-foreground">Task Owner</span>
+                <span className="text-[9px] text-muted-foreground">Client View</span>
               </Button>
 
               <Button
@@ -153,7 +153,7 @@ export default function LoginPage() {
               >
                 <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
                 <span className="font-semibold text-foreground">Bob</span>
-                <span className="text-[9px] text-muted-foreground">Specialist</span>
+                <span className="text-[9px] text-muted-foreground">Specialist View</span>
               </Button>
 
               <Button
@@ -165,7 +165,7 @@ export default function LoginPage() {
               >
                 <Scale className="h-3.5 w-3.5 text-purple-500" />
                 <span className="font-semibold text-foreground">Carol</span>
-                <span className="text-[9px] text-muted-foreground">Arbitrator</span>
+                <span className="text-[9px] text-muted-foreground">Arbitrator View</span>
               </Button>
             </div>
           </>
