@@ -361,6 +361,9 @@ export interface ActivityEntryDto {
   occurredAt: string;
   actorType: string;
   actorId: string | null;
+  actorName?: string | null;
+  actorRoleTitle?: string | null;
+  isSelf?: boolean;
   title: string;
   description: string;
   visibility: string;

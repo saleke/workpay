@@ -28,13 +28,7 @@ export function middleware(req: NextRequest) {
 
   // 3. In Production Mode: check for session cookie
   const sessionToken = req.cookies.get("workpay_session")?.value;
-  const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
   const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-
-  // If logged in and visiting login/register, redirect to dashboard
-  if (sessionToken && isAuthRoute) {
-    return NextResponse.redirect(new URL("/tasks", req.url));
-  }
 
   // If unauthenticated and visiting a protected route, redirect to login
   if (!sessionToken && isProtectedRoute) {

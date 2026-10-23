@@ -79,8 +79,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Right Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <EnvironmentToggle />
-            <UserNav />
             <NotificationsBell />
+            <UserNav />
 
             {/* Mobile Hamburger Button */}
             <button

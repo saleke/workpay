@@ -5,7 +5,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-gradient-to-br from-background via-muted/30 to-background">
       <div className="w-full max-w-md flex flex-col items-center mb-6">
-        <Link href="/tasks" className="flex items-center gap-3 font-semibold group mb-2">
+        <Link href="/" className="flex items-center gap-3 font-semibold group mb-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md transition-transform group-hover:scale-105">
             <ShieldCheck className="h-6 w-6" />
           </div>

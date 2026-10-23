@@ -5,59 +5,59 @@
 export const EVENT_LABELS: Record<string, { title: string; description: string }> = {
   TASK_CREATED: {
     title: "Task created",
-    description: "The buyer submitted a new task.",
+    description: "Task Owner submitted a new task.",
   },
   TASK_STATUS_CHANGED: {
     title: "Status updated",
-    description: "The task's status changed.",
+    description: "The task status progressed.",
   },
   PROVIDER_SELECTED: {
-    title: "Provider selected",
-    description: "WorkPay selected an eligible provider for this task.",
+    title: "Specialist matched",
+    description: "WorkPay matched an eligible specialist for this task.",
   },
   COMMERCIAL_AGREEMENT_CREATED: {
     title: "Agreement reached",
-    description: "A commercial agreement was created.",
+    description: "Terms agreed between Task Owner and Specialist.",
   },
   PAYMENT_AUTHORIZED: {
-    title: "Payment authorized",
-    description: "Payment has been authorized through PayPal (not yet released).",
+    title: "Payment hold secured",
+    description: "Payment authorization hold secured on PayPal (held until proof verified).",
   },
   SUBMISSION_SUBMITTED: {
-    title: "Submission received",
-    description: "The provider submitted deliverables.",
+    title: "Deliverables submitted",
+    description: "The specialist submitted deliverables for verification.",
   },
   REVISION_REQUESTED: {
     title: "Revision requested",
-    description: "The buyer requested a revision.",
+    description: "Revisions requested on submitted deliverables.",
   },
   VERIFICATION_STARTED: {
-    title: "Checking the result",
-    description: "Verification is running against the contract.",
+    title: "Verifying deliverables",
+    description: "Automated verification running against Definition of Done.",
   },
   VERIFICATION_FAILED: {
     title: "Verification failed",
-    description: "Verification found issues: payment remains protected.",
+    description: "Deliverables did not pass all checks; payment hold remains secured.",
   },
   VERIFICATION_PASSED: {
     title: "Verification passed",
-    description: "All required checks passed.",
+    description: "All required acceptance criteria confirmed.",
   },
   VERIFICATION_UNCERTAIN: {
-    title: "Needs human review",
-    description: "Verification is uncertain and is blocking capture.",
+    title: "Human review required",
+    description: "Verification flagged an ambiguity; routed to arbitration.",
   },
   PAYMENT_CAPTURED: {
     title: "Payment released",
-    description: "Funds were captured and released.",
+    description: "Funds captured from PayPal authorization hold and disbursed to specialist.",
   },
   CASE_OPENED: {
-    title: "Case opened",
-    description: "A human review case was opened.",
+    title: "Arbitration opened",
+    description: "An arbitration case was opened for review.",
   },
   CASE_RESOLVED: {
-    title: "Case resolved",
-    description: "The case was resolved by a reviewer.",
+    title: "Arbitration ruling issued",
+    description: "The arbitration case was resolved by an arbitrator.",
   },
 };
 

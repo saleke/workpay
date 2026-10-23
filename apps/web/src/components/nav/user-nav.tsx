@@ -125,7 +125,13 @@ export function UserNav() {
         return;
       }
 
-      // 3. Check for active persona or fallback to Alice
+      // 3. In Production Mode without stored auth, remain unauthenticated
+      if (!isDemo) {
+        setUser(null);
+        return;
+      }
+
+      // 4. In Demo / Sandbox Mode: provide default test persona (Alice)
       const storedPersona = window.localStorage.getItem("workpay_persona") as "buyer" | "provider" | "admin_reviewer" | null;
       const personaConfig = PERSONAS.find((p) => p.key === storedPersona) ?? PERSONAS[0]!;
 
@@ -149,7 +155,7 @@ export function UserNav() {
       window.removeEventListener("storage", syncUser);
       window.removeEventListener("workpay_auth_change", syncUser);
     };
-  }, []);
+  }, [isDemo]);
 
   const switchPersona = (persona: PersonaConfig, navigate = false) => {
     const nextUser: AuthUser = {
@@ -164,6 +170,7 @@ export function UserNav() {
     window.localStorage.setItem("workpay_persona", persona.key);
     window.localStorage.removeItem("workpay_signed_out");
     document.cookie = `workpay_persona=${persona.key}; path=/; max-age=31536000`;
+    document.cookie = "workpay_signed_out=; path=/; max-age=0";
     window.dispatchEvent(new Event("workpay_auth_change"));
 
     if (navigate) {
@@ -184,6 +191,8 @@ export function UserNav() {
     window.localStorage.removeItem("workpay_persona");
     window.localStorage.setItem("workpay_signed_out", "true");
     document.cookie = "workpay_persona=; path=/; max-age=0";
+    document.cookie = "workpay_session=; path=/; max-age=0";
+    document.cookie = "workpay_signed_out=true; path=/; max-age=31536000";
     window.dispatchEvent(new Event("workpay_auth_change"));
     setUser(null);
     router.push("/login");

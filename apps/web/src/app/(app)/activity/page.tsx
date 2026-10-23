@@ -114,9 +114,26 @@ export default function ActivityPage() {
                     className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 text-sm"
                   >
                     <div className="flex items-start gap-3 flex-1">
-                      <span className="h-2 w-2 rounded-full bg-[var(--amber)] shrink-0 mt-2" />
+                      <span
+                        className={`h-2 w-2 rounded-full shrink-0 mt-2 ${
+                          entry.isSelf
+                            ? "bg-[var(--wp-accent)]"
+                            : entry.actorType === "AGENT"
+                              ? "bg-purple-500"
+                              : entry.actorType === "SYSTEM"
+                                ? "bg-blue-500"
+                                : "bg-emerald-500"
+                        }`}
+                      />
                       <div>
-                        <div className="font-semibold text-[var(--charcoal)]">{entry.title}</div>
+                        <div className="font-semibold text-[var(--charcoal)] flex items-center gap-2">
+                          <span>{entry.title}</span>
+                          {entry.isSelf && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              You
+                            </span>
+                          )}
+                        </div>
                         {entry.description && (
                           <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
                             {entry.description}
@@ -125,9 +142,15 @@ export default function ActivityPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 self-end sm:self-auto text-xs text-[var(--text-muted)] font-mono shrink-0">
-                      <span>{entry.actorType}</span>
-                      <span>{timeStr}</span>
+                    <div className="flex items-center gap-2 self-end sm:self-auto text-xs shrink-0">
+                      <span className="rounded-md px-2 py-0.5 text-[11px] font-medium bg-[var(--surface-subtle)] text-[var(--charcoal)] border border-[var(--border-subtle)]">
+                        {entry.actorName
+                          ? entry.isSelf
+                            ? "You"
+                            : `${entry.actorName} (${entry.actorRoleTitle})`
+                          : entry.actorRoleTitle || "Platform"}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)] font-mono">{timeStr}</span>
                     </div>
                   </div>
                 );

@@ -43,8 +43,15 @@ export default function LoginPage() {
         window.localStorage.setItem("workpay_persona", user.role);
         window.localStorage.removeItem("workpay_signed_out");
         document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
+        document.cookie = "workpay_signed_out=; path=/; max-age=0";
         window.dispatchEvent(new Event("workpay_auth_change"));
-        router.push(user.role === "provider" ? "/provider" : "/tasks");
+
+        const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        const from = searchParams?.get("from");
+        const defaultHome =
+          user.role === "provider" ? "/provider" : user.role === "admin_reviewer" ? "/review" : "/tasks";
+        const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : defaultHome;
+        router.push(targetUrl);
         router.refresh();
       }
     } catch {
@@ -67,8 +74,13 @@ export default function LoginPage() {
     window.localStorage.setItem("workpay_persona", role);
     window.localStorage.removeItem("workpay_signed_out");
     document.cookie = `workpay_persona=${role}; path=/; max-age=31536000`;
+    document.cookie = "workpay_signed_out=; path=/; max-age=0";
     window.dispatchEvent(new Event("workpay_auth_change"));
-    router.push(homeUrl);
+
+    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const from = searchParams?.get("from");
+    const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : homeUrl;
+    router.push(targetUrl);
     router.refresh();
   };
 
