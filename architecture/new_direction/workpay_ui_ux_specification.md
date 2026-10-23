@@ -1,337 +1,732 @@
-# WORKPAY
-## Product Experience & UI/UX Implementation Specification
+# WorkPay: Product UI/UX and Frontend Implementation Brief
 
-Corrected to align with the supplied WorkPay architecture, master build prompt, engineering plan, and component specifications.
+## 1. Your Mission
 
-**Core product thesis:** *“I tell the agent what I need done, approve, add, edit or removefrom the list of  what it proposes, and monitor the result.”*
+Act as a world-class product designer, senior frontend engineer, and product-minded software architect.
 
-Version 1.0 | Implementation guidance for the coding agent
+Your task is to transform WorkPay into a polished, trustworthy, production-quality AI-powered economic execution system. Do not treat this as a generic SaaS dashboard, freelance marketplace, chatbot, or payment application.
 
----
+**The core product promise is: Commit → Execute → Prove → Settle. Money follows proof.**
 
-## 1. Governing Product Understanding
-WorkPay is an AI-powered economic execution system, delivered through a browser-based application. It translates human intent into a bounded, reviewable task; proposes a contract and provider; coordinates execution; evaluates evidence against acceptance criteria; and permits settlement only when the applicable policy and verified state allow it.
+Users describe an outcome. WorkPay helps clarify the requirements, produce a structured specification and agreement, coordinate execution, evaluate deliverables against acceptance criteria, and facilitate settlement when the applicable policies and confirmed payment state permit it.
 
-The product is task-centric, not a generic freelancer marketplace. The interface should conceal internal orchestration complexity while making user authority, task state, evidence, exceptions, and economic consequences legible.
+The interface must make this entire process understandable, transparent, and recoverable when something goes wrong.
 
-The product promise is: **Commit → Execute → Prove → Settle.** Money follows proof.
+You are responsible for designing and implementing the complete user experience, including information architecture, visual design, interaction behavior, responsive layouts, frontend architecture, accessibility, error handling, and integration with the existing backend.
 
-The primary object is the **Task**. A task is the continuous record for intent, inputs, specification, contract, provider, execution, deliverables, verification, payment state, activity, and evidence.
+Do not simply produce attractive screens. Build a coherent, working product.
 
-The user remains in control of consequential commitments. AI can interpret, recommend, coordinate, and act only within explicitly granted authority.
+## 2. Mandatory Repository Inspection
 
-WorkPay does not provide a wallet. PayPal is the payment rail and the documented escrow/payment arrangement is external to WorkPay.
+Before modifying code, inspect the existing repository and read the relevant documentation, including:
 
-The buyer/task owner application and provider application are separate authenticated surfaces within the same browser-based product.
+- `overview.md`
+- `build_prompt.md`
+- `ENGINEERING_PLAN.md`
+- `engineering_quality_constitution.md`
+- All relevant component specifications, including `components/componet-19.md` if it exists at that path.
+- Existing frontend code, routes, components, styles, API clients, authentication logic, and tests.
+- Existing backend contracts, task lifecycle definitions, permission rules, and PayPal integration.
 
-The initial product must be narrow in breadth but deep in correctness. Do not replace real workflow, verification, or payment logic with mock success states.
+Use the actual repository structure to determine which files and components are relevant.
 
----
+Do not assume that this brief replaces the existing architecture or engineering constitution. The existing architecture is authoritative for technical capabilities and business rules. Where a conflict exists, document it and explain the recommended resolution before making a foundational change.
 
-## 2. What the Interface Is and Is Not
+Before implementation, produce a concise audit covering:
 
-### The interface is:
-* A control room for task execution, with clear next actions and exceptions.
-* A transparent record of what the user asked for, what was agreed, what the system did, what evidence exists, and what happens next.
-* A consent and authority surface for scope, budget, provider/contract approval, and payment-related actions.
-* A reliable monitoring surface for asynchronous work and external integrations.
+1. Existing frontend architecture and technology stack.
+2. Current routes and major screens.
+3. Existing design system and reusable components.
+4. Actual task lifecycle and backend state machine.
+5. Existing buyer and provider permissions.
+6. Supported PayPal operations and their authoritative states.
+7. Missing, incomplete, or inconsistent UI/UX.
+8. The implementation sequence you recommend.
 
-### The interface is not:
-* A conventional gig marketplace whose main purpose is browsing worker profiles.
-* A chat app with payment features bolted on.
-* A wallet, stored-value account, or internal funds-transfer system.
-* A dashboard that exposes every internal agent, queue, service, or orchestration implementation detail.
-* A UI that claims work is verified, funds are held, or payment is complete before authoritative state confirms it.
+Do not stop after the audit. Proceed with implementation in small, verifiable stages unless a genuine architectural ambiguity or consequential business decision requires human approval.
 
----
+## 3. Product Principles
 
-## 3. Primary User Journeys
+These principles are mandatory.
 
-### Buyer / Task Owner Journey
-* Describe the outcome they want and provide any relevant files or context (file upload should be supported.
-* Review the AI's interpretation and answer clarification questions.
-* Review a structured task specification: deliverables, acceptance criteria, verification method, deadline, budget ceiling, exclusions, and relevant constraints.
-* Review provider recommendation and proposed contract/terms. Explicitly approve the commitment and any required PayPal authorization step.
-* Monitor execution through a timeline with meaningful milestones, not internal technical noise.
-* Review submitted deliverables and requirement-by-requirement verification evidence.
-* If verification fails, inspect the failed criteria and follow the supported revision path. If verification is uncertain or an exception occurs, resolve or escalate through the defined human-review flow.
-* See settlement state derived from confirmed PayPal and backend events. Do not imply that user approval alone proves funds were captured or released.
+### 3.1 The task is the center of the product
 
-### Provider Journey
-* Enter the provider-specific authenticated area and review eligible work or an assigned task.
-* Inspect the task brief, agreed scope, deliverables, deadlines, acceptance criteria, and relevant contract version.
-* Accept or decline the commitment where supported.
-* Execute the task and submit deliverables plus evidence required by the specification.
-* See verification results and any revision request with actionable, criterion-linked feedback.
-* Track final task and settlement status without being shown unsupported promises about payment.
+The task is the canonical record of:
 
----
+- User intent.
+- Inputs and relevant files.
+- Structured specification.
+- Agreement and its version.
+- Provider assignment.
+- Execution status.
+- Deliverables and submissions.
+- Verification criteria, evidence, and results.
+- Payment state.
+- Activity and audit history.
+- Available actions and required decisions.
 
-## 4. Information Architecture
-Use a consistent product shell, but render the appropriate buyer or provider experience according to authenticated permissions and context. Do not use a global worker/hirer role selector if the architecture does not call for one; provider and buyer are task relationship concepts, not a reason to mix permissions.
+The UI must present these elements as parts of one coherent workflow, not as disconnected features.
 
-* **Buyer surface:** Home, Tasks, Activity/Notifications, Settings.
-* **Provider surface:** Work queue, Task detail, Submissions, Activity/Notifications, Settings.
-* **Task detail** is the canonical workspace and should contain Overview, Specification/Contract, Execution, Deliverables & Verification, Payment, and Activity/Evidence sections or tabs.
+### 3.2 Distinguish five important concepts
 
-Keep global navigation short. Avoid creating separate top-level pages for every backend service.
+Throughout the interface, distinguish between:
 
-Messages or clarification threads should be contextual to a task wherever possible, so decisions remain attached to the record.
+1. **Proposed:** The AI has suggested an action or outcome.
+2. **Authorized:** The appropriate person or policy has granted permission.
+3. **Executed:** The action has actually occurred.
+4. **Verified:** The relevant evidence has been evaluated against the agreed criteria.
+5. **Confirmed:** The authoritative system has confirmed the resulting state.
 
-Do not introduce a separate wallet, wallet balance, deposits, withdrawals, internal transfers, or wallet transaction ledger as a user-facing feature.
+Never represent one of these states as another.
 
----
+An AI proposal is not an executed action. A submitted deliverable is not automatically an accepted deliverable. A payment request is not a confirmed payment.
 
-## 5. Home Dashboard
-The Home screen should answer three questions quickly: *What is happening? What needs my attention? What can I safely do next?*
+### 3.3 Keep consequential decisions explicit
 
-### Recommended Composition
-* Top greeting and concise system summary, without over-personalized marketing copy.
-* Primary create-task input: a large natural-language prompt such as “What do you need done?” with attachment support where available.
-* **Attention queue:** clarification needed, specification ready for review, contract awaiting approval, task blocked, deliverable ready to review, verification uncertain, payment exception.
-* **Active tasks:** compact cards showing outcome title, current state, next milestone, deadline if known, and a single next action.
-* **Recent activity:** meaningful human-readable events tied to tasks.
-* Optional spending/commitment summary only when derived from real task/contract/payment data. Never frame it as a wallet balance.
+Users must understand what they are approving, what authority they are granting, what financial consequences may follow, and what conditions remain outstanding.
 
-Do not use vanity metrics as the dominant content. The next required action should be more prominent than aggregate counts.
+Do not silently commit users to contractual terms, external actions, or financial operations.
 
----
+### 3.4 Make failures recoverable
 
-## 6. Task Creation and AI Clarification
-Start with an open-ended natural-language request. Do not force users to complete a long form before the system has interpreted their intent.
+A failed request, rejected deliverable, unavailable integration, or uncertain payment must not leave the user stranded.
 
-Allow supporting file uploads only when the underlying upload and security pipeline exists; show upload progress and processing/failed states.
+Explain what happened, what is known, what remains uncertain, and which recovery actions are actually supported.
 
-The AI should summarize its interpretation in plain language and ask targeted clarifying questions when requirements are underspecified.
+### 3.5 Respect the existing business model
 
-Clearly distinguish user-provided facts, AI-inferred assumptions, and unresolved questions.
+- Do not introduce a WorkPay wallet.
+- Do not invent PayPal capabilities.
+- Do not describe a payment arrangement as escrow unless the configured integration actually supports that arrangement.
+- Do not invent cancellation, refund, dispute, revision, deadline, or approval policies.
+- Do not fabricate execution progress, verification evidence, transaction history, or success messages.
+- Do not add features merely to make the dashboard look complete.
 
-Do not silently convert an ambiguous request into a binding contract or spend commitment.
-
-And you dont have to suffer the user to enter title seperately, this should be authomatically generated
+When a required policy or integration detail is missing, identify the dependency and request clarification rather than inventing behavior.
 
-Before proceeding, present a structured specification that can be edited and confirmed.
+## 4. Design Direction
 
-### Specification Preview
-* Outcome / task title
-* Deliverables and accepted formats
-* Acceptance criteria, written as observable checks
-* Verification method and what counts as evidence
-* Deadline or schedule
-* Maximum budget and currency
-* Constraints, exclusions, and dependencies
-* Known assumptions and unresolved questions
+Create a premium, calm, precise, operational interface.
 
----
-
-## 7. Contract and Authority Review
-The contract review is one of the most important screens in WorkPay. It must be understandable without reading internal technical documentation.
+WorkPay should feel like a workspace designed for coordinating real work and consequential decisions.
 
-* Show scope, deliverables, acceptance criteria, deadline, price, currency, provider, revision conditions, and payment conditions in a clear hierarchy.
-* Make the spending ceiling and any delegated authority explicit. Explain what the agent may do without asking again and which actions require renewed approval.
-* Show material assumptions and exclusions, not just the polished summary.
-* Use an explicit confirmation action for binding commitments. The action label should describe the consequence, e.g. “Approve task and authorize payment step,” only if that is the real action.
-* Record the approved contract/specification version and actor. Changes to material terms must create a new version and obtain required acceptance before becoming effective.
-
-Never present a vague “Continue” button as the only signal that the user is committing funds or approving contract terms.
-
----
-
-## 8. Provider Recommendation and Negotiation Visibility
-* Present a recommended provider with a concise rationale grounded in relevant capabilities, price, timing, and task constraints.
-* Distinguish verified facts from estimates, generated summaries, and unverified claims.
-* Show the proposed offer and material negotiation changes before a commitment is made.
-* Make it clear when the system is still exploring options versus when an offer has been accepted or a contract is binding.
-* Do not invent provider ratings, testimonials, completion statistics, or guarantees.
-
----
-
-## 9. Canonical Task Detail
-The Task detail screen is the single source of user-facing truth for a task. All other views should link back to it.
-
-* **Header:** outcome title, stable task identifier, current state, and the one most relevant next action.
-* **Summary:** objective, owner, provider, agreed price/currency, deadline, and important constraints.
-* **Specification/Contract:** approved version, deliverables, acceptance criteria, payment conditions, and change history.
-* **Execution:** human-readable milestones and current blocker, if any.
-* **Deliverables & Verification:** files, submission version, criterion-by-criterion result, evidence links, verifier explanation, and revision history.
-* **Payment:** PayPal-related state, relevant transaction/reference identifiers where safe, last confirmed event, and any pending/failed/uncertain state.
-* **Activity/Evidence:** append-only, timestamped events showing key decisions, approvals, submissions, verification runs, and payment events.
-
-Keep the timeline readable. Internal event payloads and stack traces belong in protected diagnostics, not the ordinary user interface.
-
----
-
-## 10. Task Lifecycle and State Presentation
-The UI must use backend-authoritative task states and transitions. Do not invent a separate frontend state machine that can drift from the domain model.
-
-* Intent captured / clarification needed
-* Specification proposed / awaiting user review
-* Provider discovery or negotiation in progress
-* Contract awaiting approval
-* Awaiting required payment authorization or funding confirmation
-* Execution in progress
-* Deliverable submitted
-* Verification in progress
-* Verification failed — revision path available where policy permits
-* Verification uncertain — human review or defined exception path
-* Verified / eligible for the next settlement step
-* Payment processing
-* Payment confirmed
-* Completed
-* Blocked, cancelled, expired, or disputed where those states are explicitly supported
-
-These labels are illustrative presentation language. Map them to the actual state machine documented in the architecture; do not add states merely because they seem useful. Keep dispute, cancellation, and exceptional payment states from destructively overwriting the task's history.
-
----
-
-## 11. Deliverables, Verification, and Revisions
-* Present verification at the level of individual acceptance criteria, not only a green “passed” badge.
-* For each criterion, show status (pass/fail/uncertain), short explanation, and the evidence supporting the result.
-* Distinguish missing evidence from evidence that demonstrates failure.
-* A failed verification should explain what needs to change and link to the relevant criterion. Offer revision only when the contract and policy permit it.
-* A revision submission must be versioned. Preserve prior submissions and verification results.
-* An uncertain result must not be silently treated as a pass. Provide the supported human-review or exception path.
-
-Avoid implying that automated verification is infallible; make the verification method and confidence/limitations understandable where relevant.
-
----
-
-## 12. PayPal Payment and Escrow Experience — Critical
-WorkPay does not need a wallet. PayPal is the payment provider and the relevant PayPal escrow/payment arrangement is external to WorkPay. The UI should reflect the exact integration and confirmed provider state.
-
-* No wallet balance, wallet funding, cash-out, internal transfer, or stored-value feature.
-* No UI language suggesting WorkPay itself holds user funds.
-* Show only payment/escrow states that the actual PayPal integration and backend can authoritatively establish.
-* Separate payment authorization, funding/escrow confirmation, eligibility for capture/release, processing, confirmed capture/release, failure, and unknown/reconciliation-needed states when applicable to the integration.
-* Task approval or verification must not be presented as proof that PayPal capture or release has succeeded.
-* Payment actions must be idempotent and driven by backend policy. The frontend must never be the authority that decides a payment can proceed.
-* For webhook delays or uncertain outcomes, show a pending/reconciling state and refresh from authoritative server state; do not encourage blind retries.
-* Use the PayPal-supported flow and terminology accurately. Do not assume that a particular PayPal product supports escrow, delayed capture, or release semantics unless the configured integration and architecture confirm it.
-* Show safe transaction references and timestamps where useful. Do not expose secrets, full payment credentials, or unnecessary personal financial data.
-
----
-
-## 13. Activity, Audit, and Notifications
-* Record important actions with actor, timestamp, task reference, contract/specification version where relevant, and outcome.
-* Important events include specification approval, contract acceptance, provider/offer changes, submission, verification, revision request, human override, payment state changes, and cancellation/dispute decisions where supported.
-* Show human-readable event names and meaningful context in the product. Keep raw payloads in secured operational tooling.
-* Notifications should deep-link to the task and the exact action needed.
-* Avoid duplicate notifications for webhook retries or idempotent repeated events.
-* Do not make an event disappear because a later state supersedes it.
-
----
-
-## 14. Visual Design Direction
-Use a premium, calm, precise product aesthetic. It should feel like a trustworthy execution workspace rather than a crypto dashboard, gig marketplace, or flashy AI demo.
-
-* **Canvas:** warm off-white or very light neutral surfaces; dark charcoal text; restrained amber as the primary accent.
-* **Typography:** highly legible sans-serif with strong hierarchy, generous whitespace, and concise labels.
-* **Layout:** desktop-first for the MVP, with a robust responsive layout for tablet and mobile.
-* **Cards:** restrained borders and subtle surface contrast; avoid excessive shadows, gradients, and nested card overload.
-* **Status:** use text labels and icons alongside color. Color must not be the only way a state is communicated.
-* **Primary action:** one clear primary action per screen/section; secondary actions should remain visually subordinate.
-* **Motion:** brief and purposeful. Never use animation to obscure asynchronous state or imply success prematurely.
-* **Data density:** show enough detail for decisions without exposing internal service complexity.
-
-### Suggested Palette
-* Charcoal: `#222326`
-* Warm Background: `#F7F5F0`
-* White Surface: `#FFFFFF`
-* Muted Text: `#6B6F76`
-* Amber: `#B77A2B`
-* Green for confirmed success
-* Blue for active/informational state
-* Red for failure/destructive actions
-
-*Treat these as tokens to tune against the existing application, not a mandate to rewrite its design system.*
-
----
-
-## 15. Interaction and Accessibility Requirements
-* Every consequential action has an understandable label and a confirmation step where appropriate.
-* Use accessible labels, keyboard navigation, visible focus, semantic headings, and appropriate contrast.
-* Do not communicate state only by color, animation, or icon.
-* Forms preserve user input after recoverable failures.
-* Long-running AI, verification, and payment operations have clear pending, success, failure, and retry/reconciliation states.
-* Disable duplicate submission only as a usability aid; server-side idempotency remains mandatory.
-* Responsive layouts must preserve task state, primary actions, contract terms, and verification evidence.
-
----
-
-## 16. Error, Pending, and Exceptional States
-* **AI cannot interpret request:** ask a clarifying question; do not fabricate a specification.
-* **Provider unavailable:** explain the state and supported next options without claiming a commitment exists.
-* **Contract changed:** show what changed and require the relevant acceptance before continuing.
-* **Upload failed:** identify the affected file and allow safe retry.
-* **Verification service unavailable:** show verification as pending/failed-to-run, not as a failed deliverable or pass.
-* **Payment provider timeout:** show state as unknown/reconciling until checked against authoritative provider/server state.
-* **Webhook duplicated or delayed:** remain consistent and idempotent; do not create duplicate captures or activity entries.
-* **Dispute/cancellation:** preserve prior work, evidence, and payment history; explain what is paused and which actions remain available.
-
---- ## 17. Security and Trust Boundaries
-* Authorization is enforced server-side on every task, submission, contract, file, and payment operation.
-* A UI permission check is for presentation only and cannot replace server authorization.
-* Task and contract versions are immutable after acceptance; material changes create a new version.
-* Files use authenticated, time-limited access or another approved secure delivery mechanism; never expose predictable public file URLs.
-* Verify PayPal webhooks using the provider's supported verification method and reconcile payment state from authoritative records.
-* Use idempotency keys for economic actions and durable records for external operation attempts.
-* Human overrides are permissioned and audited.
-* The agent cannot exceed budget, scope, or action permissions granted by the user and enforced by policy.
-* Never place secrets, access tokens, or sensitive provider payloads in browser-visible logs or user-facing activity.
-
----
-
-## 18. Implementation Boundaries
-* The UI must reflect the architecture rather than replacing it with client-side business logic.
-* Use the backend domain model and state machine as the source of truth.
-* Represent long-running orchestration as explicit asynchronous states and poll/subscribe through supported application APIs.
-* Keep task, specification/contract version, submission, verification result, payment operation, and audit event as distinct domain records where the architecture defines them.
-* Keep PayPal integration isolated behind the approved payment service/integration layer.
-* Never fabricate successful AI planning, provider acceptance, verification, escrow/funding, capture, or release responses to make a demo look complete.
-* Use realistic seeded data only where the architecture explicitly permits it, and visibly distinguish demo data from real execution.
-
----
-
-## 19. MVP Scope Discipline
-* The MVP should demonstrate the end-to-end dataset-cleaning workflow defined in the engineering plan, including a failed first verification, a successful revision, and payment capture only after policy permits it.
-* Prioritize one complete, reliable, observable workflow over many shallow features.
-* The failed first verification and successful revision should be real states generated by the verification workflow, not hard-coded decorative UI.
-* PayPal capture must follow the configured integration, policy decision, and authoritative backend state.
-* Do not expand into a full marketplace, generalized wallet, broad provider social profiles, or unrelated dashboards unless the governing architecture explicitly includes them.
-* Keep all screens necessary to understand, approve, execute, verify, and settle the core task coherent and testable.
-
----
-
-## 20. Definition of Done for the Product Experience
-* A user can describe a task and understand the AI's interpretation before committing.
-* The specification, acceptance criteria, budget ceiling, and contract terms are reviewable and versioned.
-* The user can distinguish recommendation, proposal, approved commitment, active execution, submitted work, verification result, and settlement state.
-* The task detail provides a canonical and auditable history.
-* A failed verification leads to an actionable revision path where supported; a successful revision is independently verified.
-* Uncertain verification and uncertain payment states are not silently converted into success.
-* No wallet feature is present.
-* No payment success is displayed without authoritative confirmation.
-* Server-side authorization, idempotency, secure file access, and auditability are preserved.
-* The desktop workflow is polished and responsive layouts remain usable.
-* The implementation aligns with the actual architecture and engineering plan rather than inventing product scope.
-
----
-
-## 21. Instructions to the Coding Agent
-* Treat this specification as a product-experience companion to the supplied architecture and engineering documents. The architecture, state machine, security requirements, and master build prompt remain authoritative if wording differs.
-* Read the supplied overview, master build prompt, engineering plan, engineering quality constitution, and relevant component specifications before implementation.
-* Inspect the existing repository and current implementation before changing files. Reuse existing patterns and design tokens when sound.
-* Map every UI state and action to a real backend contract and authorized domain transition.
-* Do not introduce a WorkPay wallet or represent WorkPay as the custodian of funds.
-* Do not invent PayPal capabilities. Verify the configured PayPal product and integration contract before implementing payment language or controls.
-* Build the narrow MVP workflow end to end, including failure, revision, verification, and settlement edge cases.
-* Keep consequential actions explicit, auditable, idempotent, and permissioned.
-* When documentation leaves a business policy unresolved, do not invent a policy silently. Record the gap and implement a safe blocked/needs-decision state where necessary.
-* Before completion, test permissions, stale contract versions, duplicate submissions, duplicate/delayed webhooks, provider timeouts, verification uncertainty, and recoverable errors.
-
----
-
-## 22. Source Alignment Note
-This document is derived from the supplied architecture archive, including `overview.md`, `build_prompt.md`, `ENGINEERING_PLAN.md`, `engineering_quality_constitution.md`, and the component specifications. It corrects the earlier generic UI interpretation, particularly the mistaken wallet concept, and centers the experience on task orchestration, user-authorized commitments, evidence-based verification, and PayPal-based settlement.
-
-*Important: PayPal's exact supported payment/escrow semantics must be confirmed against the configured product and integration. This specification describes the user experience and trust boundaries, not an unsupported claim that every PayPal product provides escrow or delayed-release functionality.*
+Avoid the visual language of generic admin templates, gig marketplaces, crypto dashboards, and AI chat wrappers.
+
+### Visual characteristics
+
+- Restrained and consistent visual hierarchy.
+- Generous whitespace where it improves comprehension.
+- Efficient information density for operational screens.
+- Clear typography and readable financial information.
+- Fine, subtle borders.
+- Minimal, purposeful shadows.
+- Consistent corner radii.
+- Restrained use of color.
+- Short, purposeful animations.
+- Excellent empty, loading, error, and pending states.
+
+Use Linear as inspiration for navigation and interaction efficiency, Attio for structured information, Vercel for operational visibility, and Stripe or Mercury for financial clarity. Learn from these products without copying their interfaces or business models.
+
+### Initial design-token direction
+
+Reconcile these suggestions with the repository's existing design system before implementing them.
+
+```css
+:root {
+  --wp-canvas: #F7F5F0;
+  --wp-surface: #FFFFFF;
+  --wp-surface-subtle: #F2F1ED;
+
+  --wp-text-primary: #232323;
+  --wp-text-secondary: #6B6F76;
+  --wp-text-muted: #8B8D91;
+
+  --wp-border: #E7E5DF;
+  --wp-border-strong: #D6D3CC;
+
+  --wp-accent: #B7792D;
+  --wp-accent-subtle: #F7EBDD;
+
+  --wp-success: #287A53;
+  --wp-success-subtle: #EAF5EE;
+
+  --wp-info: #315FA8;
+  --wp-info-subtle: #EDF3FC;
+
+  --wp-warning: #99631B;
+  --wp-warning-subtle: #FBF2DF;
+
+  --wp-danger: #B33A36;
+  --wp-danger-subtle: #FBECEB;
+
+  --wp-radius-sm: 6px;
+  --wp-radius-md: 10px;
+  --wp-radius-lg: 14px;
+  --wp-radius-xl: 18px;
+}
+```
+
+Establish consistent typography, spacing, focus, elevation, border, and motion tokens as appropriate to the existing stack.
+
+Use semantic design tokens rather than scattering arbitrary color values throughout components.
+
+Status colors must always be accompanied by understandable text labels.
+
+## 5. Information Architecture
+
+Use the existing routes where appropriate. Do not create duplicate navigation structures if the application already has a suitable architecture.
+
+The recommended structure is:
+
+**Workspace**
+- Home
+- Tasks
+- Activity
+
+**Account**
+- Settings
+- Help or support, if supported
+
+Provide a prominent **New task** action.
+
+A separate payment view may be introduced only if it serves a genuine user need and reflects actual payment records. It must not imply the existence of a WorkPay wallet.
+
+### Home
+
+Prioritize:
+
+1. Items requiring the current user's attention.
+2. Active tasks.
+3. Important recent activity.
+4. A clear task-creation entry point.
+
+Do not prioritize meaningless metrics, fake graphs, empty financial summaries, or decorative progress indicators.
+
+### Tasks
+
+Provide a searchable, scannable task list with useful filters corresponding to real lifecycle states or meaningful derived groupings.
+
+Useful attributes may include:
+
+- Task name.
+- Current status.
+- Provider, when assigned.
+- Agreed amount, where appropriate.
+- Last meaningful activity.
+- Whether the current user needs to act.
+
+Support useful empty states, URL-persisted filters where appropriate, browser Back behavior, and responsive layouts.
+
+### Activity
+
+Show meaningful, real events such as agreement approvals, submissions, verification results, revisions, and confirmed payment events.
+
+Distinguish user actions, provider actions, AI proposals, AI-executed actions, verification events, payment-provider events, and system events where this distinction is available.
+
+Do not fabricate activity.
+
+## 6. Build the Task Workspace First
+
+The task workspace is the most important product screen.
+
+It must give users a clear understanding of the task's current state, agreement, execution, deliverables, evidence, payment status, and next action.
+
+### Workspace structure
+
+Use a responsive layout containing:
+
+**Header**
+- Breadcrumbs.
+- Task title.
+- Current status.
+- Concise status explanation.
+- Primary next action when one is legitimately available.
+- Secondary actions permitted by the current user's permissions.
+
+**Main content**
+- Task information appropriate to the current lifecycle state.
+- Specification and agreement.
+- Execution details.
+- Deliverables and submissions.
+- Verification results and evidence.
+- Revision information.
+- Relevant activity.
+
+**Supporting information**
+- Provider information.
+- Agreement version.
+- Agreed amount and currency.
+- Relevant dates.
+- Actual payment status.
+- Recent meaningful events.
+
+Use tabs or secondary navigation where they improve clarity. Avoid hiding essential information behind unnecessary navigation.
+
+The screen must adapt to the task state rather than rendering every task identically.
+
+For example:
+
+- A draft task emphasizes requirements and clarification.
+- A task awaiting approval emphasizes the agreement and commitment.
+- An executing task emphasizes real activity and blockers.
+- A task awaiting verification emphasizes the submitted deliverables.
+- A failed verification emphasizes unmet criteria and revision actions.
+- A task awaiting settlement emphasizes the applicable conditions and authoritative payment state.
+- An uncertain payment emphasizes the unresolved outcome and safe recovery path.
+
+Only expose actions supported by the backend and permitted for the current user.
+
+## 7. Implement the Complete Task Journey
+
+Use the architecture's actual state machine. The following describes the intended user experience, not a replacement backend state machine.
+
+### Stage A: Task creation
+
+Allow users to describe their desired outcome in natural language.
+
+Provide:
+- A focused input.
+- Supported file attachments.
+- Relevant contextual fields.
+- Validation.
+- Clear next steps.
+- Draft preservation where feasible.
+
+Avoid overwhelming new users with technical configuration before it is needed.
+
+### Stage B: AI clarification
+
+The AI should ask specific questions when missing information materially affects scope, deliverables, acceptance criteria, cost, permissions, or execution.
+
+Keep the user's original intent and clarification history understandable.
+
+Distinguish drafts and recommendations from binding commitments.
+
+### Stage C: Structured specification
+
+Present the proposed specification in readable, editable sections where supported:
+
+- Desired outcome.
+- Inputs.
+- Deliverables.
+- Acceptance criteria.
+- Constraints and exclusions.
+- Assumptions.
+- Unresolved questions.
+
+Clearly identify unresolved matters and allow appropriate corrections.
+
+Do not turn an unconfirmed assumption into an agreed requirement without the required approval.
+
+### Stage D: Agreement review
+
+Provide a dedicated agreement review experience.
+
+Show:
+- Scope.
+- Deliverables.
+- Acceptance criteria.
+- Constraints.
+- Applicable revision terms, if defined.
+- Provider identity.
+- Agreed price and currency.
+- Payment arrangement.
+- Relevant authorization and funding states.
+- The consequences of the action being requested.
+
+The user must be able to understand the work agreement and financial consequences before confirming.
+
+Use precise action labels, such as “Approve agreement” or “Approve agreement and authorize payment,” only when they accurately describe the underlying operation.
+
+Preserve agreement versions and approval history as required by the architecture.
+
+### Stage E: Execution
+
+Show real execution status and meaningful activity.
+
+Communicate:
+- What has actually happened.
+- What is happening now, if known.
+- What is waiting.
+- What is blocked.
+- Whether user input is required.
+- What the next supported step is.
+
+Do not invent progress percentages or milestones.
+
+Distinguish AI activity from provider activity where the underlying events allow it.
+
+### Stage F: Submission and verification
+
+Present the actual submitted deliverables and the verification results supported by the backend.
+
+Where available, each acceptance criterion should show:
+
+- The agreed requirement.
+- The result.
+- The supporting evidence or explanation.
+- Relevant limitations or uncertainty.
+- The resulting workflow consequence.
+
+Distinguish the submitted deliverable, observed evidence, verification conclusion, and workflow decision.
+
+Do not invent criterion-level evidence if the verification system does not provide it.
+
+### Stage G: Failed verification and revision
+
+A failed verification must be understandable and actionable.
+
+Show the specific unmet requirements, the evidence supporting the result, and the next legitimate step.
+
+Preserve previous submissions, results, and relevant agreement versions.
+
+If comparison between submissions is supported, make it easy to inspect what changed.
+
+Do not silently overwrite previous evidence or present an uncertain verification as a definite failure or success.
+
+### Stage H: Settlement
+
+Settlement must only be offered when the authoritative backend policy and payment state permit it.
+
+Show:
+- Agreed amount and currency.
+- Actual payment state.
+- Relevant conditions.
+- What the next payment action will do.
+- Whether user action is required.
+- The confirmed result of the operation.
+
+Never claim payment has succeeded merely because a request was submitted.
+
+### Stage I: Completion
+
+Show completion only when the authoritative task lifecycle permits it.
+
+Summarize the actual outcome, relevant deliverables, verification result, and confirmed economic state.
+
+Do not invent guarantees about future disputes, refunds, or financial protection.
+
+## 8. Payment UX and PayPal Safety
+
+Treat financial operations as high-consequence interactions.
+
+Use the actual payment state model returned by the backend and configured PayPal integration.
+
+Possible states may include authorization required, authorization confirmed, processing, settlement eligible, settlement processing, settlement confirmed, failed, or uncertain. These are examples, not a requirement to invent unsupported states.
+
+The frontend must not independently determine whether money has moved.
+
+### Uncertain payment outcome
+
+If a payment request times out or its outcome cannot be confirmed:
+
+- Preserve the user's context.
+- Display an explicit unresolved status.
+- Do not report success or failure without evidence.
+- Do not immediately invite a duplicate payment attempt.
+- Follow the backend's reconciliation process.
+- Offer a retry only when the authoritative system determines it is safe.
+
+The backend remains responsible for payment reconciliation, idempotency, webhook verification, and economic state transitions.
+
+The frontend must accurately communicate those states.
+
+## 9. AI Transparency and User Control
+
+Separate AI behavior into understandable stages:
+
+- Proposed.
+- Awaiting review.
+- Authorized.
+- Executing.
+- Completed.
+- Failed or unresolved.
+
+Explain what the AI is doing when that information is available and useful.
+
+Do not expose raw internal reasoning or overwhelm users with implementation details.
+
+Where supported by the backend, users should be able to correct assumptions, reject proposals, review changes, pause or stop operations, and inspect relevant actions.
+
+Do not render a control unless its behavior is implemented and enforced.
+
+## 10. Component System
+
+Build reusable components around consistent semantics, behavior, and accessibility.
+
+Potential component groups include:
+
+**Foundation**
+- Typography.
+- Color and spacing tokens.
+- Surface and border primitives.
+- Focus indicators.
+- Icons.
+- Motion.
+
+**Application shell**
+- Sidebar.
+- Top bar.
+- Breadcrumbs.
+- Page headers.
+- Responsive navigation.
+
+**Data presentation**
+- Task row.
+- Status badge.
+- Activity item.
+- Timeline event.
+- Metadata row.
+- Empty state.
+- Skeleton.
+- Error panel.
+
+**Workflow**
+- Outcome input.
+- Clarification panel.
+- Specification section.
+- Acceptance criterion.
+- Agreement review.
+- Approval summary.
+- Deliverable list.
+- Verification result.
+- Revision comparison.
+- Confirmation dialog.
+- Recovery panel.
+
+**Financial**
+- Agreed amount.
+- Payment status.
+- Payment event.
+- Settlement conditions.
+- Pending-payment panel.
+- Uncertain-payment panel.
+- Supported payment action.
+
+Use the project's existing component library where appropriate. Do not introduce redundant dependencies without justification.
+
+A component is complete only when its relevant loading, disabled, error, focus, responsive, and accessibility behavior is defined.
+
+## 11. Frontend Engineering Requirements
+
+### Authoritative state
+
+Use backend responses as the source of truth for task state, agreement status, permissions, verification results, and payment state.
+
+Derived UI groupings must be explicit, testable, and consistent with backend policy.
+
+Do not maintain a competing client-side lifecycle state machine.
+
+### Action lifecycle
+
+For important actions:
+
+1. Validate required input.
+2. Send the supported request.
+3. Display a clear pending state.
+4. Reconcile with the authoritative response.
+5. Show confirmed success, a specific failure, or an unresolved outcome.
+6. Preserve the user's context and provide a safe next step.
+
+Avoid optimistic UI that prematurely claims a consequential action succeeded.
+
+### Permissions
+
+Show only actions available to the current user and task state.
+
+The backend must enforce authorization regardless of what the frontend displays.
+
+Handle stale permissions and inaccessible deep links gracefully.
+
+### URL state
+
+Where appropriate, support direct links and browser navigation for task routes, active tabs, filters, search, and pagination.
+
+Do not place secrets or sensitive payment information in URLs.
+
+### Forms and asynchronous behavior
+
+- Preserve user input after recoverable failures.
+- Prevent accidental duplicate submissions.
+- Use backend idempotency for consequential operations where required.
+- Distinguish request submission from confirmed completion.
+- Provide actionable validation messages.
+- Handle stale data and partial loading gracefully.
+
+## 12. Responsive Design
+
+Design intentionally for desktop, tablet, and mobile.
+
+Desktop should support efficient navigation, rich task workspaces, detailed verification, and side-by-side review where appropriate.
+
+Tablet should adapt secondary panels and dense content.
+
+Mobile should prioritize task identity, status, evidence, and the next action. Stack complex review sections rather than compressing them into unreadable columns.
+
+Ensure:
+- No horizontal overflow.
+- Comfortable touch targets.
+- No hover-only functionality.
+- Forms remain usable with virtual keyboards.
+- Sticky actions do not obscure content.
+- Financial consequences remain visible before confirmation.
+- Browser zoom and safe areas are respected.
+
+## 13. Accessibility
+
+Implement and test:
+
+- Semantic HTML.
+- Logical heading hierarchy.
+- Keyboard navigation.
+- Visible focus.
+- Accessible names for icon-only controls.
+- Properly labeled form fields.
+- Accessible dialogs and focus restoration.
+- Clear validation errors.
+- Screen-reader announcements for meaningful asynchronous changes.
+- Text labels for statuses.
+- Sufficient contrast.
+- Reduced-motion support.
+- Browser zoom.
+- Appropriate focus movement after validation failures.
+
+Accessibility must be built into the components and workflow rather than added as a final cosmetic pass.
+
+## 14. Required UI States
+
+Design and implement relevant states for every major screen:
+
+- Initial loading.
+- Empty data.
+- Populated data.
+- Submitting.
+- Confirmed success.
+- Validation error.
+- Network failure.
+- Permission denied.
+- Stale data.
+- Pending operation.
+- Unknown outcome.
+- Partial data availability.
+- Conflict.
+- Cancellation, where supported.
+- Unavailable integration.
+- Verification failure.
+- Revision required.
+- Payment uncertainty.
+
+Every error or blocked state should explain what is known, what the user can do next, and what the system will handle automatically.
+
+Do not use generic error banners when a specific explanation and recovery path are available.
+
+## 15. Security and Data Integrity
+
+- Respect backend permissions for all task data and file access.
+- Do not expose private file URLs unnecessarily.
+- Handle expired file links.
+- Preserve agreement and verification history as required.
+- Distinguish AI proposals from completed actions.
+- Avoid exposing sensitive information in notifications or activity summaries.
+- Do not silently modify an approved agreement.
+- Do not imply that frontend checks are security boundaries.
+- Never claim payment, verification, or execution succeeded without authoritative confirmation.
+
+## 16. Required End-to-End MVP
+
+Use the architecture's supported dataset-cleaning workflow to validate the complete journey.
+
+Demonstrate:
+
+1. User describes the desired outcome.
+2. AI requests necessary clarification.
+3. Structured specification is generated.
+4. User reviews the specification and agreement.
+5. Applicable authorization and payment operations are performed.
+6. Execution progresses through real supported states.
+7. A deliverable is submitted.
+8. Verification fails for a concrete, supported reason.
+9. The revision process is followed.
+10. A revised deliverable is submitted.
+11. Verification succeeds.
+12. Settlement becomes available only when the authoritative conditions permit it.
+13. The payment outcome is accurately reconciled and displayed.
+14. The task reaches completion only when the backend permits it.
+
+Use real backend integration where available. Use fixtures or mocks only according to the existing testing conventions. Never hardcode fake success states into production behavior.
+
+## 17. Implementation Sequence
+
+Implement in small, verifiable stages.
+
+**Stage 1 — Audit and plan**
+Inspect the repository, document the architecture, identify missing pieces, and map the journey to existing APIs and state transitions.
+
+**Stage 2 — Design system and shell**
+Reconcile design tokens, reusable components, navigation, responsive behavior, and accessible primitives.
+
+**Stage 3 — Task creation and specification**
+Implement the outcome input, clarification flow, draft behavior, and structured specification.
+
+**Stage 4 — Agreement and authorization**
+Implement contract review, commercial terms, explicit approval, and accurate payment-state presentation.
+
+**Stage 5 — Execution and submission**
+Implement task status, activity, deliverables, file access, and permission-aware actions.
+
+**Stage 6 — Verification and revision**
+Implement evidence presentation, failure states, revision, resubmission, and relevant history.
+
+**Stage 7 — Settlement and completion**
+Implement authoritative settlement eligibility, safe payment actions, reconciliation, and confirmed completion.
+
+**Stage 8 — Quality and resilience**
+Complete responsive behavior, accessibility, exceptional states, and end-to-end testing.
+
+Do not skip ahead to decorative polish while the primary workflow remains incomplete.
+
+## 18. Definition of Done
+
+The implementation is complete only when:
+
+- The core journey works end to end.
+- Failed verification and successful revision are both demonstrated.
+- Payment states match authoritative backend and provider outcomes.
+- No unsupported wallet, escrow, or payment behavior has been introduced.
+- Task state and permissions are not independently reimplemented in the frontend.
+- All consequential actions are explicit and recoverable.
+- Relevant loading, empty, error, pending, and uncertain states exist.
+- Agreement, submission, and verification history are preserved as required.
+- Desktop and mobile experiences are usable.
+- Keyboard and assistive-technology behavior has been tested.
+- The repository's engineering quality checks pass.
+- Relevant integration and end-to-end tests pass.
+- No important control is decorative or disconnected from actual functionality.
+- No unsupported business rule has been invented.
+
+## 19. Reporting Requirements
+
+After the initial audit and after each implementation stage, report:
+
+1. What was implemented.
+2. Which files were created or changed.
+3. Which existing components and APIs were reused.
+4. Which checks and tests were run and whether they passed.
+5. What remains incomplete.
+6. Any unresolved architectural or business decisions.
+7. Any known limitations or risks.
+
+Do not claim that a test passed unless it was actually run.
+
+Do not report a feature as complete if it only has a visual mockup.
+
+## Final Instruction
+
+Think like a product owner, interaction designer, frontend architect, and end user simultaneously.
+
+Prioritize clarity, trust, evidence, user control, and reliable behavior over decorative complexity.
+
+Build the smallest complete version of WorkPay that demonstrates the entire supported economic execution journey. Make every important state understandable, every consequential action explicit, every failure recoverable, and every success truthful.
+
+**The final experience must make it easy for users to understand what is happening, why it is happening, what evidence supports it, and what happens to their work and money next.**
+

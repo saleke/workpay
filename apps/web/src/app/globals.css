@@ -3,27 +3,59 @@
 @tailwind utilities;
 
 :root {
-  /* Canvas and surfaces */
-  --canvas: #f8f7f4;
-  --surface: #ffffff;
-  --surface-subtle: #fbfaf7;
-  --border-subtle: #e5e2da;
-  --border-strong: #d5d0c5;
+  /* WorkPay Design System Tokens (Section 4) */
+  --wp-canvas: #F7F5F0;
+  --wp-surface: #FFFFFF;
+  --wp-surface-subtle: #F2F1ED;
+
+  --wp-text-primary: #232323;
+  --wp-text-secondary: #6B6F76;
+  --wp-text-muted: #8B8D91;
+
+  --wp-border: #E7E5DF;
+  --wp-border-strong: #D6D3CC;
+
+  --wp-accent: #B7792D;
+  --wp-accent-subtle: #F7EBDD;
+
+  --wp-success: #287A53;
+  --wp-success-subtle: #EAF5EE;
+
+  --wp-info: #315FA8;
+  --wp-info-subtle: #EDF3FC;
+
+  --wp-warning: #99631B;
+  --wp-warning-subtle: #FBF2DF;
+
+  --wp-danger: #B33A36;
+  --wp-danger-subtle: #FBECEB;
+
+  --wp-radius-sm: 6px;
+  --wp-radius-md: 10px;
+  --wp-radius-lg: 14px;
+  --wp-radius-xl: 18px;
+
+  /* Backward and component compatible bindings */
+  --canvas: var(--wp-canvas);
+  --surface: var(--wp-surface);
+  --surface-subtle: var(--wp-surface-subtle);
+  --border-subtle: var(--wp-border);
+  --border-strong: var(--wp-border-strong);
 
   /* Typography */
-  --charcoal: #222326;
-  --text-muted: #6b6f76;
-  --text-soft: #4a4d53;
+  --charcoal: var(--wp-text-primary);
+  --text-muted: var(--wp-text-secondary);
+  --text-soft: var(--wp-text-secondary);
 
   /* State colors */
-  --amber: #b77a2b;
-  --amber-subtle: #fdf8f0;
-  --green: #059669;
-  --green-subtle: #ecfdf5;
-  --blue: #2563eb;
-  --blue-subtle: #eff6ff;
-  --red: #dc2626;
-  --red-subtle: #fef2f2;
+  --amber: var(--wp-accent);
+  --amber-subtle: var(--wp-accent-subtle);
+  --green: var(--wp-success);
+  --green-subtle: var(--wp-success-subtle);
+  --blue: var(--wp-info);
+  --blue-subtle: var(--wp-info-subtle);
+  --red: var(--wp-danger);
+  --red-subtle: var(--wp-danger-subtle);
 
   /* Backward compatible variables */
   --room: var(--canvas);

@@ -22,6 +22,13 @@
       "when": 1792116640000,
       "tag": "0002_provider_user_payout",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792775807599,
+      "tag": "0003_omniscient_doorman",
+      "breakpoints": true
     }
   ]
 }
