@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  /* The room: the dark surface around every sheet */
-  --room: #121212;
-  --room-rule: #2a2a2a;
-  --room-text: #cfcac0;
-  --room-text-strong: #efebe2;
-  --room-muted: #8d887c;
+  /* The room: clean white system background */
+  --room: #ffffff;
+  --room-rule: #e5e2db;
+  --room-text: #4a463d;
+  --room-text-strong: #1d1b17;
+  --room-muted: #6b665a;
 
-  /* The paper: the single bright object on every screen */
-  --paper: #efebe2;
-  --paper-rule: #c9c3b3;
+  /* The paper: the warm tactile sheet on the white surface */
+  --paper: #fbf9f5;
+  --paper-rule: #dfd9cc;
   --ink: #1d1b17;
   --ink-soft: #4a463d;
   --ink-muted: #6b665a;
@@ -22,10 +22,10 @@
   --ink-fail: #a8392b;
   --ink-unsure: #7a5c0f;
 
-  /* State ink on the room (lighter variants for the dark surface) */
-  --room-met: #7fbf9d;
-  --room-fail: #e0786d;
-  --room-unsure: #d2ae5a;
+  /* State ink on the room (crisp contrast on white) */
+  --room-met: #2f6b4a;
+  --room-fail: #a8392b;
+  --room-unsure: #7a5c0f;
 
   /* Type scale */
   --text-label: 0.75rem;
@@ -68,8 +68,8 @@
   --border: var(--room-rule);
   --input: var(--room-rule);
   --ring: var(--room-text-strong);
-  --primary: var(--paper);
-  --primary-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
   --secondary: transparent;
   --secondary-foreground: var(--room-text-strong);
   --destructive: var(--room-fail);
@@ -103,7 +103,7 @@ body {
   line-height: var(--leading-chrome);
 }
 
-/* The sheet: the one bright object per screen */
+/* The sheet: tactile paper sheet */
 .sheet {
   background: var(--paper);
   color: var(--ink);
@@ -111,6 +111,7 @@ body {
   font-size: var(--text-body);
   line-height: var(--leading-voice);
   border-radius: var(--radius-sheet);
+  border: var(--rule) solid var(--paper-rule);
   padding: var(--space-5) var(--space-6);
   max-width: var(--sheet-max);
   margin: 0 auto;
@@ -226,9 +227,9 @@ body {
 }
 
 .btn-room {
-  background: var(--paper);
-  color: var(--ink);
-  border: var(--rule) solid var(--paper);
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--rule) solid var(--ink);
 }
 
 .btn-room-quiet {
@@ -278,9 +279,9 @@ body {
   color: var(--room-text-strong);
 }
 
-.shell-nav .new-btn {
-  background: var(--paper);
-  color: var(--ink);
+.new-btn {
+  background: var(--ink);
+  color: var(--paper);
   border-radius: var(--radius-control);
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-small);
@@ -288,10 +289,11 @@ body {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+  transition: opacity 120ms ease;
 }
 
-.shell-nav .new-btn:hover {
-  opacity: 0.95;
+.new-btn:hover {
+  opacity: 0.92;
 }
 
 .group-heading {

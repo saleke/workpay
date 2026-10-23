@@ -75,7 +75,7 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/tasks/new"
-            className="rounded-[var(--radius-control)] bg-[var(--paper)] px-3 py-1 text-xs font-medium text-[var(--ink)] hover:opacity-90 transition-opacity"
+            className="new-btn"
           >
             New task
           </Link>
