@@ -1,20 +1,19 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, Source_Serif_4 } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 
-const fontChrome = IBM_Plex_Sans({
+const fontSans = Inter({
   subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-chrome",
+  variable: "--font-sans",
+  display: "swap",
 });
 
-const fontVoice = Source_Serif_4({
+const fontMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
-  style: ["normal", "italic"],
-  variable: "--font-voice",
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -31,9 +30,9 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={cn(
-          "min-h-screen bg-[var(--room)] text-[var(--room-text)] antialiased font-[family-name:var(--font-chrome)]",
-          fontChrome.variable,
-          fontVoice.variable,
+          "min-h-screen bg-[var(--wp-canvas)] text-[var(--wp-text-primary)] antialiased font-sans selection:bg-[var(--wp-accent-subtle)] selection:text-[var(--wp-text-primary)]",
+          fontSans.variable,
+          fontMono.variable,
         )}
       >
         {children}

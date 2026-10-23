@@ -111,11 +111,14 @@
 }
 
 body {
-  background: var(--canvas);
-  color: var(--charcoal);
-  font-family: var(--font-chrome), system-ui, -apple-system, sans-serif;
+  background: var(--wp-canvas);
+  color: var(--wp-text-primary);
+  font-family: var(--font-sans), var(--font-chrome), system-ui, -apple-system, sans-serif;
   font-size: var(--text-body);
   line-height: 1.5;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Card container */

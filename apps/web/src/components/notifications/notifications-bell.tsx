@@ -98,11 +98,11 @@ export function NotificationsBell() {
         <Button
           variant="outline"
           size="icon"
-          className="relative h-9 w-9 rounded-xl border-border/80 transition-all hover:bg-muted focus-visible:ring-1"
+          className="relative h-9 w-9 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] transition-all duration-150 shadow-xs active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] cursor-pointer"
         >
-          <Bell className="h-4 w-4 text-foreground" />
+          <Bell className="h-4 w-4 text-[var(--wp-text-primary)]" />
           {unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-xs animate-in zoom-in-75">
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--wp-accent)] px-1 text-[10px] font-bold text-white shadow-xs animate-in zoom-in-75">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           ) : null}
@@ -113,13 +113,13 @@ export function NotificationsBell() {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="w-88 sm:w-96 rounded-2xl border-border/80 p-0 shadow-lg backdrop-blur-md"
+        className="w-88 sm:w-96 rounded-2xl border border-[var(--wp-border-strong)] p-0 shadow-xl backdrop-blur-md bg-white/98 ring-1 ring-black/5"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/70">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">Notifications</span>
+            <span className="text-sm font-semibold text-[var(--wp-text-primary)]">Notifications</span>
             {unreadCount > 0 ? (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              <span className="rounded-full bg-[var(--wp-accent-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--wp-accent)]">
                 {unreadCount} new
               </span>
             ) : null}
@@ -130,7 +130,7 @@ export function NotificationsBell() {
               size="sm"
               onClick={handleMarkAllRead}
               disabled={isPending}
-              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 font-medium"
+              className="h-7 px-2 text-xs text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] gap-1 font-medium cursor-pointer"
             >
               <CheckCheck className="h-3.5 w-3.5" />
               <span>Mark all read</span>

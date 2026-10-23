@@ -195,41 +195,48 @@ export function PersonaSwitcher() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 text-[var(--text-small)] text-[var(--room-muted)] hover:text-[var(--room-text-strong)] transition-colors px-2 py-1 rounded-[var(--radius-control)] border border-[var(--room-rule)]"
+              className="flex items-center gap-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2.5 py-1.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer"
             >
-              <span>{authUser ? authUser.name || authUser.email.split("@")[0] : current.name}</span>
-              <span className="text-[var(--text-label)] opacity-70">({current.roleTitle})</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--wp-surface-subtle)] text-[10px] font-bold text-[var(--wp-text-primary)] border border-[var(--wp-border)]">
+                {authUser ? (authUser.name ? authUser.name[0]?.toUpperCase() : "U") : current.name[0]}
+              </span>
+              <span className="text-[var(--wp-text-primary)] font-medium">
+                {authUser ? authUser.name || authUser.email.split("@")[0] : current.name}
+              </span>
+              <span className="text-[11px] text-[var(--wp-text-secondary)] opacity-80 font-normal">
+                ({authUser ? authUser.role : current.roleTitle})
+              </span>
+              <ChevronDown className="h-3 w-3 text-[var(--wp-text-secondary)] opacity-60" />
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-72 p-2">
+          <DropdownMenuContent align="end" className="w-80 p-2">
             {authUser ? (
               <>
-                <DropdownMenuLabel className="flex flex-col px-2 py-1 text-xs text-muted-foreground font-normal">
-                  <span className="font-semibold text-foreground text-sm">{authUser.name}</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">{authUser.email}</span>
-                  <span className="mt-1 inline-flex w-fit items-center rounded border border-primary/30 bg-primary/10 px-1.5 py-0.2 text-[9px] font-bold text-primary uppercase">
+                <DropdownMenuLabel className="flex flex-col px-2.5 py-1.5 text-xs text-muted-foreground font-normal">
+                  <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{authUser.name}</span>
+                  <span className="text-[11px] text-[var(--wp-text-secondary)] font-mono">{authUser.email}</span>
+                  <span className="mt-1.5 inline-flex w-fit items-center rounded-md border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--wp-text-primary)] uppercase">
                     Role: {authUser.role}
                   </span>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator className="my-1.5" />
+                <DropdownMenuSeparator className="my-1.5 bg-[var(--wp-border)]" />
                 <DropdownMenuItem
                   onClick={handleSignOut}
-                  className="flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer"
+                  className="flex items-center gap-2 text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] cursor-pointer rounded-lg px-2.5 py-2 text-xs font-medium"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  <span className="text-xs font-medium">Sign Out</span>
+                  <span>Sign Out of Account</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="my-1.5" />
+                <DropdownMenuSeparator className="my-1.5 bg-[var(--wp-border)]" />
               </>
             ) : null}
 
-            <DropdownMenuLabel className="flex items-center justify-between px-2 py-1 text-xs text-muted-foreground font-medium">
-              <span>Sandbox Perspectives</span>
-              <span className="text-[10px] text-muted-foreground font-mono font-normal">Switch Actor</span>
+            <DropdownMenuLabel className="flex items-center justify-between px-2.5 py-1 text-xs text-muted-foreground font-medium">
+              <span className="text-[11px] uppercase tracking-wider font-semibold">Demo Actor Perspectives</span>
+              <span className="text-[10px] text-muted-foreground font-mono font-normal">1-Click Switch</span>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="my-1" />
+            <DropdownMenuSeparator className="my-1 bg-[var(--wp-border)]" />
 
             <DropdownMenuGroup className="space-y-1">
               {PERSONAS.map((p) => {
@@ -240,29 +247,29 @@ export function PersonaSwitcher() {
                   <DropdownMenuItem
                     key={p.key}
                     onClick={() => switchPersona(p, true)}
-                    className={`flex flex-col items-start gap-1 p-2 rounded-lg cursor-pointer transition-colors ${
+                    className={`flex flex-col items-start gap-1 p-2.5 rounded-lg cursor-pointer transition-all ${
                       isSelected
-                        ? "bg-accent/80 border border-primary/20"
-                        : "hover:bg-muted/60"
+                        ? "bg-[var(--wp-surface-subtle)] border border-[var(--wp-border-strong)]"
+                        : "hover:bg-[var(--wp-surface-subtle)]"
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--wp-surface-subtle)] text-[var(--wp-text-primary)] border border-[var(--wp-border)]">
                           <Icon className="h-3.5 w-3.5" />
                         </div>
-                        <span className="font-semibold text-xs text-foreground">
+                        <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
                           {p.name} ({p.roleTitle})
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold border ${p.badgeColor}`}>
+                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-[var(--wp-surface-subtle)] text-[var(--wp-text-secondary)] border border-[var(--wp-border)]">
                           {p.badge}
                         </span>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                        {isSelected && <Check className="h-3.5 w-3.5 text-[var(--wp-accent)]" />}
                       </div>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-snug pl-8">
+                    <p className="text-[11px] text-[var(--wp-text-secondary)] leading-snug pl-8">
                       {p.description}
                     </p>
                   </DropdownMenuItem>
@@ -270,7 +277,7 @@ export function PersonaSwitcher() {
               })}
             </DropdownMenuGroup>
 
-            <DropdownMenuSeparator className="my-1.5" />
+            <DropdownMenuSeparator className="my-1.5 bg-[var(--wp-border)]" />
 
             {!authUser && (
               <>
