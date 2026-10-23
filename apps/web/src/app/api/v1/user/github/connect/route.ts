@@ -6,10 +6,6 @@ import { jsonError, resolveActorAsync } from "@/lib/server/api";
 export async function GET(req: NextRequest) {
   try {
     const actor = await resolveActorAsync(req);
-    if (!actor.id) {
-      return jsonError({ code: "UNAUTHORIZED", message: "Sign in required to link GitHub account" }, 401);
-    }
-
     const env = getEnv();
     const clientId = env.GITHUB_CLIENT_ID;
 
