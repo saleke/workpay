@@ -8,18 +8,23 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  Bell,
   Briefcase,
   Check,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Cpu,
   Database,
   ExternalLink,
+  FileCheck,
   FlaskConical,
+  KeyRound,
   Layers,
   Lock,
   LogIn,
   LogOut,
+  Mail,
   RefreshCw,
   Scale,
   Server,
@@ -28,7 +33,6 @@ import {
   ShieldCheck,
   Sliders,
   Sparkles,
-  Terminal,
   User,
   UserCheck,
   UserPlus,
@@ -37,11 +41,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -49,11 +51,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useSystemMode, type SystemMode } from "@/lib/mode";
+import { useSystemMode } from "@/lib/mode";
 import { ProviderProfileManager } from "@/components/provider/provider-profile-manager";
 import { cn } from "@/lib/utils";
 
-type SettingsTabKey = "general" | "specialist" | "paypal" | "guardrails" | "diagnostics";
+type SettingsTabKey =
+  | "account"
+  | "work-preferences"
+  | "paypal"
+  | "ai-authority"
+  | "notifications"
+  | "security";
 
 interface SettingsTabConfig {
   key: SettingsTabKey;
@@ -66,42 +74,49 @@ interface SettingsTabConfig {
 
 const SETTINGS_TABS: SettingsTabConfig[] = [
   {
-    key: "general",
-    title: "General & Identity",
-    shortTitle: "General",
-    description: "Execution environment, active session, and authentication",
-    icon: Sliders,
+    key: "account",
+    title: "Account & Identity",
+    shortTitle: "Account",
+    description: "User profile, active session, and dual-role participation",
+    icon: User,
   },
   {
-    key: "specialist",
-    title: "Specialist Profile",
-    shortTitle: "Specialist",
-    description: "Marketplace bio, hourly rate, tags, and payout email",
+    key: "work-preferences",
+    title: "Work Preferences & Capabilities",
+    shortTitle: "Work Preferences",
+    description: "Skills, availability schedule, capacity, pricing, and rules",
     icon: Briefcase,
-    badge: "Marketplace",
+    badge: "Core",
   },
   {
     key: "paypal",
-    title: "PayPal Escrow Rails",
-    shortTitle: "PayPal & Escrow",
-    description: "Non-custodial Orders v2 and Payments v2 gateway state",
+    title: "PayPal Connection & Rails",
+    shortTitle: "PayPal & Payments",
+    description: "Non-custodial authorization holds and capture eligibility",
     icon: Wallet,
-    badge: "Non-custodial",
+    badge: "Non-Custodial",
   },
   {
-    key: "guardrails",
-    title: "AI Policy & Guardrails",
-    shortTitle: "AI Guardrails",
-    description: "Invariants P1 to P4, budget ceilings, and safety limits",
+    key: "ai-authority",
+    title: "AI Authority & User Control",
+    shortTitle: "AI Control",
+    description: "Invariants P1 to P4, spending boundaries, and human sign-off",
     icon: ShieldCheck,
     badge: "Fail-Closed",
   },
   {
-    key: "diagnostics",
-    title: "Diagnostics & Database",
-    shortTitle: "Diagnostics",
-    description: "System health audit, worker status, and demo reset",
-    icon: Database,
+    key: "notifications",
+    title: "Notifications & Alerts",
+    shortTitle: "Notifications",
+    description: "Alert preferences for verifications, revisions, and settlements",
+    icon: Bell,
+  },
+  {
+    key: "security",
+    title: "Sandbox & System Health",
+    shortTitle: "System & Sandbox",
+    description: "Runtime environment, service health, and baseline reset",
+    icon: Server,
   },
 ];
 
@@ -117,14 +132,20 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab") as SettingsTabKey | null;
   const initialTab: SettingsTabKey =
-    rawTab && SETTINGS_TABS.some((t) => t.key === rawTab) ? rawTab : "general";
+    rawTab && SETTINGS_TABS.some((t) => t.key === rawTab) ? rawTab : "account";
 
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(initialTab);
-  const { mode, isDemo, setMode, envDefault } = useSystemMode();
+  const { isDemo, setMode, envDefault } = useSystemMode();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  // Notification toggles
+  const [notifyTaskOffers, setNotifyTaskOffers] = useState(true);
+  const [notifyVerificationResults, setNotifyVerificationResults] = useState(true);
+  const [notifyRevisions, setNotifyRevisions] = useState(true);
+  const [notifyPayments, setNotifyPayments] = useState(true);
+  const [notifyDisputes, setNotifyDisputes] = useState(true);
 
   useEffect(() => {
     if (rawTab && SETTINGS_TABS.some((t) => t.key === rawTab)) {
@@ -139,7 +160,7 @@ function SettingsContent() {
         const u = JSON.parse(stored);
         if (u?.id) setAuthUser(u);
       } catch {
-        // Ignore
+        // Ignore parse error
       }
     }
   }, []);
@@ -154,7 +175,6 @@ function SettingsContent() {
   const handleResetDemo = async () => {
     if (resetting) return;
     setResetting(true);
-    setResetSuccess(false);
     try {
       const res = await fetch("/api/v1/demo/reset", { method: "POST" });
       if (res.ok) {
@@ -162,10 +182,8 @@ function SettingsContent() {
         setAuthUser(null);
         window.localStorage.setItem("workpay_persona", "buyer");
         document.cookie = `workpay_persona=buyer; path=/; max-age=31536000`;
-        setResetSuccess(true);
         setConfirmResetOpen(false);
         toast.success("Database restored to canonical demo baseline");
-        setTimeout(() => setResetSuccess(false), 5000);
       } else {
         toast.error("Failed to reset database");
       }
@@ -181,7 +199,7 @@ function SettingsContent() {
     try {
       await fetch("/api/v1/auth/logout", { method: "POST" });
     } catch {
-      // Ignore
+      // Ignore error
     }
     window.localStorage.removeItem("workpay_auth_user");
     setAuthUser(null);
@@ -190,17 +208,15 @@ function SettingsContent() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl pb-12">
+    <div className="flex flex-col gap-6 max-w-6xl pb-16 font-sans">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--wp-border)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--wp-border)]">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--wp-text-primary)]">
-              Settings &amp; Architecture Diagnostics
-            </h1>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--wp-text-primary)]">
+            System &amp; Workspace Settings
+          </h1>
           <p className="text-xs sm:text-sm text-[var(--wp-text-secondary)] mt-0.5">
-            Configure runtime environments, audit PayPal escrow gates, manage specialist profiles, and inspect system invariants.
+            Manage your account identity, worker preferences, non-custodial PayPal payment rails, and AI authority boundaries.
           </p>
         </div>
 
@@ -220,14 +236,14 @@ function SettingsContent() {
                 isDemo ? "bg-[var(--wp-accent)]" : "bg-[var(--wp-success)]",
               )}
             />
-            {isDemo ? "Sandbox (Simulated Settlement)" : "Live Production Escrow"}
+            {isDemo ? "Sandbox Environment" : "Live Production Escrow"}
           </Badge>
         </div>
       </div>
 
-      {/* Main Settings Layout: Sub-Navigation Sidebar + Active Tab Content */}
+      {/* Settings Sub-Navigation & Main Workspace */}
       <div className="flex flex-col md:flex-row gap-6 items-start">
-        {/* Navigation Tabs - Desktop (Vertical Sidebar) & Mobile (Horizontal Strip) */}
+        {/* Navigation Sidebar */}
         <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
           {SETTINGS_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -273,126 +289,33 @@ function SettingsContent() {
           })}
         </div>
 
-        {/* Tab Content Panels */}
+        {/* Tab Content Panel */}
         <div className="flex-1 w-full min-w-0">
-          {/* TAB 1: GENERAL & IDENTITY */}
-          {activeTab === "general" && (
+          {/* TAB 1: ACCOUNT & IDENTITY */}
+          {activeTab === "account" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {/* Card 1.1: Execution Environment & Gateway Configuration */}
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Sliders className="h-4 w-4 text-[var(--wp-accent)]" />
-                      Execution Environment &amp; Gateway Configuration
-                    </CardTitle>
-                    <span className="text-xs text-[var(--wp-text-secondary)] font-mono">
-                      System Default: {envDefault === "demo" ? "Sandbox" : "Live"}
-                    </span>
-                  </div>
-                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    WorkPay operates across two distinct execution environments. You can switch between Sandbox simulation and Live Production Escrow at any time.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 grid gap-4">
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {/* Sandbox Mode Option Card */}
-                    <div
-                      onClick={() => {
-                        setMode("demo");
-                        toast.success("Switched to Sandbox Environment");
-                      }}
-                      className={cn(
-                        "relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 active:scale-[0.99]",
-                        isDemo
-                          ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/30 shadow-xs"
-                          : "border-[var(--wp-border)] hover:border-[var(--wp-border-strong)] hover:bg-[var(--wp-surface-subtle)]",
-                      )}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-sm flex items-center gap-2 text-[var(--wp-text-primary)]">
-                            <FlaskConical className="h-4 w-4 text-[var(--wp-accent)]" />
-                            Sandbox (Simulated Settlement)
-                          </span>
-                          {isDemo && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--wp-accent)] text-white">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                          Deterministic testing environment with simulated PayPal authorizations, mock verification execution, and simulated actor perspectives. Ideal for testing protocols, integration validation, and workflow debugging.
-                        </p>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-[var(--wp-border)] flex items-center gap-2 text-[11px] font-semibold text-[var(--wp-accent)]">
-                        <span>Recommended for Development &amp; Protocol Testing</span>
-                      </div>
-                    </div>
+              {/* Dual-Role Identity Explanation Card */}
+              <div className="p-4 sm:p-5 rounded-xl border border-[var(--wp-border)] bg-white shadow-xs flex items-start gap-3.5">
+                <UserCheck className="h-5 w-5 text-[var(--wp-accent)] shrink-0 mt-0.5" />
+                <div>
+                  <h2 className="text-sm font-semibold text-[var(--wp-text-primary)]">
+                    Unified Dual-Role Participation Model
+                  </h2>
+                  <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed mt-1">
+                    WorkPay does not force you into a permanent buyer or worker identity. With a single account, you can commission work (define goals, review specifications, authorize payment holds) and perform work (declare capabilities, accept tasks, submit deliverables, receive verified settlements).
+                  </p>
+                </div>
+              </div>
 
-                    {/* Live Production Escrow Option Card */}
-                    <div
-                      onClick={() => {
-                        setMode("production");
-                        toast.success("Switched to Live Production Escrow");
-                      }}
-                      className={cn(
-                        "relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 active:scale-[0.99]",
-                        !isDemo
-                          ? "border-[var(--wp-success)] bg-[var(--wp-success-subtle)]/30 shadow-xs"
-                          : "border-[var(--wp-border)] hover:border-[var(--wp-border-strong)] hover:bg-[var(--wp-surface-subtle)]",
-                      )}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-sm flex items-center gap-2 text-[var(--wp-text-primary)]">
-                            <ShieldCheck className="h-4 w-4 text-[var(--wp-success)]" />
-                            Live Production Escrow
-                          </span>
-                          {!isDemo && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--wp-success)] text-white">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                          Production gateway environment with real-time PayPal authorizations, cryptographic escrow verification, and live account authentication. Authorizations and captures lock and release actual currency.
-                        </p>
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-[var(--wp-border)] flex items-center gap-2 text-[11px] font-semibold text-[var(--wp-success)]">
-                        <span>Production Gateway Enforced</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--wp-border)]">
-                    <span className="text-xs text-[var(--wp-text-secondary)]">
-                      Environment can also be toggled via <code className="font-mono text-[11px] bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] px-1.5 py-0.5 rounded">NEXT_PUBLIC_DEMO_MODE</code> in <code className="font-mono text-[11px] bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] px-1.5 py-0.5 rounded">.env</code>.
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setMode(null);
-                        toast.success("Reset environment to system default");
-                      }}
-                      className="h-7 text-xs text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]"
-                    >
-                      Reset to System Default
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card 1.2: Identity & Authentication Session */}
+              {/* Active Session & Authentication State */}
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <User className="h-4 w-4 text-[var(--wp-accent)]" />
-                    Active Session &amp; Identity State
+                    Active Authentication Session
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Inspect your authenticated identity, user permissions, and registered credentials.
+                    Inspect your authenticated account credentials or active sandbox demo persona.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6">
@@ -415,7 +338,7 @@ function SettingsContent() {
                             </Badge>
                           </div>
                           <div className="text-xs font-mono text-[var(--wp-text-secondary)] mt-1">{authUser.email}</div>
-                          <div className="text-[11px] font-mono text-[var(--wp-text-secondary)] mt-0.5">ID: {authUser.id}</div>
+                          <div className="text-[11px] font-mono text-[var(--wp-text-secondary)] mt-0.5">User ID: {authUser.id}</div>
                         </div>
                       </div>
                       <Button
@@ -425,7 +348,7 @@ function SettingsContent() {
                         className="text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] hover:text-[var(--wp-danger)] border-[var(--wp-border)] shrink-0 font-medium text-xs"
                       >
                         <LogOut className="h-3.5 w-3.5 mr-1.5" />
-                        Sign Out of Account
+                        Sign Out
                       </Button>
                     </div>
                   ) : (
@@ -442,7 +365,7 @@ function SettingsContent() {
                             </Badge>
                           </div>
                           <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl">
-                            You are interacting as a sandbox persona (Alice the Buyer, Bob the Specialist, or Carol the Reviewer). You can register a real account at any time to verify the complete user authentication system.
+                            You are interacting as a sandbox persona (Alice the Task Owner, Bob the Specialist, or Carol the Reviewer). You can register a personal account at any time to test production identity and custom authentication.
                           </p>
                         </div>
                       </div>
@@ -465,157 +388,145 @@ function SettingsContent() {
                 </CardContent>
               </Card>
 
-              {/* Card 1.3: Runtime Stack & Core Architecture */}
+              {/* Password & Security State */}
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Server className="h-4 w-4 text-[var(--wp-accent)]" />
-                    Runtime Stack &amp; Architectural Specifications
+                    <KeyRound className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Security &amp; Session Encryption
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Underlying engine technologies powering deterministic agreement compilation and non-custodial settlement.
+                    Password hashing, session cookies, and cryptographic API tokens.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-5 sm:p-6 grid sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <span className="text-xs text-[var(--wp-text-secondary)] block">Web Application</span>
-                    <span className="text-sm font-semibold text-[var(--wp-text-primary)] block mt-0.5">Next.js 15 + React 19</span>
-                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-1">App Router with Server Components and SSR cache</span>
+                <CardContent className="p-5 sm:p-6 text-xs text-[var(--wp-text-secondary)] space-y-2">
+                  <div className="flex items-center justify-between py-1.5 border-b border-[var(--wp-border)]">
+                    <span>Password Hash Encryption</span>
+                    <span className="font-mono text-[11px] text-[var(--wp-text-primary)] font-medium">bcrypt (12 rounds)</span>
                   </div>
-                  <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <span className="text-xs text-[var(--wp-text-secondary)] block">Database &amp; Schema</span>
-                    <span className="text-sm font-semibold text-[var(--wp-text-primary)] block mt-0.5">PostgreSQL + Drizzle ORM</span>
-                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-1">Transactional idempotency and audit logs</span>
+                  <div className="flex items-center justify-between py-1.5 border-b border-[var(--wp-border)]">
+                    <span>Session Cookie Security</span>
+                    <span className="font-mono text-[11px] text-[var(--wp-text-primary)] font-medium">HttpOnly, SameSite=Lax</span>
                   </div>
-                  <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <span className="text-xs text-[var(--wp-text-secondary)] block">AI Clarification Engine</span>
-                    <span className="text-sm font-semibold text-[var(--wp-text-primary)] block mt-0.5">Cloudflare Workers AI</span>
-                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-1">Bounded structured generation via Zod validation</span>
+                  <div className="flex items-center justify-between py-1.5">
+                    <span>Authoritative State Store</span>
+                    <span className="font-mono text-[11px] text-[var(--wp-text-primary)] font-medium">PostgreSQL (Users Table)</span>
                   </div>
                 </CardContent>
               </Card>
             </div>
           )}
 
-          {/* TAB 2: SPECIALIST PROFILE */}
-          {activeTab === "specialist" && (
+          {/* TAB 2: WORK PREFERENCES & CAPABILITIES */}
+          {activeTab === "work-preferences" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex items-start gap-3">
-                <Briefcase className="h-5 w-5 text-[var(--wp-accent)] shrink-0 mt-0.5" />
-                <div>
-                  <h2 className="text-sm font-semibold text-[var(--wp-text-primary)]">
-                    Marketplace Specialist Profile Configuration
-                  </h2>
-                  <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5">
-                    When matched to tasks or submitting deliverables, these credentials, proficiency tags, and payout email destinations are used by the settlement protocol.
-                  </p>
-                </div>
-              </div>
-
-              {/* Provider Profile Manager Component */}
               <ProviderProfileManager />
             </div>
           )}
 
-          {/* TAB 3: PAYPAL & ESCROW RAILS */}
+          {/* TAB 3: PAYPAL CONNECTION & PAYMENT RAILS */}
           {activeTab === "paypal" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {/* Card 3.1: Non-Custodial Architecture Banner */}
+              {/* Audited Non-Custodial Architecture Banner */}
               <div className="p-4 sm:p-5 rounded-xl border border-[var(--wp-accent)]/30 bg-[var(--wp-accent-subtle)]/30 flex items-start gap-3.5">
                 <ShieldCheck className="h-5 w-5 text-[var(--wp-accent)] shrink-0 mt-0.5" />
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--wp-text-primary)]">
-                    Authoritative Non-Custodial Guarantee
+                    Authoritative Non-Custodial Payment Architecture
                   </h3>
                   <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed mt-1">
-                    WorkPay does not hold, custody, or pool user funds. We never operate an internal stored-value wallet. All deposits remain strictly in external PayPal-managed authorization holds (Orders v2 / Payments v2). Funds are captured and transferred directly to the specialist&apos;s verified PayPal account only after automated acceptance criteria pass with zero defects.
+                    WorkPay is strictly non-custodial. WorkPay never holds user funds, pools balances, or operates a digital wallet. Buyer payments are placed in an external authorization hold through PayPal Orders v2. Funds remain on the buyer&apos;s payment instrument until deliverable verification passes and settlement policy confirms eligibility.
                   </p>
                 </div>
               </div>
 
-              {/* Card 3.2: Gateway Status & Operational Invariants */}
+              {/* Distinct Payment Stages Explanation */}
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Scale className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Distinct Economic Stages: Proof vs Settlement
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                    In WorkPay, verification does not automatically equal settlement. The backend enforces distinct stages before any currency moves.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 grid gap-4">
+                  <div className="grid sm:grid-cols-2 gap-3.5 text-xs">
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[var(--wp-text-primary)]">1. Verification Outcome</span>
+                        <StatusBadge tone="success">EVIDENCE TEST</StatusBadge>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed mt-1">
+                        Submitted deliverables are evaluated against agreed acceptance criteria. Produces PASS, FAIL, or UNCERTAIN. A passing verification confirms quality, but does not move money on its own.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[var(--wp-text-primary)]">2. Settlement Eligibility</span>
+                        <StatusBadge tone="success">POLICY GATE</StatusBadge>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed mt-1">
+                        Deterministic policy evaluation verifies that the contract budget ceiling is respected, the contract version is current, no blocking dispute case exists, and the payment is in AUTHORIZED status.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[var(--wp-text-primary)]">3. Capture Initiation</span>
+                        <StatusBadge tone="attention">EXTERNAL DISPATCH</StatusBadge>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed mt-1">
+                        The backend dispatches an authenticated capture call to the PayPal Payments v2 API using a stable idempotency key to prevent accidental duplicate charges.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[var(--wp-text-primary)]">4. Confirmed Payment</span>
+                        <StatusBadge tone="success">AUTHORITATIVE</StatusBadge>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed mt-1">
+                        PayPal webhook or API response confirms COMPLETED status. The task state transitions to completed only after authoritative confirmation.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* PayPal API Parameters */}
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                  <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-                      PayPal Orders v2 &amp; Payments v2 Gateway State
+                      PayPal Gateway Connection &amp; Health
                     </CardTitle>
                     <StatusBadge tone="success">Orders v2 / Payments v2 Enforced</StatusBadge>
                   </div>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Authoritative payment states returned by the backend and verified against PayPal webhook signatures.
+                    Authoritative connection details for external payment operations.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-5 sm:p-6 grid gap-4">
-                  <div className="grid sm:grid-cols-2 gap-3.5">
-                    <div className="rounded-xl border border-[var(--wp-border)] p-4 bg-white">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold text-[var(--wp-text-primary)]">API Integration</span>
-                        <StatusBadge tone="success">LIVE V2</StatusBadge>
-                      </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                        PayPal Orders v2 for 2-step authorization hold and Payments v2 for cryptographic capture settlement.
-                      </p>
+                <CardContent className="p-5 sm:p-6">
+                  <div className="divide-y divide-[var(--wp-border)] text-xs">
+                    <div className="py-2.5 flex items-center justify-between">
+                      <span className="text-[var(--wp-text-secondary)]">Payment Rails Engine</span>
+                      <span className="font-mono font-medium text-[var(--wp-text-primary)]">PayPal REST API v2 (Orders &amp; Payments)</span>
                     </div>
-
-                    <div className="rounded-xl border border-[var(--wp-border)] p-4 bg-white">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold text-[var(--wp-text-primary)]">Webhook Health</span>
-                        <StatusBadge tone="success">VERIFIED</StatusBadge>
-                      </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                        Authoritative reconciliation for PAYMENT.AUTHORIZATION.CREATED and PAYMENT.CAPTURE.COMPLETED events.
-                      </p>
+                    <div className="py-2.5 flex items-center justify-between">
+                      <span className="text-[var(--wp-text-secondary)]">Authorization Honor Period</span>
+                      <span className="font-mono font-medium text-[var(--wp-text-primary)]">29 Days (Auto-void safe)</span>
                     </div>
-
-                    <div className="rounded-xl border border-[var(--wp-border)] p-4 bg-white">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold text-[var(--wp-text-primary)]">Authorization Window</span>
-                        <span className="text-[11px] font-mono font-medium text-[var(--wp-text-secondary)]">29 Days</span>
-                      </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                        PayPal standard honor period. Unsettled agreements auto-void safely back to the buyer without funds leaving PayPal.
-                      </p>
+                    <div className="py-2.5 flex items-center justify-between">
+                      <span className="text-[var(--wp-text-secondary)]">Webhook Signature Verification</span>
+                      <span className="font-mono font-medium text-[var(--wp-text-primary)]">Enabled (Raw payload digest check)</span>
                     </div>
-
-                    <div className="rounded-xl border border-[var(--wp-border)] p-4 bg-white">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold text-[var(--wp-text-primary)]">External Call Isolation</span>
-                        <StatusBadge tone="success">ISOLATED</StatusBadge>
-                      </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                        Database transactions are never held across external PayPal API calls. Idempotency records prevent duplicate captures.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Flow Diagram */}
-                  <div className="mt-2 pt-4 border-t border-[var(--wp-border)]">
-                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-3">
-                      Authoritative Payment State Lifecycle
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-                      <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/60">
-                        <span className="font-semibold block text-[11px] text-[var(--wp-text-primary)]">1. Proposed</span>
-                        <span className="text-[10px] text-[var(--wp-text-secondary)] mt-0.5 block">Budget Defined</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/60">
-                        <span className="font-semibold block text-[11px] text-[var(--wp-text-primary)]">2. Authorized</span>
-                        <span className="text-[10px] text-[var(--wp-text-secondary)] mt-0.5 block">PayPal Hold Locked</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/60">
-                        <span className="font-semibold block text-[11px] text-[var(--wp-text-primary)]">3. Executing</span>
-                        <span className="text-[10px] text-[var(--wp-text-secondary)] mt-0.5 block">Deliverable Built</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/60">
-                        <span className="font-semibold block text-[11px] text-[var(--wp-text-primary)]">4. Verified</span>
-                        <span className="text-[10px] text-[var(--wp-text-secondary)] mt-0.5 block">Proof Zero-Defect</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg border border-[var(--wp-success)]/40 bg-[var(--wp-success-subtle)]/40 col-span-2 sm:col-span-1">
-                        <span className="font-semibold block text-[11px] text-[var(--wp-success)]">5. Settled</span>
-                        <span className="text-[10px] text-[var(--wp-text-secondary)] mt-0.5 block">Capture Released</span>
-                      </div>
+                    <div className="py-2.5 flex items-center justify-between">
+                      <span className="text-[var(--wp-text-secondary)]">Supported Currency</span>
+                      <span className="font-mono font-medium text-[var(--wp-text-primary)]">USD (United States Dollar)</span>
                     </div>
                   </div>
                 </CardContent>
@@ -623,20 +534,20 @@ function SettingsContent() {
             </div>
           )}
 
-          {/* TAB 4: AI POLICY & GUARDRAILS */}
-          {activeTab === "guardrails" && (
+          {/* TAB 4: AI AUTHORITY & USER CONTROL */}
+          {activeTab === "ai-authority" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-[var(--wp-accent)]" />
-                      System Architectural Invariants &amp; Safety Policy Gates
+                      AI Authority Boundaries &amp; Architectural Invariants
                     </CardTitle>
-                    <StatusBadge tone="success">All Invariants Enforced</StatusBadge>
+                    <StatusBadge tone="success">Invariants Enforced</StatusBadge>
                   </div>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    WorkPay enforces strict fail-closed boundaries. No LLM output ever communicates directly with a payment gateway.
+                    WorkPay strictly bounds autonomous agents. No LLM output ever communicates directly with a payment gateway.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6 grid gap-4">
@@ -684,20 +595,20 @@ function SettingsContent() {
 
                   <div className="mt-2 pt-4 border-t border-[var(--wp-border)]">
                     <span className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-2">
-                      Autonomous Agent Execution Guardrails
+                      Autonomous Planning Limits
                     </span>
                     <div className="grid sm:grid-cols-3 gap-3 text-xs text-[var(--wp-text-secondary)]">
                       <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
-                        <span className="font-semibold text-[var(--wp-text-primary)] block">Step Limit</span>
+                        <span className="font-semibold text-[var(--wp-text-primary)] block">Step Budget</span>
                         <span className="mt-0.5 block">Max 10 execution loops per planning sequence</span>
                       </div>
                       <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
                         <span className="font-semibold text-[var(--wp-text-primary)] block">Acceptance Threshold</span>
-                        <span className="mt-0.5 block">1.0 binary pass criteria. No probabilistic guesses</span>
+                        <span className="mt-0.5 block">1.0 binary pass criteria. Zero probabilistic guessing</span>
                       </div>
                       <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
-                        <span className="font-semibold text-[var(--wp-text-primary)] block">Schema Validation</span>
-                        <span className="mt-0.5 block">Strict Zod schemas enforced on all LLM responses</span>
+                        <span className="font-semibold text-[var(--wp-text-primary)] block">Output Schemas</span>
+                        <span className="mt-0.5 block">Strict Zod validation on all structured responses</span>
                       </div>
                     </div>
                   </div>
@@ -706,47 +617,176 @@ function SettingsContent() {
             </div>
           )}
 
-          {/* TAB 5: SYSTEM DIAGNOSTICS & DATABASE */}
-          {activeTab === "diagnostics" && (
+          {/* TAB 5: NOTIFICATIONS & ALERTS */}
+          {activeTab === "notifications" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {/* Database & Fixtures Reset Card */}
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Event Notifications &amp; Alert Routing
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                    Choose which consequential task milestones and payment events trigger in-app bell notifications.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 divide-y divide-[var(--wp-border)]">
+                  <div className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                        Task Assignment Recommendations &amp; Offers
+                      </span>
+                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                        Receive alerts when your capabilities match a newly proposed task specification.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyTaskOffers}
+                      onChange={(e) => setNotifyTaskOffers(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                    />
+                  </div>
+
+                  <div className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                        Verification Outcomes (Pass / Fail)
+                      </span>
+                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                        Immediate notification when deliverable evidence evaluation completes.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyVerificationResults}
+                      onChange={(e) => setNotifyVerificationResults(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                    />
+                  </div>
+
+                  <div className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                        Revision Requests &amp; Unmet Criteria
+                      </span>
+                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                        Detailed breakdown when a deliverable requires revision before approval.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyRevisions}
+                      onChange={(e) => setNotifyRevisions(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                    />
+                  </div>
+
+                  <div className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                        Payment Authorizations &amp; Confirmed Captures
+                      </span>
+                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                        Authoritative updates when PayPal holds lock or settlement captures disburse.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyPayments}
+                      onChange={(e) => setNotifyPayments(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                    />
+                  </div>
+
+                  <div className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                        Dispute Escalation &amp; Arbitrator Holds
+                      </span>
+                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                        Immediate alert if a task enters dispute review or an arbitrator releases payment.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyDisputes}
+                      onChange={(e) => setNotifyDisputes(e.target.checked)}
+                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 6: SANDBOX & SYSTEM HEALTH */}
+          {activeTab === "security" && (
+            <div className="grid gap-6 animate-in fade-in-50 duration-150">
+              {/* Execution Mode Card */}
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Database className="h-4 w-4 text-[var(--wp-accent)]" />
-                      Database Fixtures &amp; One-Click Reset
+                      <Sliders className="h-4 w-4 text-[var(--wp-accent)]" />
+                      Runtime Execution Mode
                     </CardTitle>
-                    <Badge variant="outline" className="text-xs bg-white text-[var(--wp-text-secondary)] border-[var(--wp-border)]">
-                      1-Click Restore
-                    </Badge>
+                    <span className="text-xs text-[var(--wp-text-secondary)] font-mono">
+                      Default: {envDefault === "demo" ? "Sandbox" : "Live"}
+                    </span>
                   </div>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Evaluators can restore the system to its initial baseline state anytime with 1 click.
+                    Toggle between Sandbox simulation mode and Live Production Escrow.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="font-semibold text-sm text-[var(--wp-text-primary)]">Canonical Demo State Reset</div>
-                    <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-xl leading-relaxed">
-                      Cleans all temporary tasks, executions, and verification runs, and restores the pristine demo dataset: Alice (Buyer), Bob (Apex Data), Carol (Arbitrator), and the canonical customer enrichment task with test CSVs.
-                    </p>
-                    {resetSuccess && (
-                      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--wp-success)] mt-2.5">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Database successfully reset and re-seeded to canonical demo baseline.
-                      </div>
+                <CardContent className="p-5 sm:p-6 grid sm:grid-cols-2 gap-4">
+                  <div
+                    onClick={() => {
+                      setMode("demo");
+                      toast.success("Switched to Sandbox Environment");
+                    }}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                      isDemo
+                        ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/30 font-semibold"
+                        : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
                     )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setConfirmResetOpen(true)}
-                    disabled={resetting}
-                    className="gap-2 shrink-0 border-[var(--wp-border)] shadow-xs font-semibold text-xs text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] hover:text-[var(--wp-danger)]"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 ${resetting ? "animate-spin text-[var(--wp-accent)]" : ""}`} />
-                    {resetting ? "Resetting Database..." : "Reset Demo Database"}
-                  </Button>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="flex items-center gap-2 text-[var(--wp-text-primary)]">
+                        <FlaskConical className="h-4 w-4 text-[var(--wp-accent)]" />
+                        Sandbox Simulation
+                      </span>
+                      {isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-accent)]" />}
+                    </div>
+                    <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
+                      Simulated PayPal authorizations and test verification runs. Ideal for test workflows.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setMode("production");
+                      toast.success("Switched to Live Production Escrow");
+                    }}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                      !isDemo
+                        ? "border-[var(--wp-success)] bg-[var(--wp-success-subtle)]/30 font-semibold"
+                        : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
+                    )}
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="flex items-center gap-2 text-[var(--wp-text-primary)]">
+                        <ShieldCheck className="h-4 w-4 text-[var(--wp-success)]" />
+                        Live Production Escrow
+                      </span>
+                      {!isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-success)]" />}
+                    </div>
+                    <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
+                      Live PayPal Order authorization holds and Payments v2 settlement captures.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -755,31 +795,64 @@ function SettingsContent() {
                 <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <Activity className="h-4 w-4 text-[var(--wp-accent)]" />
-                    Service Health &amp; Connectivity Audit
+                    Service Health &amp; Connectivity
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
                     Live operational connectivity between frontend Next.js server, background worker, and database container.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-5 sm:p-6">
-                  <div className="divide-y divide-[var(--wp-border)] text-xs">
-                    <div className="py-2.5 flex items-center justify-between">
-                      <span className="font-medium text-[var(--wp-text-primary)]">PostgreSQL Container (workpay-postgres:5433)</span>
-                      <StatusBadge tone="success">HEALTHY</StatusBadge>
-                    </div>
-                    <div className="py-2.5 flex items-center justify-between">
-                      <span className="font-medium text-[var(--wp-text-primary)]">Database Schema Migration (0003_omniscient_doorman)</span>
-                      <StatusBadge tone="success">APPLIED</StatusBadge>
-                    </div>
-                    <div className="py-2.5 flex items-center justify-between">
-                      <span className="font-medium text-[var(--wp-text-primary)]">Background Execution Worker (@workpay/worker)</span>
-                      <StatusBadge tone="success">ONLINE</StatusBadge>
-                    </div>
-                    <div className="py-2.5 flex items-center justify-between">
-                      <span className="font-medium text-[var(--wp-text-primary)]">Public Cloudflare Tunnel Endpoint</span>
-                      <StatusBadge tone="success">CONNECTED</StatusBadge>
-                    </div>
+                <CardContent className="p-5 sm:p-6 divide-y divide-[var(--wp-border)] text-xs">
+                  <div className="py-2.5 flex items-center justify-between">
+                    <span className="font-medium text-[var(--wp-text-primary)]">PostgreSQL Container (workpay-postgres:5433)</span>
+                    <StatusBadge tone="success">HEALTHY</StatusBadge>
                   </div>
+                  <div className="py-2.5 flex items-center justify-between">
+                    <span className="font-medium text-[var(--wp-text-primary)]">Database Schema Migration (0004_work_preferences)</span>
+                    <StatusBadge tone="success">APPLIED</StatusBadge>
+                  </div>
+                  <div className="py-2.5 flex items-center justify-between">
+                    <span className="font-medium text-[var(--wp-text-primary)]">Background Execution Worker (@workpay/worker)</span>
+                    <StatusBadge tone="success">ONLINE</StatusBadge>
+                  </div>
+                  <div className="py-2.5 flex items-center justify-between">
+                    <span className="font-medium text-[var(--wp-text-primary)]">Public Cloudflare Tunnel Endpoint</span>
+                    <StatusBadge tone="success">CONNECTED</StatusBadge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Canonical Demo State Reset */}
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Database className="h-4 w-4 text-[var(--wp-accent)]" />
+                      Canonical Demo State Reset
+                    </CardTitle>
+                    <Badge variant="outline" className="text-xs bg-white text-[var(--wp-text-secondary)] border-[var(--wp-border)]">
+                      Evaluator Tool
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                    Restores the database to its pristine baseline with Alice, Bob, and Carol.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-sm text-[var(--wp-text-primary)]">Demo Fixtures Baseline</div>
+                    <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-xl leading-relaxed">
+                      Resets all user-created test tasks, executions, and verification evidence, and restores the canonical customer enrichment task with test CSVs.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmResetOpen(true)}
+                    disabled={resetting}
+                    className="gap-2 shrink-0 border-[var(--wp-border)] shadow-xs font-semibold text-xs text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] hover:text-[var(--wp-danger)]"
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", resetting && "animate-spin text-[var(--wp-accent)]")} />
+                    {resetting ? "Resetting..." : "Reset Demo Database"}
+                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -796,11 +869,11 @@ function SettingsContent() {
               Reset Demo Database Fixtures?
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)] pt-1">
-              This action will delete all user-created test tasks, deliverables, and executions, and re-seed the canonical demo state with Alice (Buyer), Bob (Specialist), and Carol (Arbitrator).
+              This action will delete all test tasks, deliverables, and executions, and re-seed the canonical demo state with Alice (Task Owner), Bob (Specialist), and Carol (Reviewer).
             </DialogDescription>
           </DialogHeader>
           <div className="p-3 rounded-xl bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] text-xs text-[var(--wp-text-secondary)]">
-            Your active demo persona will automatically be reset to <strong className="text-[var(--wp-text-primary)]">Alice (Buyer)</strong>.
+            Your active demo persona will automatically be reset to <strong className="text-[var(--wp-text-primary)]">Alice</strong>.
           </div>
           <DialogFooter className="flex sm:justify-end gap-2 pt-2">
             <Button

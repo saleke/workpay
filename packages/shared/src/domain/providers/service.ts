@@ -86,6 +86,9 @@ export async function runProviderSelection(
   const candidates: ProviderCandidate[] = providerRows.map((provider) => {
     const avail = availabilityRows.find((a) => a.providerId === provider.id);
     const rep = latestReputation.get(provider.id);
+    const prefs = (provider.workPreferences as Record<string, unknown> | null) ?? null;
+    const minCompensationMinor =
+      typeof prefs?.minCompensationMinor === "number" ? prefs.minCompensationMinor : null;
     return {
       providerId: provider.id,
       userId: provider.userId ?? null,
@@ -98,6 +101,7 @@ export async function runProviderSelection(
       capacity: avail?.capacity ?? 0,
       activeAssignments: avail?.activeAssignments ?? 0,
       hourlyRateMinor: provider.hourlyRateMinor ?? null,
+      minCompensationMinor,
       reputation: {
         completedTasks: rep?.completedTasks ?? 0,
         onTimeRatePct: numericToNumber(rep?.onTimeRatePct ?? null),

@@ -190,6 +190,37 @@ export function submitDeliverable(
   return apiUpload<SubmissionDto>(`${BASE}/submissions`, form, idempotencyKey);
 }
 
+export interface WorkPreferencesDto {
+  workAcceptanceStatus: "ACCEPTING" | "LIMITED" | "UNAVAILABLE";
+  timezone: string;
+  availabilitySchedule?: string | null;
+  minNoticeHours?: number;
+  plannedUnavailability?: string | null;
+  pricingModel: "FIXED" | "HOURLY" | "BOTH";
+  targetRateMinor?: number | null;
+  minCompensationMinor?: number | null;
+  minAssignmentSizeMinor?: number | null;
+  willingToNegotiate: boolean;
+  acceptedCategories: string[];
+  declinedCategories: string[];
+  requireExplicitApproval: boolean;
+  aiRecommendationAllowed: boolean;
+  communicationPreference: "ASYNC" | "REALTIME" | "DIRECT";
+  deliveryFormat?: string | null;
+  updateFrequency: "CHECKPOINTS_ONLY" | "DAILY" | "ON_MILESTONES";
+  notifyOnVerificationFail: boolean;
+  notifyOnRevisionRequest: boolean;
+  reviewSpecBeforeAccept: boolean;
+  toolsAndTechnologies: string[];
+  languages: string[];
+}
+
+export interface ProviderAvailabilityDto {
+  available: boolean;
+  capacity: number;
+  activeAssignments: number;
+}
+
 export interface ProviderProfileDto {
   id: string;
   userId: string | null;
@@ -200,6 +231,8 @@ export interface ProviderProfileDto {
   payoutEmail: string | null;
   status: "ACTIVE" | "INACTIVE";
   capabilities: Array<{ tag: string; proficiency: number }>;
+  availability?: ProviderAvailabilityDto;
+  workPreferences?: WorkPreferencesDto;
 }
 
 export interface ProviderProfileResponse {
@@ -220,6 +253,8 @@ export function updateProviderProfile(
     payoutEmail: string;
     status: "ACTIVE" | "INACTIVE";
     capabilities: Array<{ tag: string; proficiency: number }>;
+    availability?: { available: boolean; capacity: number };
+    workPreferences?: Partial<WorkPreferencesDto>;
   },
 ): Promise<ApiResponse<ProviderProfileResponse>> {
   return apiFetch<ProviderProfileResponse>(`${BASE}/provider/profile`, {

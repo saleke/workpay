@@ -113,6 +113,18 @@ Before major UI implementation, produce a concise design benchmark containing:
 - Relevant existing component or screen.
 - Implementation priority.
 
+### Benchmark Analysis Table
+
+| Reference Website | Pattern Observed | User Problem It Solves | Proposed WorkPay Application | Relevant Component / Screen | Implementation Priority |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Linear** (https://linear.app/) | High-density sub-navigation, subtle borders, contextual keyboard focus, restrained typography | Complex operational software feels cluttered or overwhelming | Sub-navigation sidebar for settings; compact badge indicators; tactile press interactions (`active:scale-[0.98]`) | `app/(app)/settings/page.tsx`, `components/ui/button.tsx` | High (Applied) |
+| **Attio** (https://attio.com/) | Attribute-rich records, multi-select tag arrays, declared vs demonstrated attributes | Users cannot express multi-faceted capabilities or see provenance | Worker capabilities with proficiency levels (1 to 5) and distinction between declared vs verified skills | `components/provider/provider-profile-manager.tsx`, `settings/page.tsx` | High (Applied) |
+| **Vercel** (https://vercel.com/) | Multi-stage execution pipeline, explicit state transitions (pending, executing, failed, confirmed) | Users are unsure whether an operation is in progress, failed, or finalized | Explicit distinction between Verification (criteria pass), Settlement Eligibility (policy gate), and Payment Confirmation | `components/tasks/task-room.tsx`, `app/(app)/payments/page.tsx` | High (Applied) |
+| **Stripe** (https://stripe.com/) | Clear transaction states, explicit non-custodial authorization holds vs captures, fee transparency | Consequential financial operations create anxiety or confusion | Transparent PayPal Orders v2 authorization holds vs Payments v2 captures; no false wallet claims | `app/(app)/payments/page.tsx`, `settings/page.tsx` (PayPal Rails) | High (Applied) |
+| **Mercury** (https://mercury.com/) | Calm financial typography, tabular numbers, clear separation of actions from audit data | Cluttered financial tables make amounts and currencies hard to scan | JetBrains Mono for monetary values; structured settlement records; calm layout | `app/globals.css`, `app/(app)/payments/page.tsx` | Medium (Applied) |
+| **Ramp** (https://ramp.com/) | Hard spending boundaries, mandatory budget ceilings, policy enforcement before execution | Autonomous systems executing uncontrolled expenditures | Invariant P1 (Budget Ceiling) and Worker Minimum Compensation rule enforced as hard constraints | `packages/shared/src/domain/providers/selection.ts`, `settings/page.tsx` | High (Applied) |
+| **Vercel Design Guidelines** (https://vercel.com/design/guidelines) | Accessible focus rings, explicit confirmation modals for consequential actions, inline validation | Destructive actions triggered accidentally; weak keyboard access | Accessible confirmation dialog for demo reset; inline validation for email and rates | `components/ui/dialog.tsx`, `settings/page.tsx` | High (Applied) |
+
 Use this benchmark to guide the actual implementation, not as a substitute for building the product.
 
 After implementing the UI, compare the result against the relevant references and document where the WorkPay experience follows, adapts, or intentionally differs from them.

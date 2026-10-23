@@ -24,6 +24,7 @@ export interface ProviderCandidate {
   capacity: number;
   activeAssignments: number;
   hourlyRateMinor: number | null;
+  minCompensationMinor?: number | null;
   reputation: {
     completedTasks: number;
     onTimeRatePct: number | null;
@@ -106,6 +107,17 @@ export function selectProvider(input: SelectProviderInput): SelectionResult {
     if (candidate.activeAssignments >= candidate.capacity) {
       eligible = false;
       reasons.push("at capacity");
+    }
+    if (
+      typeof candidate.minCompensationMinor === "number" &&
+      candidate.minCompensationMinor > 0 &&
+      input.budgetMinor > 0 &&
+      input.budgetMinor < candidate.minCompensationMinor
+    ) {
+      eligible = false;
+      reasons.push(
+        `budget below provider minimum acceptable compensation ($${Math.round(candidate.minCompensationMinor / 100)})`,
+      );
     }
     const missing = [...requiredSet].filter(
       (tag) => !candidate.capabilities.some((c) => c.tag.toLowerCase() === tag),

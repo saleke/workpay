@@ -38,6 +38,7 @@ export const providers = pgTable(
     hourlyRateMinor: bigint("hourly_rate_minor", { mode: "number" }),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
     payoutEmail: text("payout_email"),
+    workPreferences: jsonb("work_preferences"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

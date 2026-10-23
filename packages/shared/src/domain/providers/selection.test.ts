@@ -96,4 +96,20 @@ describe("provider selection", () => {
     });
     expect(result.ranked).toHaveLength(2);
   });
+
+  it("filters out providers whose minimum compensation exceeds the budget", () => {
+    const result = selectProvider({
+      requiredTags: ["data_cleaning"],
+      budgetMinor: 8000, // $80 budget
+      candidates: [
+        candidate({
+          providerId: "p_expensive",
+          minCompensationMinor: 15000, // $150 minimum rule
+        }),
+      ],
+    });
+    expect(result.selected).toBeNull();
+    expect(result.ranked[0]?.eligible).toBe(false);
+    expect(result.ranked[0]?.reason).toContain("budget below provider minimum acceptable compensation");
+  });
 });
