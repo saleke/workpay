@@ -31,20 +31,15 @@ export function EnvironmentToggle() {
         <button
           type="button"
           aria-label="Select execution environment"
-          className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all hover:opacity-90 focus:outline-hidden"
-          style={{
-            borderColor: isDemo ? "rgba(245, 158, 11, 0.4)" : "rgba(16, 185, 129, 0.4)",
-            backgroundColor: isDemo ? "rgba(245, 158, 11, 0.08)" : "rgba(16, 185, 129, 0.08)",
-            color: isDemo ? "rgb(217, 119, 6)" : "rgb(5, 150, 105)",
-          }}
+          className="flex items-center gap-1.5 text-[var(--text-small)] text-[var(--room-muted)] hover:text-[var(--room-text-strong)] transition-colors px-2 py-1 rounded-[var(--radius-control)] border border-[var(--room-rule)]"
         >
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{
-              backgroundColor: isDemo ? "rgb(245, 158, 11)" : "rgb(16, 185, 129)",
+              backgroundColor: isDemo ? "var(--room-unsure)" : "var(--room-met)",
             }}
           />
-          <span className="font-semibold">{isDemo ? "Sandbox" : "Live Escrow"}</span>
+          <span>{isDemo ? "Sandbox" : "Live Escrow"}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64 p-2 text-xs">

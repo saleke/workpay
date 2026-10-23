@@ -1,37 +1,17 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Scale } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { LoadingState, ErrorState, EmptyState } from "@/components/states";
-import { formatDateTime } from "@/lib/format";
-import { caseStatusLabel } from "@/lib/status";
+import Link from "next/link";
 import { useApi } from "@/lib/use-api";
 import { listCases, resolveCase } from "@/lib/api/endpoints";
-import type { CaseDto } from "@/lib/api/types";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `key-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function severityTone(severity: CaseDto["severity"]) {
-  switch (severity) {
-    case "CRITICAL":
-    case "HIGH":
-      return "danger" as const;
-    case "MEDIUM":
-      return "attention" as const;
-    default:
-      return "neutral" as const;
-  }
-}
-
 export function CasesReviewList() {
-  const { data, error, loading, reload } = useApi(() => listCases(), [], "cases");
+  const { data, loading, reload } = useApi(() => listCases(), [], "cases");
   const [resolving, setResolving] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -42,98 +22,125 @@ export function CasesReviewList() {
       const res = await resolveCase(caseId, { outcome }, newIdempotencyKey());
       setResolving(null);
       if (res.error) {
-        const msg = "Could not resolve this case.";
-        setErr(msg);
-        toast.error(msg);
+        setErr("Could not resolve this case.");
       } else {
-        toast.success(`Case resolved: ${outcome}`);
         reload();
       }
     },
     [reload],
   );
 
-  if (loading && !data) return <LoadingState label="Loading cases..." />;
-  if (error) {
+  if (loading && !data) {
     return (
-      <ErrorState
-        title="Could not load cases"
-        description="Cases may require admin/reviewer access."
-        onRetry={reload}
-      />
+      <div className="py-20 text-center text-[var(--room-muted)] font-serif">
+        Loading review cases...
+      </div>
     );
   }
-  if (!data || data.length === 0) {
+
+  const cases = data ?? [];
+
+  if (cases.length === 0) {
     return (
-      <EmptyState
-        title="No open cases"
-        description="Cases opened for UNCERTAIN verification or exceptions will appear here."
-      />
+      <div className="py-20 text-center">
+        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
+          No cases awaiting review
+        </h1>
+        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
+          Cases are created when automated verification cannot conclusively verify a requirement.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-3">
-      {err ? <p className="text-sm text-destructive">{err}</p> : null}
-      {data.map((c) => (
-        <Card key={c.id}>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Scale className="h-4 w-4" />
-                {c.title}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <StatusBadge tone={severityTone(c.severity)}>{c.severity.toLowerCase()}</StatusBadge>
-                <StatusBadge tone={c.status === "RESOLVED" ? "success" : "attention"}>
-                  {caseStatusLabel(c.status)}
-                </StatusBadge>
+    <div className="space-y-8">
+      {err && <p className="note note-fail">{err}</p>}
+
+      {cases.map((c) => {
+        const isResolved = c.status === "RESOLVED" || c.status === "CLOSED";
+
+        return (
+          <div key={c.id}>
+            <p className="screen-label">Review needed</p>
+            <div className="sheet">
+              <div className="sheet-meta">
+                Review needed, {c.title}
               </div>
-            </div>
-            <CardDescription>{c.summary}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="text-xs text-muted-foreground">
-              Task {c.taskId} · Opened {formatDateTime(c.createdAt)}
-              {c.blocksPaymentCapture ? (
-                <span className="ml-2 inline-flex items-center gap-1 text-amber-700">
-                  <AlertTriangle className="h-3 w-3" /> Blocks capture
-                </span>
-              ) : null}
-            </div>
-            {c.status !== "RESOLVED" ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={resolving === c.id}
-                  onClick={() => resolve(c.id, "REQUIRE_REVISION")}
-                >
-                  Require revision
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={resolving === c.id}
-                  onClick={() => resolve(c.id, "RELEASE_PAYMENT")}
-                >
-                  Release payment
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={resolving === c.id}
-                  onClick={() => resolve(c.id, "UPHOLD_SYSTEM_DECISION")}
-                >
-                  Uphold decision
-                </Button>
+              <h1 className="sheet-title">
+                Verification could not decide
+              </h1>
+              <p style={{ color: "var(--ink-soft)" }}>{c.summary}</p>
+              <p className="note note-unsure mt-2">
+                Automated checking requires human inspection of the evidence.
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-[var(--paper-rule)]">
+                <div className="diff-row diff-head">
+                  <span>Requirement</span>
+                  <span>Expected</span>
+                  <span>Submitted</span>
+                </div>
+                <div className="diff-row" style={{ borderBottom: 0 }}>
+                  <span className="font-serif text-[var(--ink)]">Deliverable proof</span>
+                  <span>
+                    <span className="lbl-inline">Expected: </span>Every acceptance criterion verified
+                  </span>
+                  <span>
+                    <span className="lbl-inline">Work: </span>Unclear verification outcome
+                  </span>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Resolved.</p>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+
+              <div className="flex items-center justify-between mt-4 pt-2">
+                <p className="lbl">
+                  Payment stays held until you decide.
+                </p>
+                <Link
+                  href={`/tasks/${c.taskId}`}
+                  className="lbl text-[var(--ink)] hover:underline"
+                >
+                  View contract
+                </Link>
+              </div>
+
+              {!isResolved ? (
+                <div className="sheet-actions">
+                  <button
+                    type="button"
+                    disabled={resolving === c.id}
+                    onClick={() => resolve(c.id, "RELEASE_PAYMENT")}
+                    className="btn"
+                  >
+                    Accept the work
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resolving === c.id}
+                    onClick={() => resolve(c.id, "REQUIRE_REVISION")}
+                    className="btn btn-quiet"
+                  >
+                    Ask for a revision
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resolving === c.id}
+                    onClick={() => resolve(c.id, "UPHOLD_SYSTEM_DECISION")}
+                    className="btn btn-quiet"
+                  >
+                    Open a dispute
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 pt-3 border-t border-[var(--paper-rule)] flex items-center justify-between">
+                  <span className="note note-met">Case resolved.</span>
+                  <span className="state-label note-met">Resolved</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

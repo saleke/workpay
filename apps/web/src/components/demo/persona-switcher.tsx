@@ -60,30 +60,30 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "buyer",
     name: "Alice",
-    roleTitle: "Task Owner / Lead",
-    badge: "TASK OWNER",
-    badgeColor: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-    description: "Posts tasks, tunes Definition of Done, approves work agreements, and authorizes escrow.",
+    roleTitle: "Buyer",
+    badge: "Buyer",
+    badgeColor: "text-[var(--room-text-strong)]",
+    description: "Posts tasks, reviews requirements, signs contracts, and authorizes PayPal payments.",
     homeUrl: "/tasks",
     icon: User,
   },
   {
     key: "provider",
     name: "Bob",
-    roleTitle: "Apex Data (Specialist)",
-    badge: "SPECIALIST",
-    badgeColor: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-    description: "Receives matched work, fulfills Definition of Done, and receives PayPal settlements.",
+    roleTitle: "Specialist",
+    badge: "Specialist",
+    badgeColor: "text-[var(--room-text-strong)]",
+    description: "Receives matched contracts, submits deliverables, and receives PayPal settlements.",
     homeUrl: "/provider",
     icon: Briefcase,
   },
   {
     key: "admin_reviewer",
     name: "Carol",
-    roleTitle: "Dispute Arbitrator",
-    badge: "ARBITRATOR",
-    badgeColor: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
-    description: "Inspects failed or disputed verifications, reviews evidence diffs, and rules on escrow.",
+    roleTitle: "Reviewer",
+    badge: "Reviewer",
+    badgeColor: "text-[var(--room-text-strong)]",
+    description: "Inspects unclear verifications, examines evidence diffs, and rules on payment release.",
     homeUrl: "/review",
     icon: Scale,
   },
@@ -180,40 +180,27 @@ export function PersonaSwitcher() {
 
   if (!mounted) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-xs">
-        <UserCheck className="h-3.5 w-3.5 text-primary" />
-        <span>Demo: <strong className="text-foreground">Buyer (Alice)</strong></span>
+      <div className="text-[var(--text-small)] text-[var(--room-muted)]">
+        Alice
       </div>
     );
   }
 
   const current: PersonaConfig = PERSONAS.find((p) => p.key === activePersona) ?? PERSONAS[0]!;
-  const CurrentIcon = current.icon;
 
   return (
     <>
       <div className="flex items-center gap-1.5">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2 border-border/80 bg-card/80 px-2.5 text-xs font-medium shadow-xs hover:border-primary/50 transition-all"
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-[var(--text-small)] text-[var(--room-muted)] hover:text-[var(--room-text-strong)] transition-colors px-2 py-1 rounded-[var(--radius-control)] border border-[var(--room-rule)]"
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <CurrentIcon className="h-3 w-3" />
-              </span>
-              <span className="hidden sm:inline text-muted-foreground">
-                {authUser ? "Account:" : "Perspective:"}
-              </span>
-              <strong className="text-foreground font-semibold">
-                {authUser ? authUser.name || authUser.email.split("@")[0] : current.name}
-              </strong>
-              <span className={`rounded-md border px-1.5 py-0.2 text-[10px] font-bold ${current.badgeColor}`}>
-                {authUser ? "ACTIVE" : current.badge}
-              </span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground opacity-60" />
-            </Button>
+              <span>{authUser ? authUser.name || authUser.email.split("@")[0] : current.name}</span>
+              <span className="text-[var(--text-label)] opacity-70">({current.roleTitle})</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-72 p-2">

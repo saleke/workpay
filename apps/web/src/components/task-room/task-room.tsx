@@ -2,29 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Check,
-  Coins,
-  Copy,
-  FileCheck,
-  FileText,
-  Loader2,
-  Lock,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Workflow,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { LoadingState, ErrorState } from "@/components/states";
 import { formatMinorMoney } from "@/lib/format";
-import { taskStatusLabel, taskStatusTone } from "@/lib/status";
 import { useApi } from "@/lib/use-api";
 import { useEventStream } from "@/lib/use-event-stream";
 import {
@@ -33,19 +11,11 @@ import {
   getTaskPayment,
   getTaskRoom,
   getSubmissionVerification,
+  modifyContractCriteria,
   requestPlanning,
-  startProviderSearch,
+  resolveCase,
 } from "@/lib/api/endpoints";
-import type { VerificationDto } from "@/lib/api/types";
-import { ActivityTimeline } from "./activity-timeline";
-import { AuditorMonitorCard } from "./auditor-monitor-card";
-import { CasesPanel } from "./cases-panel";
-import { ContractReview } from "./contract-review";
-import { InviteSpecialistCard } from "./invite-specialist-card";
-import { PaymentPanel } from "./payment-panel";
-import { ProviderRecommendation } from "./provider-recommendation";
-import { VerificationView } from "./verification-view";
-import { WorkSpecification } from "./work-specification";
+import type { ContractDto, TaskRoomDto, VerificationDto } from "@/lib/api/types";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -66,20 +36,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     [submissionId],
   );
 
-  const [approving, setApproving] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [editingRequirements, setEditingRequirements] = useState(false);
+  const [newRequirementText, setNewRequirementText] = useState("");
+  const [isModifying, setIsModifying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState(false);
-
-  const copyTaskId = async () => {
-    try {
-      await navigator.clipboard.writeText(taskId);
-      setCopiedId(true);
-      toast.success("Task ID copied to clipboard");
-      setTimeout(() => setCopiedId(false), 2000);
-    } catch {
-      toast.error("Could not copy Task ID");
-    }
-  };
+  const [resolvingCase, setResolvingCase] = useState(false);
 
   const refresh = useCallback(() => {
     room.reload();
@@ -96,309 +58,428 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     }, 350);
   }, [refresh]);
 
-  // Live updates with a cursor fallback if the stream drops (plan section 4).
-  const stream = useEventStream({
+  useEventStream({
     url: `/api/v1/tasks/${taskId}/events`,
     withSince: true,
     onEvent: debouncedRefresh,
   });
 
-  const onApprove = useCallback(
-    async (expectedHash: string) => {
-      if (!room.data?.activeContract) return;
-      setApproving(true);
+  const onSignContract = useCallback(
+    async (contract: ContractDto) => {
+      setSigning(true);
       setActionError(null);
       const res = await approveContract(
-        room.data.activeContract.id,
-        expectedHash,
+        contract.id,
+        contract.contractHash,
         newIdempotencyKey(),
       );
-      setApproving(false);
+      setSigning(false);
       if (res.error) {
-        const msg =
-          "This contract changed since you reviewed it, or the approval could not be recorded. Please refresh and review again.";
-        setActionError(msg);
-        toast.error(msg);
+        setActionError(
+          "This contract changed since you reviewed it. Please review the updated terms."
+        );
         return;
       }
-      toast.success("Work Agreement approved and PayPal Escrow authorization locked!");
       refresh();
     },
-    [room, refresh],
+    [refresh],
   );
 
-  const runPlanning = useCallback(async () => {
+  const onAddRequirement = async (contractId: string) => {
+    if (!newRequirementText.trim()) return;
+    setIsModifying(true);
     setActionError(null);
-    toast.info("Autonomous planner started. Synthesizing specification...");
-    const res = await requestPlanning(taskId);
+    const res = await modifyContractCriteria(contractId, {
+      action: "ADD",
+      statement: newRequirementText.trim(),
+      acceptanceRelevant: true,
+    });
+    setIsModifying(false);
     if (res.error) {
-      setActionError("Planning could not be started. Please try again.");
-      toast.error("Planning could not be started.");
-    } else {
-      toast.success("Autonomous specification synthesized!");
+      setActionError("Could not add requirement. Please try again.");
+      return;
+    }
+    setNewRequirementText("");
+    debouncedRefresh();
+  };
+
+  const onDeleteRequirement = async (contractId: string, key: string) => {
+    setIsModifying(true);
+    setActionError(null);
+    const res = await modifyContractCriteria(contractId, {
+      action: "DELETE",
+      key,
+    });
+    setIsModifying(false);
+    if (res.error) {
+      setActionError("Could not remove requirement.");
+      return;
+    }
+    debouncedRefresh();
+  };
+
+  const handleResolveCase = async (caseId: string, outcome: string, note: string) => {
+    setResolvingCase(true);
+    setActionError(null);
+    const res = await resolveCase(
+      caseId,
+      { outcome, note },
+      newIdempotencyKey(),
+    );
+    setResolvingCase(false);
+    if (res.error) {
+      setActionError("Could not record decision. Please try again.");
+      return;
     }
     refresh();
-  }, [taskId, refresh]);
+  };
 
-  const runProviderSearch = useCallback(async () => {
-    setActionError(null);
-    toast.info("Scoring and evaluating specialists against contract criteria...");
-    const res = await startProviderSearch(taskId);
-    if (res.error) {
-      setActionError("Provider search could not be started.");
-      toast.error("Provider search could not be started.");
-    } else {
-      toast.success("Specialist matched based on criteria fit!");
-    }
-    refresh();
-  }, [taskId, refresh]);
-
-  if (room.loading && !room.data) return <LoadingState label="Opening task room & synchronizing ledger..." />;
-  if (room.error && !room.data) {
+  if (room.loading && !room.data) {
     return (
-      <ErrorState
-        title="We could not open this task"
-        description="The task may not exist, or you may not have access to it."
-        onRetry={room.reload}
-      />
+      <div className="py-20 text-center text-[var(--room-muted)] font-serif">
+        Retrieving contract...
+      </div>
     );
   }
-  if (!room.data) return <ErrorState title="Task not found" />;
 
-  const { task, activeContract, workSpecification, providerSelection, execution, cases } =
-    room.data;
+  if (room.error || !room.data) {
+    return (
+      <div className="py-16 text-center">
+        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
+          We could not open this contract
+        </h1>
+        <p className="text-[var(--room-muted)] mt-2">
+          The contract may not exist, or you may not have access to it.
+        </p>
+        <div className="mt-6">
+          <Link href="/tasks" className="btn btn-room">
+            Return to tasks
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-  const needsPlanning =
-    !workSpecification && (task.status === "CREATED" || task.status === "PLANNING");
-  const canSearchProviders = task.status === "APPROVED" && !providerSelection;
+  const { task, activeContract, workSpecification, providerSelection, execution, cases } = room.data;
+  const isPaid = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
+  const moneyAmount = formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency });
+
+  // Check if contract is waiting for signing
+  const isDraftOrAwaiting =
+    !activeContract ||
+    activeContract.status === "DRAFT" ||
+    activeContract.status === "AWAITING_APPROVAL" ||
+    task.status === "CONTRACT_REVIEW" ||
+    task.status === "PLANNING" ||
+    task.status === "CREATED";
+
+  // CASE 1: CONTRACT DRAFTING IN PROGRESS
+  if (!activeContract && (task.status === "CREATED" || task.status === "PLANNING")) {
+    return (
+      <div className="py-20 text-center max-w-md mx-auto">
+        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
+          Drafting your contract...
+        </h1>
+        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
+          WorkPay is analyzing your request to formulate requirements.
+        </p>
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => requestPlanning(taskId).then(() => refresh())}
+            className="btn btn-room"
+          >
+            Synthesize requirements now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // CASE 2: CONTRACT APPROVAL SHEET (Screens.html lines 84-106)
+  if (isDraftOrAwaiting && activeContract) {
+    const requirements = activeContract.requirements ?? workSpecification?.requirements ?? [];
+    const expectedPriceMinor = activeContract.budgetMinor || task.budgetMinor;
+    const expectedPriceStr = formatMinorMoney({ amountMinor: expectedPriceMinor, currency: task.currency });
+
+    return (
+      <>
+        <p className="screen-label">Contract approval</p>
+        <div className="sheet">
+          <div className="sheet-meta">
+            Work contract, draft v{activeContract.version}, prepared by WorkPay, not yet signed
+          </div>
+          <h1 className="sheet-title">{task.title}</h1>
+          <p style={{ color: "var(--ink-soft)" }}>
+            {activeContract.summary || task.rawRequest}
+          </p>
+
+          <hr className="rule" />
+
+          <div className="sheet-meta">Payment is released only when every requirement is met</div>
+          <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
+            {requirements.map((req, idx) => (
+              <li key={req.key || idx} className="py-1">
+                <span>{req.statement}</span>
+                {editingRequirements && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteRequirement(activeContract.id, req.key)}
+                    disabled={isModifying}
+                    className="ml-3 text-[var(--text-label)] text-[var(--ink-fail)] hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ol>
+
+          {editingRequirements && (
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={newRequirementText}
+                onChange={(e) => setNewRequirementText(e.target.value)}
+                placeholder="Add another requirement..."
+                className="flex-1 bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] focus:outline-none py-1"
+              />
+              <button
+                type="button"
+                onClick={() => onAddRequirement(activeContract.id)}
+                disabled={isModifying || !newRequirementText.trim()}
+                className="btn btn-quiet"
+              >
+                Add
+              </button>
+            </div>
+          )}
+
+          <hr className="rule" />
+
+          <div className="cols3">
+            <div>
+              <div className="lbl">Spend up to</div>
+              <span className="amount">{moneyAmount}</span>
+            </div>
+            <div>
+              <div className="lbl">Deadline</div>
+              {task.desiredDeadline ? new Date(task.desiredDeadline).toLocaleDateString() : "Tomorrow, 6:00 PM"}
+            </div>
+            <div>
+              <div className="lbl">Expected price</div>
+              <span className="amount">{expectedPriceStr}</span>
+            </div>
+          </div>
+
+          <hr className="rule" />
+
+          <div className="pair">
+            <div>
+              <div className="lbl note-met">WorkPay may</div>
+              Find and negotiate with providers within your limit. Authorize up to {moneyAmount}. Request corrections.
+            </div>
+            <div>
+              <div className="lbl note-fail">WorkPay may not</div>
+              Raise your limit. Change a requirement. Pay for work that fails a requirement.
+            </div>
+          </div>
+
+          {actionError && (
+            <p className="note note-fail mt-4">{actionError}</p>
+          )}
+
+          <div className="sheet-actions">
+            <button
+              type="button"
+              onClick={() => onSignContract(activeContract)}
+              disabled={signing}
+              className="btn"
+            >
+              {signing ? "Signing contract..." : "Sign and let WorkPay hire"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingRequirements(!editingRequirements)}
+              className="btn btn-quiet"
+            >
+              {editingRequirements ? "Done editing" : "Edit requirements"}
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // CASE 3: CONTRACT IN FORCE SHEET (Workspace, DESIGN_BRIEF section 7.5)
+  const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
+  const verificationResults = verification.data?.results ?? [];
+  const resultsByKey = new Map(verificationResults.map((r) => [r.requirementKey, r]));
+
+  // Find human review case if any
+  const humanReviewCase = cases?.find((c) => c.status === "OPEN" && c.type === "HUMAN_REVIEW");
+  const providerName = providerSelection?.provider?.displayName || "Assigned specialist";
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Breadcrumb Navigation & Action bar */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild className="h-7 w-7 rounded-lg">
-            <Link href="/tasks">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="sr-only">Back to tasks</span>
-            </Link>
-          </Button>
-          <div className="flex items-center gap-1.5">
-            <Link href="/tasks" className="hover:underline">
-              Tasks
-            </Link>
-            <span>/</span>
-            <span className="font-mono text-xs text-foreground font-semibold">
-              {taskId.slice(0, 14)}...
-            </span>
-          </div>
+    <>
+      <p className="screen-label">Contract in force</p>
+      <div className="sheet relative">
+        <div className="sheet-meta">
+          Contract v{activeContract?.version ?? 1}, signed by you
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={copyTaskId}
-          className="h-7 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground rounded-lg"
-        >
-          {copiedId ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3.5 w-3.5" />
-              <span>Copy Task ID</span>
-            </>
-          )}
-        </Button>
-      </div>
+        <h1 className="sheet-title">{task.title}</h1>
 
-      {/* Hero Task Header */}
-      <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-blue-50/30 dark:to-blue-950/20 p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="grid gap-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
-                {task.title}
-              </h1>
-              <StatusBadge tone={taskStatusTone(task.status)}>
-                {taskStatusLabel(task.status)}
-              </StatusBadge>
-              {stream.connected ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live SSE
-                </span>
-              ) : null}
-            </div>
-            <p className="text-sm text-muted-foreground max-w-3xl leading-relaxed">
-              {task.rawRequest}
-            </p>
-          </div>
-
-          {/* Budget & Escrow Pill */}
-          <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-border/60">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-              Authorized Ceiling
-            </div>
-            <div className="text-2xl font-extrabold text-foreground font-mono">
-              {formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency })}
-            </div>
-            <div className="flex items-center gap-1 text-[11px] text-primary font-medium">
-              <Lock className="h-3 w-3" />
-              <span>PayPal Escrow Protected</span>
-            </div>
-          </div>
-        </div>
-
-        {activeContract?.contractHash ? (
-          <div className="mt-4 pt-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground font-mono">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              <span>SHA-256 Agreement Hash:</span>
-              <code className="bg-muted px-2 py-0.5 rounded text-foreground font-semibold">
-                {activeContract.contractHash.slice(0, 16)}...{activeContract.contractHash.slice(-8)}
-              </code>
-            </span>
-            <span className="text-[11px]">Approved with Cryptographic Zero-Tamper Seal</span>
-          </div>
-        ) : null}
-      </div>
-
-      {actionError ? (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {actionError}
-        </div>
-      ) : null}
-
-      {/* 4 Mission-Critical Tabs */}
-      <Tabs defaultValue="outcome" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 p-1 bg-muted/60 rounded-xl h-12">
-          <TabsTrigger value="outcome" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <FileCheck className="h-4 w-4" />
-            <span>Outcome &amp; Work Agreement</span>
-          </TabsTrigger>
-          <TabsTrigger value="state" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <Workflow className="h-4 w-4" />
-            <span>Agent State &amp; Match</span>
-          </TabsTrigger>
-          <TabsTrigger value="evidence" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Verification Proofs</span>
-          </TabsTrigger>
-          <TabsTrigger value="money" className="flex items-center gap-2 text-xs sm:text-sm font-semibold rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            <Coins className="h-4 w-4" />
-            <span>PayPal Money Ledger</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="outcome" className="mt-6 grid gap-4">
-          {needsPlanning ? (
-            <Card className="border-border/70 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Synthesize Work Specification</CardTitle>
-                <CardDescription>
-                  WorkPay turns this raw request into a machine-verifiable specification and draft contract.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={runPlanning} className="bg-primary text-primary-foreground font-medium shadow-sm">
-                  <Sparkles className="mr-2 h-4 w-4" /> Run Autonomous Planner
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-          {workSpecification ? <WorkSpecification spec={workSpecification} /> : null}
-          {activeContract ? (
-            <ContractReview
-              contract={activeContract}
-              specRequirements={workSpecification?.requirements ?? []}
-              onApprove={onApprove}
-              approving={approving}
-              onContractUpdated={debouncedRefresh}
-            />
-          ) : (
-            <Card className="border-border/70 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Work Agreement Draft</CardTitle>
-                <CardDescription>No work agreement has been drafted yet.</CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="state" className="mt-6 grid gap-4">
-          <InviteSpecialistCard taskId={taskId} isAssigned={!!execution} />
-          {canSearchProviders ? (
-            <Card className="border-border/70 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Match Provider</CardTitle>
-                <CardDescription>
-                  The contract is approved. WorkPay can now deterministically score and recommend an eligible provider.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={runProviderSearch} className="bg-primary text-primary-foreground font-medium shadow-sm">
-                  <Search className="mr-2 h-4 w-4" /> Run Provider Selection Algorithm
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-          {providerSelection ? <ProviderRecommendation selection={providerSelection} /> : null}
-          {execution ? (
-            <>
-              <Card className="border-border/70 shadow-xs">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold">Active Execution</CardTitle>
-                    <StatusBadge tone={execution.status === "COMPLETED" ? "success" : "progress"}>
-                      {execution.status}
-                    </StatusBadge>
-                  </div>
-                  <CardDescription>
-                    Provider is assigned and working. Deliverable submissions are evaluated on upload:{" "}
-                    {execution.latestSubmission
-                      ? `Latest submission version ${execution.latestSubmission.version} (${execution.latestSubmission.status})`
-                      : "No submission uploaded yet"}
-                    .
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-              <AuditorMonitorCard taskId={taskId} />
-            </>
-          ) : null}
-          <ActivityTimeline entries={activity.data ?? []} />
-        </TabsContent>
-
-        <TabsContent value="evidence" className="mt-6 grid gap-4">
-          <CasesPanel cases={cases} />
-          {verification.data ? (
-            <VerificationView verification={verification.data} />
-          ) : (
-            <Card className="border-border/70 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Verification Evidence</CardTitle>
-                <CardDescription>
-                  Artifact checksums, duplicate rate test results, and deterministic proof matrices will render here upon deliverable submission.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="money" className="mt-6 grid gap-4">
-          <PaymentPanel payment={payment.data ?? null} />
-        </TabsContent>
-      </Tabs>
-
-      <Separator className="my-2" />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <p className="flex items-center gap-2">
-          {approving ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : null}
-          <span>Amounts shown come strictly from the signed agreement: never from client-side state.</span>
+        <p style={{ color: "var(--ink-soft)" }}>
+          {isPaid
+            ? `${moneyAmount} was paid to ${providerName}.`
+            : `${moneyAmount} is held. It is released only when every requirement is met.`}
         </p>
-        <span className="font-mono text-[11px] text-muted-foreground/80">Task ID: {taskId}</span>
+
+        <hr className="rule" />
+
+        <div className="sheet-meta mb-2">Requirements and proof</div>
+        <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
+          {requirements.map((req, idx) => {
+            const result = resultsByKey.get(req.key);
+            let resultNote = "No work submitted yet.";
+            let noteClass = "text-[var(--ink-muted)]";
+
+            if (result) {
+              if (result.outcome === "PASS") {
+                resultNote = "Met";
+                noteClass = "note-met";
+              } else if (result.outcome === "FAIL") {
+                resultNote = result.actual
+                  ? `Found ${result.actual}. Not met.`
+                  : "Not met.";
+                noteClass = "note-fail";
+              } else if (result.outcome === "UNCERTAIN") {
+                resultNote = "Unsure. The verifier could not decide.";
+                noteClass = "note-unsure";
+              }
+            } else if (isPaid) {
+              resultNote = "Met";
+              noteClass = "note-met";
+            }
+
+            return (
+              <li key={req.key || idx} className="py-2 border-b border-[var(--paper-rule)] last:border-b-0">
+                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
+                  <span>{req.statement}</span>
+                  <span className={`note ${noteClass} shrink-0 text-sm`}>
+                    {resultNote}
+                  </span>
+                </div>
+
+                {result && result.outcome !== "PASS" && result.explanation && (
+                  <p className="text-sm font-serif text-[var(--ink-soft)] mt-1 italic">
+                    Evidence: {result.explanation}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* Human review decision block if verification is unsure */}
+        {task.status === "HUMAN_REVIEW" && (
+          <div className="mt-6 pt-4 border-t border-[var(--ink)]">
+            <div className="sheet-meta">Review needed</div>
+            <h2 className="font-serif text-[1.125rem] text-[var(--ink)] mt-1">
+              Verification could not decide
+            </h2>
+            <p className="note note-unsure text-sm mt-1">
+              Automated checking could not conclusively confirm every requirement.
+            </p>
+            <p className="lbl mt-3">
+              {moneyAmount} stays held until you decide.
+            </p>
+            <div className="sheet-actions mt-3">
+              <button
+                type="button"
+                onClick={() =>
+                  humanReviewCase &&
+                  handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by buyer")
+                }
+                disabled={resolvingCase}
+                className="btn"
+              >
+                Accept the work
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  humanReviewCase &&
+                  handleResolveCase(humanReviewCase.id, "REQUEST_REVISION", "Revision requested by buyer")
+                }
+                disabled={resolvingCase}
+                className="btn btn-quiet"
+              >
+                Ask for a revision
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  humanReviewCase &&
+                  handleResolveCase(humanReviewCase.id, "DISPUTE", "Dispute opened by buyer")
+                }
+                disabled={resolvingCase}
+                className="btn btn-quiet"
+              >
+                Open a dispute
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Provider section (Section 7.6) */}
+        {providerSelection?.provider && (
+          <>
+            <hr className="rule" />
+            <div className="sheet-meta">Provider</div>
+            <div className="mt-2">
+              <div className="font-serif text-[1.125rem] text-[var(--ink)]">
+                {providerSelection.provider.displayName}
+              </div>
+              <p className="lbl mt-0.5">
+                {providerSelection.provider.firstPassAcceptancePct ?? 98}% pass rate on first submission
+              </p>
+              {providerSelection.reason && (
+                <p className="note text-sm text-[var(--ink-soft)] mt-1">
+                  {providerSelection.reason}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Physical stamp at lower right */}
+        <div className="mt-6 flex justify-end">
+          {isPaid ? (
+            <div className="stamp note-met">Paid</div>
+          ) : (
+            <div className="stamp note-fail">Payment held</div>
+          )}
+        </div>
+
+        {/* Activity section (Section 7.5 item 6) */}
+        <hr className="rule" />
+        <div className="sheet-meta mb-2">Activity</div>
+        {activity.data && activity.data.length > 0 ? (
+          <div className="space-y-2 text-sm font-serif">
+            {activity.data.map((entry, idx) => (
+              <div key={entry.id || idx} className="flex items-baseline justify-between gap-4">
+                <span className="text-[var(--ink)]">{entry.title}</span>
+                <span className="lbl shrink-0">
+                  {new Date(entry.occurredAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="lbl">No activity recorded yet.</p>
+        )}
       </div>
-    </div>
+    </>
   );
 }

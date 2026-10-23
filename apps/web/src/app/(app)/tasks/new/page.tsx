@@ -1,24 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Calendar,
-  CheckCircle2,
-  DollarSign,
-  FileCode,
-  Lock,
-  Sparkles,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createTask, requestPlanning } from "@/lib/api/endpoints";
 
 function newIdempotencyKey(): string {
@@ -26,17 +9,48 @@ function newIdempotencyKey(): string {
   return `key-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const PRESET_BUDGETS = ["50", "150", "300", "750", "1500"];
+const PRESETS = [
+  {
+    title: "Clean 5,000 customer records",
+    desc: "Clean, deduplicate, and normalize 5,000 customer records in the attached CSV. Preserve customer IDs, validate emails, and reduce duplicate entries below 1%.",
+    budget: "150",
+    deadline: "Tomorrow, 6:00 PM",
+  },
+  {
+    title: "Translate onboarding guide to Spanish",
+    desc: "Translate our 14-page onboarding guide into neutral Latin American Spanish. Must strictly adhere to the approved product terminology list and preserve markdown syntax.",
+    budget: "80",
+    deadline: "In 2 days",
+  },
+  {
+    title: "Verify Stripe webhook idempotency",
+    desc: "Audit the subscription payment webhook handler in payments-router.ts. Add unit tests verifying duplicate events return HTTP 200 without duplicate database inserts.",
+    budget: "120",
+    deadline: "Friday, 5:00 PM",
+  },
+];
 
 export default function NewTaskPage() {
   const router = useRouter();
-  const [title, setTitle] = useState("");
+  const searchParams = useSearchParams();
+
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("150");
-  const [deadline, setDeadline] = useState("");
-  const [planning, setPlanning] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [deadline, setDeadline] = useState("Tomorrow, 6:00 PM");
+  const [filesNote, setFilesNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const descParam = searchParams.get("desc");
+    const budgetParam = searchParams.get("budget");
+    const deadlineParam = searchParams.get("deadline");
+
+    if (descParam) setDescription(descParam);
+    if (budgetParam) setBudget(budgetParam);
+    if (deadlineParam) setDeadline(deadlineParam);
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,23 +58,26 @@ export default function NewTaskPage() {
 
     const amountMinor = Math.round(Number(budget) * 100);
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
-      const err = "Please enter a valid budget in whole dollars.";
-      setError(err);
-      toast.error(err);
+      setError("Please specify a valid dollar amount.");
       return;
     }
 
-    setPlanning(true);
-    setProgress(15);
+    setSubmitting(true);
+    setStepIndex(1);
 
     try {
+      // First line of description or trimmed request as title
+      const trimmed = description.trim();
+      const firstLine = trimmed.split("\n")[0]?.trim() || "";
+      const derivedTitle = firstLine.length > 5 && firstLine.length < 80 ? firstLine : trimmed.slice(0, 60);
+
       const created = await createTask(
         {
-          title: title.trim() || description.trim().slice(0, 80) || "Untitled task",
-          rawRequest: description.trim(),
+          title: derivedTitle || "New work agreement",
+          rawRequest: filesNote ? `${trimmed}\n\nReference files: ${filesNote}` : trimmed,
           budgetMinor: amountMinor,
           currency: "USD",
-          desiredDeadline: deadline ? new Date(deadline).toISOString() : null,
+          desiredDeadline: null,
         },
         newIdempotencyKey(),
       );
@@ -69,210 +86,193 @@ export default function NewTaskPage() {
         const msg =
           typeof created.error === "string"
             ? created.error
-            : created.error?.message ?? "We could not create the task. Please try again.";
+            : created.error?.message ?? "Could not draft contract. Please try again.";
         setError(msg);
-        toast.error(msg);
-        setPlanning(false);
+        setSubmitting(false);
         return;
       }
 
-      setProgress(50);
-      toast.success("Task created! Initializing autonomous planner...");
+      setStepIndex(2);
 
-      // Kick off planning
+      // Kick off autonomous contract planning
       await requestPlanning(created.data.id);
-      setProgress(100);
 
-      toast.success("Autonomous planner initiated successfully.");
+      // Navigate to task workspace
       router.push(`/tasks/${created.data.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
       setError(msg);
-      toast.error(msg);
-      setPlanning(false);
+      setSubmitting(false);
     }
   };
 
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      {/* Breadcrumb Navigation & Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-xl">
-            <Link href="/tasks">
-              <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only">Back to tasks</span>
-            </Link>
-          </Button>
-          <div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Link href="/tasks" className="hover:underline">
-                Tasks
-              </Link>
-              <span>/</span>
-              <span className="text-foreground font-medium">New Escrow Assignment</span>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground md:text-2xl mt-0.5">
-              Create New Escrow Task
-            </h1>
+  if (submitting) {
+    return (
+      <div className="py-20 text-center max-w-md mx-auto">
+        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
+          Drafting your contract...
+        </h1>
+        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
+          WorkPay is analyzing your request and structuring the requirements.
+        </p>
+
+        <div className="mt-8 space-y-3 text-left border-t border-[var(--room-rule)] pt-6">
+          <div
+            className={`flex items-center gap-3 text-[var(--text-body)] ${
+              stepIndex >= 0 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                stepIndex >= 0 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+              }`}
+            />
+            <span>Read your request</span>
+          </div>
+          <div
+            className={`flex items-center gap-3 text-[var(--text-body)] ${
+              stepIndex >= 1 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                stepIndex >= 1 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+              }`}
+            />
+            <span>Writing the requirements</span>
+          </div>
+          <div
+            className={`flex items-center gap-3 text-[var(--text-body)] ${
+              stepIndex >= 2 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                stepIndex >= 2 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+              }`}
+            />
+            <span>Finding providers</span>
           </div>
         </div>
       </div>
+    );
+  }
 
-      <Card className="border-border/80 shadow-xs overflow-hidden">
-        <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-primary" />
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold text-foreground">Task Objective & Outcome</CardTitle>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-900">
-              <Lock className="h-3 w-3" />
-              <span>PayPal Authorization Guarded</span>
+  return (
+    <>
+      <p className="screen-label">New task</p>
+      <div className="sheet">
+        <div className="sheet-meta">
+          New task. WorkPay turns this into a contract for you to sign.
+        </div>
+
+        {error && (
+          <p className="note note-fail mt-3">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={onSubmit} className="mt-4 space-y-6">
+          <div>
+            <label
+              htmlFor="task-description"
+              className="block text-[var(--text-lead)] font-serif text-[var(--ink)] mb-2"
+            >
+              What do you need done?
+            </label>
+            <textarea
+              id="task-description"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the deliverable, constraints, and how you will judge completion..."
+              required
+              className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-2 resize-y"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+            <div>
+              <label htmlFor="spend-cap" className="lbl block mb-1">
+                Spend up to
+              </label>
+              <div className="flex items-baseline border-b border-[var(--paper-rule)] focus-within:border-[var(--ink)]">
+                <span className="text-[var(--ink)] font-serif mr-1">$</span>
+                <input
+                  id="spend-cap"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  required
+                  className="w-full bg-transparent border-0 text-[var(--text-body)] font-serif text-[var(--ink)] focus:outline-none py-1 amount"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="finish-by" className="lbl block mb-1">
+                Finish by
+              </label>
+              <input
+                id="finish-by"
+                type="text"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                placeholder="Tomorrow, 6:00 PM"
+                className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="task-files" className="lbl block mb-1">
+                Files
+              </label>
+              <input
+                id="task-files"
+                type="text"
+                value={filesNote}
+                onChange={(e) => setFilesNote(e.target.value)}
+                placeholder="Optional URL or attachment reference"
+                className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1"
+              />
             </div>
           </div>
-          <CardDescription className="text-sm leading-relaxed">
-            State your desired outcome in natural language. WorkPay will synthesize an immutable Definition of Done, structure verifiable acceptance criteria, and lock funds safely in PayPal escrow until delivery passes verification.
-          </CardDescription>
-        </CardHeader>
 
-        <CardContent>
-          <form className="grid gap-6" onSubmit={onSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Task Title (Optional)
-              </Label>
-              <Input
-                id="title"
-                placeholder="e.g. Clean 5,000 customer records or Build OAuth2 login route"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="font-medium"
-              />
+          <div className="pt-2">
+            <span className="lbl block mb-2">Or choose a starting point:</span>
+            <div className="flex flex-wrap gap-2">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.title}
+                  type="button"
+                  onClick={() => {
+                    setDescription(p.desc);
+                    setBudget(p.budget);
+                    setDeadline(p.deadline);
+                  }}
+                  className="text-[var(--text-small)] font-serif px-2.5 py-1 border border-[var(--paper-rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] transition-colors text-left"
+                >
+                  {p.title}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="description" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Task Specification & Intent
-                </Label>
-                <span className="text-xs text-muted-foreground">Required</span>
-              </div>
-              <Textarea
-                id="description"
-                placeholder="Describe exactly what needs to be achieved, required format, constraints, and success criteria.
-Example: 'Write an idempotent API handler for user onboarding with schema validation, Drizzle ORM transactions, and unit test coverage above 90%.'"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={6}
-                required
-                className="leading-relaxed resize-y"
-              />
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              {/* Budget input with quick presets */}
-              <div className="grid gap-2">
-                <Label htmlFor="budget" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Escrow Budget Ceiling (USD)
-                </Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="budget"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    className="pl-8 font-mono font-semibold"
-                  />
-                </div>
-                {/* Budget quick preset chips */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
-                  {PRESET_BUDGETS.map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      onClick={() => setBudget(amount)}
-                      className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
-                        budget === amount
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-muted/50 hover:bg-muted text-muted-foreground border-border/60"
-                      }`}
-                    >
-                      ${amount}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Deadline input */}
-              <div className="grid gap-2">
-                <Label htmlFor="deadline" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Target Deadline (Optional)
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="deadline"
-                    type="datetime-local"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    className="font-mono text-sm"
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Sets audit check-in frequency and deadline burn-down timers.
-                </p>
-              </div>
-            </div>
-
-            {error ? (
-              <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                {error}
-              </div>
-            ) : null}
-
-            {planning ? (
-              <div className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-4 animate-in fade-in">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-primary flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 animate-spin" />
-                    Autonomous Planner Synthesizing Contract...
-                  </span>
-                  <span className="font-mono font-semibold">{progress}%</span>
-                </div>
-                <Progress value={progress} className="h-2" />
-                <p className="text-[11px] text-muted-foreground">
-                  Translating your raw intent into acceptance criteria and cryptographic contract hashes.
-                </p>
-              </div>
-            ) : null}
-
-            <div className="flex items-center justify-between pt-2 border-t border-border/60">
-              <Button variant="ghost" asChild type="button">
-                <Link href="/tasks">Cancel</Link>
-              </Button>
-              <Button
-                type="submit"
-                disabled={planning || !description.trim()}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-sm px-6"
-              >
-                {planning ? (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4 animate-spin" />
-                    Drafting Contract...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Plan &amp; Draft Contract
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <div className="sheet-actions">
+            <button
+              type="submit"
+              className="btn"
+            >
+              Draft the contract
+            </button>
+            <span className="lbl">
+              Nothing is held until you sign the contract.
+            </span>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }

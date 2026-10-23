@@ -1,22 +1,13 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { toast } from "sonner";
-import { Download, FileUp, Play, Send, CheckCircle2, AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { formatMinorMoney, formatDateTime } from "@/lib/format";
-import { executionStatusLabel } from "@/lib/status";
+import { formatMinorMoney } from "@/lib/format";
 import {
   acceptProviderWork,
   startProviderWork,
   submitDeliverable,
 } from "@/lib/api/endpoints";
 import type { ProviderWorkDto } from "@/lib/api/types";
-import { AuditorCheckinCard } from "./auditor-checkin-card";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -41,11 +32,8 @@ export function ProviderWorkDetail({
     const res = await acceptProviderWork(work.executionId, newIdempotencyKey());
     setBusy(null);
     if (res.error) {
-      const err = "Could not accept this work. It may have changed.";
-      setError(err);
-      toast.error(err);
+      setError("Could not accept this work order. It may have changed.");
     } else {
-      toast.success("Assignment accepted! Escrow authorization locked in PayPal.");
       onChanged();
     }
   }, [work.executionId, onChanged]);
@@ -56,11 +44,8 @@ export function ProviderWorkDetail({
     const res = await startProviderWork(work.executionId, newIdempotencyKey());
     setBusy(null);
     if (res.error) {
-      const err = "Could not start this work.";
-      setError(err);
-      toast.error(err);
+      setError("Could not record start of work.");
     } else {
-      toast.success("Execution started. Status updated to in progress.");
       onChanged();
     }
   }, [work.executionId, onChanged]);
@@ -68,9 +53,7 @@ export function ProviderWorkDetail({
   const submit = useCallback(async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      const err = "Choose a file to submit.";
-      setError(err);
-      toast.error(err);
+      setError("Please choose a file to submit.");
       return;
     }
     setBusy("submit");
@@ -78,184 +61,158 @@ export function ProviderWorkDetail({
     const res = await submitDeliverable(work.executionId, file, note.trim(), newIdempotencyKey());
     setBusy(null);
     if (res.error) {
-      const err = "The submission could not be recorded. Please try again.";
-      setError(err);
-      toast.error(err);
+      setError("Submission could not be recorded. Please try again.");
     } else {
-      toast.success("Deliverable submitted! Automated verification against Definition of Done initiated.");
       setNote("");
       if (fileRef.current) fileRef.current.value = "";
       onChanged();
     }
   }, [work.executionId, note, onChanged]);
 
-  const canAccept = work.status === "ASSIGNED";
-  const canStart = work.status === "ACCEPTED" || work.status === "REVISION_REQUESTED";
-  const canSubmit =
-    work.status === "ACCEPTED" ||
-    work.status === "IN_PROGRESS" ||
-    work.status === "REVISION_REQUESTED";
+  const isPaid = work.status === "COMPLETED";
+  const moneyAmount = formatMinorMoney(work.pay);
 
   return (
-    <div className="grid gap-4">
-      {work.revisionReason ? (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+    <>
+      <p className="screen-label">Work order</p>
+      <div className="sheet relative">
+        <div className="sheet-meta">
+          Work order, from a verified buyer
+        </div>
+        <h1 className="sheet-title">{work.taskTitle}</h1>
+        <p style={{ color: "var(--ink-soft)" }}>{work.taskRequest}</p>
+
+        <hr className="rule" />
+
+        <div className="cols3">
           <div>
-            <div className="font-medium">A revision was requested</div>
-            <p>{work.revisionReason}</p>
+            <div className="lbl">You are paid</div>
+            <span className="amount">{moneyAmount}</span>
+          </div>
+          <div>
+            <div className="lbl">When</div>
+            Once every requirement is met
+          </div>
+          <div>
+            <div className="lbl">Due</div>
+            {work.deadline
+              ? new Date(work.deadline).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })
+              : "Not specified"}
           </div>
         </div>
-      ) : null}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">{work.taskTitle}</CardTitle>
-            <StatusBadge
-              tone={
-                work.status === "COMPLETED"
-                  ? "success"
-                  : work.status === "REVISION_REQUESTED"
-                    ? "attention"
-                    : "progress"
-              }
-            >
-              {executionStatusLabel(work.status)}
-            </StatusBadge>
-          </div>
-          <CardDescription>{work.taskRequest}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border p-3">
-              <div className="text-xs uppercase text-muted-foreground">Pay on acceptance</div>
-              <div className="mt-1 text-lg font-semibold">
-                {formatMinorMoney(work.pay)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Held in authorization; released after verification passes.
-              </div>
-            </div>
-            <div className="rounded-lg border p-3">
-              <div className="text-xs uppercase text-muted-foreground">Deadline</div>
-              <div className="mt-1 text-sm font-medium">
-                {work.deadline ? formatDateTime(work.deadline) : "Not specified"}
-              </div>
-            </div>
-          </div>
+        <hr className="rule" />
 
-          <Separator />
+        <div className="sheet-meta mb-2">Requirements</div>
+        <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
+          {work.requirements.map((req, idx) => (
+            <li key={req.key || idx} className="py-1.5 border-b border-[var(--paper-rule)] last:border-b-0">
+              <span>{req.statement}</span>
+            </li>
+          ))}
+        </ol>
 
-          <AuditorCheckinCard taskId={work.taskId} onCheckinSubmitted={onChanged} />
+        {error && (
+          <p className="note note-fail mt-4">{error}</p>
+        )}
 
-          <Separator />
-
-          <div className="grid gap-2">
-            <div className="text-sm font-semibold flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <span>Definition of Done (Criteria for Completion)</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              These criteria are strictly validated by automated checks and evaluation before payment releases.
-            </p>
-            <ul className="grid gap-2 mt-1">
-              {work.requirements.map((r) => (
-                <li key={r.key} className="flex items-start gap-2.5 rounded-md border p-2.5 text-sm bg-muted/20">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-primary/70 shrink-0" />
-                  <span className="leading-relaxed">{r.statement}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {work.inputFiles.length > 0 ? (
-            <>
-              <Separator />
-              <div className="grid gap-2">
-                <div className="text-sm font-medium">Input files</div>
-                <ul className="grid gap-1.5">
-                  {work.inputFiles.map((f) => (
-                    <li key={f.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate">{f.filename}</span>
-                      {f.downloadUrl ? (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={f.downloadUrl} target="_blank" rel="noreferrer">
-                            <Download className="mr-2 h-3.5 w-3.5" />
-                            Download
-                          </a>
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </>
-          ) : null}
-
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {canAccept ? (
-              <Button onClick={accept} disabled={busy !== null}>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+        {/* Action based on status */}
+        <div className="mt-6 pt-4 border-t border-[var(--ink)]">
+          {work.status === "ASSIGNED" && (
+            <div className="sheet-actions mt-0 pt-0 border-t-0">
+              <button
+                type="button"
+                onClick={accept}
+                disabled={busy === "accept"}
+                className="btn"
+              >
                 {busy === "accept" ? "Accepting..." : "Accept work"}
-              </Button>
-            ) : null}
-            {canStart ? (
-              <Button variant="secondary" onClick={start} disabled={busy !== null}>
-                <Play className="mr-2 h-4 w-4" />
-                {busy === "start" ? "Starting..." : "Start work"}
-              </Button>
-            ) : null}
-          </div>
+              </button>
+              <span className="lbl">
+                {moneyAmount} is currently held in escrow.
+              </span>
+            </div>
+          )}
 
-          {canSubmit ? (
-            <>
-              <Separator />
-              <div className="grid gap-3">
-                <div className="text-sm font-medium">Submit a deliverable</div>
-                <p className="text-xs text-muted-foreground">
-                  Each submission is stored as an immutable new version with a checksum. A
-                  re-upload never overwrites a previous version.
-                </p>
+          {work.status === "ACCEPTED" && (
+            <div className="sheet-actions mt-0 pt-0 border-t-0">
+              <button
+                type="button"
+                onClick={start}
+                disabled={busy === "start"}
+                className="btn"
+              >
+                {busy === "start" ? "Starting..." : "Start work"}
+              </button>
+              <span className="lbl">
+                Let the buyer know you have begun execution.
+              </span>
+            </div>
+          )}
+
+          {(work.status === "IN_PROGRESS" || work.status === "REVISION_REQUESTED") && (
+            <div className="space-y-4">
+              <div className="sheet-meta">Submit deliverable for verification</div>
+              <div>
+                <label className="lbl block mb-1">Select deliverable file</label>
                 <input
-                  ref={fileRef}
                   type="file"
-                  className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
+                  ref={fileRef}
+                  className="text-sm font-serif file:mr-3 file:py-1.5 file:px-3 file:rounded-[var(--radius-control)] file:border file:border-[var(--ink)] file:text-xs file:font-sans file:bg-[var(--ink)] file:text-[var(--paper)] hover:file:opacity-90 cursor-pointer"
                 />
-                <Textarea
-                  placeholder="Note for the task owner (optional)"
+              </div>
+              <div>
+                <label className="lbl block mb-1">Notes on submission</label>
+                <textarea
+                  rows={3}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  rows={3}
+                  placeholder="Explain how requirements were satisfied..."
+                  className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1 resize-y"
                 />
-                <Button onClick={submit} disabled={busy !== null} className="w-fit">
-                  <FileUp className="mr-2 h-4 w-4" />
-                  {busy === "submit" ? "Submitting..." : "Submit deliverable"}
-                </Button>
               </div>
-            </>
-          ) : null}
+              <div className="sheet-actions mt-2 pt-2 border-t-0">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={busy === "submit"}
+                  className="btn"
+                >
+                  {busy === "submit" ? "Submitting..." : "Submit for verification"}
+                </button>
+                <span className="lbl">
+                  Submitting work does not trigger payment. Automated verification does.
+                </span>
+              </div>
+            </div>
+          )}
 
-          {work.latestSubmission ? (
-            <>
-              <Separator />
-              <div className="grid gap-1 text-sm">
-                <div className="flex items-center gap-2 font-medium">
-                  <Send className="h-3.5 w-3.5" /> Latest submission (v
-                  {work.latestSubmission.version})
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {work.latestSubmission.artifacts
-                    .map((a) => `${a.filename} (${a.checksum.slice(0, 8)}…)`)
-                    .join(", ") || "No artifacts"}
-                </div>
-              </div>
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
-    </div>
+          {work.status === "SUBMITTED" && (
+            <div>
+              <p className="note note-unsure">
+                Work submitted. Automated verification is running against every requirement.
+              </p>
+              <p className="lbl mt-2">
+                Submitting work does not trigger payment. Verification does.
+              </p>
+            </div>
+          )}
+
+          {isPaid && (
+            <div className="flex items-center justify-between">
+              <p className="note note-met">
+                Every requirement was met. {moneyAmount} was delivered to your PayPal account.
+              </p>
+              <div className="stamp note-met">Paid</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
