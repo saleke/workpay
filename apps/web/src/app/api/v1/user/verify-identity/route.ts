@@ -16,6 +16,13 @@ const verifyIdentitySchema = z.object({
     errorMap: () => ({ message: "Please select a valid document type (Passport, Driver License, or National ID)." }),
   }),
   country: z.string().trim().min(2, "Country code is required").max(60),
+  documentNumber: z.string().trim().min(6, "Document number must be at least 6 characters").max(30),
+  expiryDate: z.string().refine((val) => {
+    const d = new Date(val);
+    return !isNaN(d.getTime()) && d > new Date();
+  }, {
+    message: "Document expiry date must be a valid future date.",
+  }),
 });
 
 export async function GET(req: Request) {

@@ -118,6 +118,7 @@ interface UserProfileData {
   displayName: string | null;
   legalName: string | null;
   email: string;
+  emailVerified: string | null;
   role: "buyer" | "provider" | "admin_reviewer";
   image: string | null;
   githubUsername: string | null;
@@ -152,7 +153,14 @@ function SettingsContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
-  // PayPal binding fields
+  // Email verification (Step 1)
+  const [sendingVerifyEmail, setSendingVerifyEmail] = useState(false);
+  const [emailVerificationResult, setEmailVerificationResult] = useState<{
+    verificationUrl?: string;
+    message?: string;
+  } | null>(null);
+
+  // PayPal binding & Payout Challenge
   const [payoutEmail, setPayoutEmail] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
   const [paypalModalOpen, setPaypalModalOpen] = useState(false);
@@ -161,10 +169,27 @@ function SettingsContent() {
   const [bindingPaypal, setBindingPaypal] = useState(false);
   const [unbindModalOpen, setUnbindModalOpen] = useState(false);
   const [unbindingPaypal, setUnbindingPaypal] = useState(false);
+  const [connectingPayPalOAuth, setConnectingPayPalOAuth] = useState(false);
+  const [payoutVerifyStep, setPayoutVerifyStep] = useState<"input" | "code">("input");
+  const [payoutVerifyCode, setPayoutVerifyCode] = useState("");
+  const [sendingPayoutCode, setSendingPayoutCode] = useState(false);
+  const [confirmingPayoutCode, setConfirmingPayoutCode] = useState(false);
+  const [issuedPayoutCode, setIssuedPayoutCode] = useState<string | null>(null);
 
-  // Developer Verification (Step 2 - GitHub)
+  // Developer Verification (Step 2 - GitHub Challenge)
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [inputGithub, setInputGithub] = useState("");
+  const [githubStep, setGithubStep] = useState<"input" | "challenge">("input");
+  const [githubChallengeData, setGithubChallengeData] = useState<{
+    challenge: string;
+    githubUsername: string;
+    name?: string;
+    avatarUrl?: string;
+    publicRepos?: number;
+    followers?: number;
+    instructions?: string;
+  } | null>(null);
+  const [requestingChallenge, setRequestingChallenge] = useState(false);
   const [verifyingGithub, setVerifyingGithub] = useState(false);
 
   // Identity Verification (Step 3 - Government ID & Milestone Threshold)
@@ -172,6 +197,8 @@ function SettingsContent() {
   const [inputLegalName, setInputLegalName] = useState("");
   const [inputDocType, setInputDocType] = useState<"PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID">("PASSPORT");
   const [inputCountry, setInputCountry] = useState("US");
+  const [inputDocNumber, setInputDocNumber] = useState("");
+  const [inputExpiryDate, setInputExpiryDate] = useState("");
   const [verifyingId, setVerifyingId] = useState(false);
 
   // Demo reset modal
@@ -225,6 +252,26 @@ function SettingsContent() {
       }
     }
     loadProfile();
+
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("success");
+    const error = params.get("error");
+    const reason = params.get("reason");
+
+    if (success === "paypal_bound") {
+      toast.success("PayPal account linked and verified via authentic PayPal OAuth!");
+      params.delete("success");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    } else if (success === "email_verified") {
+      toast.success("Email address verified successfully!");
+      params.delete("success");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    } else if (error) {
+      toast.error(reason ? decodeURIComponent(reason) : `Operation failed: ${error}`);
+      params.delete("error");
+      params.delete("reason");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    }
   }, []);
 
   // Fetch provider profile to sync current payout email if available
@@ -317,30 +364,146 @@ function SettingsContent() {
     }, 600);
   };
 
-  const handleVerifyGithub = async (e: React.FormEvent) => {
+  const handleSendEmailVerification = async () => {
+    setSendingVerifyEmail(true);
+    try {
+      const res = await fetch("/api/v1/auth/verify-email/send", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message || "Failed to issue verification link");
+        return;
+      }
+      setEmailVerificationResult(json);
+      toast.success(json.message || "Email verification link generated");
+    } catch {
+      toast.error("Network error while generating verification link");
+    } finally {
+      setSendingVerifyEmail(false);
+    }
+  };
+
+  const handleConnectPayPalOAuth = () => {
+    setConnectingPayPalOAuth(true);
+    window.location.href = "/api/v1/user/paypal/connect";
+  };
+
+  const handleRequestPayoutCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputGithub.trim()) {
-      toast.error("Please enter your GitHub username");
+    if (!inputPaypalEmail.includes("@")) {
+      toast.error("Please enter a valid PayPal account email address");
       return;
     }
+    setSendingPayoutCode(true);
+    try {
+      const res = await fetch("/api/v1/user/paypal/bind-payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payoutEmail: inputPaypalEmail.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message || "Failed to dispatch verification code");
+        return;
+      }
+      setPayoutVerifyStep("code");
+      setIssuedPayoutCode(json.code || null);
+      toast.success("Confirmation code dispatched to payout address");
+    } catch {
+      toast.error("Network error while requesting confirmation code");
+    } finally {
+      setSendingPayoutCode(false);
+    }
+  };
+
+  const handleConfirmPayoutCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payoutVerifyCode.trim()) {
+      toast.error("Please enter the 6-digit confirmation code");
+      return;
+    }
+    setConfirmingPayoutCode(true);
+    try {
+      const res = await fetch("/api/v1/user/paypal/confirm-payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payoutEmail: inputPaypalEmail.trim(),
+          code: payoutVerifyCode.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message || "Invalid or expired confirmation code");
+        return;
+      }
+      toast.success("PayPal payout destination confirmed and bound successfully");
+      setPaypalModalOpen(false);
+      setPayoutVerifyStep("input");
+      setPayoutVerifyCode("");
+      await loadProfile();
+    } catch {
+      toast.error("Network error while confirming payout address");
+    } finally {
+      setConfirmingPayoutCode(false);
+    }
+  };
+
+  const handleRequestGithubChallenge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputGithub.trim()) {
+      toast.error("Please enter your GitHub handle");
+      return;
+    }
+    setRequestingChallenge(true);
+    try {
+      const res = await fetch("/api/v1/user/verify-github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "challenge",
+          githubUsername: inputGithub.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error?.message || "Failed to find GitHub account");
+        return;
+      }
+      setGithubChallengeData(json);
+      setGithubStep("challenge");
+      toast.success("Verification challenge issued. Add the code to your GitHub bio or gists.");
+    } catch {
+      toast.error("Network error while communicating with GitHub API");
+    } finally {
+      setRequestingChallenge(false);
+    }
+  };
+
+  const handleConfirmGithubChallenge = async () => {
+    if (!githubChallengeData) return;
     setVerifyingGithub(true);
     try {
       const res = await fetch("/api/v1/user/verify-github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ githubUsername: inputGithub.trim() }),
+        body: JSON.stringify({
+          action: "confirm",
+          githubUsername: githubChallengeData.githubUsername,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error?.message || "Failed to verify GitHub profile");
+        toast.error(json.error?.message || "Verification code not found on GitHub");
         return;
       }
-      toast.success("GitHub profile verified. Developer trust badge earned.");
+      toast.success(json.message || "GitHub developer profile verified successfully!");
       setGithubModalOpen(false);
+      setGithubStep("input");
+      setGithubChallengeData(null);
       setInputGithub("");
       await loadProfile();
     } catch {
-      toast.error("Network error during GitHub verification");
+      toast.error("Network error while validating GitHub profile");
     } finally {
       setVerifyingGithub(false);
     }
@@ -350,10 +513,10 @@ function SettingsContent() {
     try {
       const res = await fetch("/api/v1/user/verify-github", { method: "DELETE" });
       if (res.ok) {
-        toast.success("GitHub profile unlinked");
+        toast.success("GitHub profile disconnected");
         await loadProfile();
       } else {
-        toast.error("Failed to unlink GitHub profile");
+        toast.error("Failed to disconnect GitHub profile");
       }
     } catch {
       toast.error("Network error while unlinking GitHub");
@@ -366,6 +529,20 @@ function SettingsContent() {
       toast.error("Please enter your legal first and last name");
       return;
     }
+    if (!inputDocNumber.trim() || inputDocNumber.trim().length < 6) {
+      toast.error("Document number must be at least 6 characters");
+      return;
+    }
+    if (!inputExpiryDate) {
+      toast.error("Document expiry date is required");
+      return;
+    }
+    const exp = new Date(inputExpiryDate);
+    if (isNaN(exp.getTime()) || exp <= new Date()) {
+      toast.error("Document expiry date must be in the future");
+      return;
+    }
+
     setVerifyingId(true);
     try {
       const res = await fetch("/api/v1/user/verify-identity", {
@@ -375,6 +552,8 @@ function SettingsContent() {
           legalName: inputLegalName.trim(),
           documentType: inputDocType,
           country: inputCountry.trim() || "US",
+          documentNumber: inputDocNumber.trim(),
+          expiryDate: inputExpiryDate,
         }),
       });
       const json = await res.json();
@@ -389,37 +568,6 @@ function SettingsContent() {
       toast.error("Network error during identity verification");
     } finally {
       setVerifyingId(false);
-    }
-  };
-
-  const handleBindPaypal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputPaypalEmail.includes("@")) {
-      toast.error("Please enter a valid PayPal account email address");
-      return;
-    }
-    setBindingPaypal(true);
-    try {
-      const res = await fetch("/api/v1/user/paypal/bind", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paypalEmail: inputPaypalEmail.trim(),
-          autoHoldEnabled: inputAutoHold,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error?.message || "Failed to bind PayPal account");
-        return;
-      }
-      toast.success("PayPal account linked and verified for payment holds and disbursements");
-      setPaypalModalOpen(false);
-      await loadProfile();
-    } catch {
-      toast.error("Network error while binding PayPal account");
-    } finally {
-      setBindingPaypal(false);
     }
   };
 
@@ -637,13 +785,104 @@ function SettingsContent() {
                     </CardContent>
                   </Card>
 
+                  {/* Step 1: Institutional Email Verification */}
+                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-[var(--wp-accent)]" />
+                          Step 1: Email Address Verification
+                        </CardTitle>
+                        {userProfile?.emailVerified ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Email Verified
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
+                            Unverified Email
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                        Step 1 of platform verification: Rejects disposable burner domains and verifies authentic address ownership.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-5 sm:p-6 space-y-3">
+                      {userProfile?.emailVerified ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              <CheckCircle2 className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                                {userProfile.email}
+                              </div>
+                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                Verified personal or institutional address. Protected against Sybil attacks.
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0">
+                            Anti-Sybil Defense Active
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
+                            <div>
+                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                                Unverified Address: {userProfile?.email || authUser.email}
+                              </div>
+                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
+                                Confirm ownership of this address to receive automated payment settlement alerts and unlock full platform capabilities.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleSendEmailVerification}
+                              disabled={sendingVerifyEmail}
+                              className="text-xs font-semibold shrink-0"
+                            >
+                              <Mail className="h-3.5 w-3.5 mr-1.5" />
+                              {sendingVerifyEmail ? "Issuing Link..." : "Send Verification Email"}
+                            </Button>
+                          </div>
+
+                          {emailVerificationResult?.verificationUrl && (
+                            <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
+                              <div className="font-semibold text-blue-700 dark:text-blue-400">
+                                Verification Link Generated (Testing &amp; Demo Mode)
+                              </div>
+                              <div className="font-mono text-[11px] p-2 rounded bg-background border break-all select-all">
+                                {emailVerificationResult.verificationUrl}
+                              </div>
+                              <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="text-xs font-semibold text-blue-600 border-blue-400/40"
+                              >
+                                <a href={emailVerificationResult.verificationUrl}>
+                                  Click Here to Complete Email Verification
+                                </a>
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
                   {/* Step 2: Developer Quality Verification (GitHub) */}
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                     <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Github className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Developer Quality Verification
+                          Step 2: Developer Quality Verification
                         </CardTitle>
                         {userProfile?.githubUsername ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
@@ -1048,28 +1287,72 @@ function SettingsContent() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-dashed border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/30">
-                      <div>
-                        <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
-                          No PayPal Account Bound
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-dashed border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/30">
+                        <div>
+                          <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
+                            No PayPal Account Bound
+                          </div>
+                          <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                            Connect your PayPal account via authentic PayPal OAuth to pre-authorize non-custodial holds and receive proof-gated settlement disbursements.
+                          </p>
                         </div>
-                        <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                          Link your PayPal account to pre-authorize task holds when commissioning work, and receive direct settlement disbursements upon completing verified deliverables.
-                        </p>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleConnectPayPalOAuth}
+                            disabled={connectingPayPalOAuth}
+                            className="bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
+                          >
+                            <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                            {connectingPayPalOAuth ? "Redirecting to PayPal..." : "Connect with PayPal"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setInputPaypalEmail(userProfile?.email || authUser?.email || "");
+                              setPayoutVerifyStep("input");
+                              setPaypalModalOpen(true);
+                            }}
+                            className="text-xs font-medium"
+                          >
+                            <Mail className="h-3.5 w-3.5 mr-1.5" />
+                            Verify Payout Email
+                          </Button>
+                        </div>
                       </div>
 
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          setInputPaypalEmail(userProfile?.email || authUser?.email || "");
-                          setPaypalModalOpen(true);
-                        }}
-                        className="text-xs font-semibold shrink-0"
-                      >
-                        <Link2 className="h-3.5 w-3.5 mr-1.5" />
-                        Link PayPal Account
-                      </Button>
+                      {/* Developer Callback Configuration */}
+                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-[var(--wp-text-primary)] text-[11px]">
+                            OAuth Return Callback URL:
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => {
+                              const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+                              navigator.clipboard.writeText(`${origin}/api/v1/user/paypal/callback`);
+                              toast.success("Callback URL copied to clipboard");
+                            }}
+                          >
+                            Copy Callback URL
+                          </Button>
+                        </div>
+                        <div className="font-mono text-[11px] text-[var(--wp-text-secondary)] bg-background p-2 rounded border break-all select-all">
+                          {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/api/v1/user/paypal/callback
+                        </div>
+                        <p className="text-[10px] text-[var(--wp-text-secondary)]">
+                          Ensure this callback URL is whitelisted under App Settings in your PayPal Developer Dashboard.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -1365,60 +1648,152 @@ function SettingsContent() {
       {/* Dialog for Step 2: GitHub Developer Verification */}
       <Dialog open={githubModalOpen} onOpenChange={setGithubModalOpen}>
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleVerifyGithub}>
-            <DialogHeader>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
-                  <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
+          {githubStep === "input" ? (
+            <form onSubmit={handleRequestGithubChallenge}>
+              <DialogHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
+                    <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
+                  </div>
+                  <DialogTitle className="text-base font-semibold">Verify GitHub Developer Profile</DialogTitle>
                 </div>
-                <DialogTitle className="text-base font-semibold">Verify GitHub Developer Profile</DialogTitle>
-              </div>
-              <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                Connect your public GitHub username to demonstrate engineering credentials and earn the Verified Developer trust badge.
-              </DialogDescription>
-            </DialogHeader>
+                <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
+                  Connect your public GitHub username to demonstrate engineering credentials and earn the Verified Developer trust badge.
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="py-4 space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="inputGithub" className="text-xs">GitHub Username Handle</Label>
-                <div className="relative">
-                  <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="inputGithub"
-                    placeholder="octocat"
-                    value={inputGithub}
-                    onChange={(e) => setInputGithub(e.target.value)}
-                    required
-                    className="pl-9 text-xs font-mono"
-                  />
+              <div className="py-4 space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="inputGithub" className="text-xs">GitHub Username Handle</Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="inputGithub"
+                      placeholder="octocat"
+                      value={inputGithub}
+                      onChange={(e) => setInputGithub(e.target.value)}
+                      required
+                      className="pl-9 text-xs font-mono"
+                    />
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                    Enter your public GitHub username handle (e.g. saleke or torvalds).
+                  </p>
                 </div>
-                <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                  Enter your exact public GitHub handle without URL prefixes.
-                </p>
               </div>
+
+              <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGithubModalOpen(false)}
+                  disabled={requestingChallenge}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={requestingChallenge}
+                  className="text-xs font-semibold"
+                >
+                  {requestingChallenge ? "Locating GitHub Profile..." : "Generate Verification Challenge"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <div>
+              <DialogHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
+                    <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
+                  </div>
+                  <DialogTitle className="text-base font-semibold">Prove GitHub Account Ownership</DialogTitle>
+                </div>
+                <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
+                  To prevent unauthorized impersonation, please prove ownership of @{githubChallengeData?.githubUsername}.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-4 space-y-3.5">
+                {githubChallengeData && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
+                    {githubChallengeData.avatarUrl && (
+                      <img
+                        src={githubChallengeData.avatarUrl}
+                        alt={githubChallengeData.githubUsername}
+                        className="h-10 w-10 rounded-full border border-[var(--wp-border)]"
+                      />
+                    )}
+                    <div>
+                      <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                        {githubChallengeData.name || githubChallengeData.githubUsername} (@{githubChallengeData.githubUsername})
+                      </div>
+                      <div className="text-[11px] text-[var(--wp-text-secondary)] flex items-center gap-2 mt-0.5">
+                        <span>{githubChallengeData.publicRepos ?? 0} public repos</span>
+                        <span>&bull;</span>
+                        <span>{githubChallengeData.followers ?? 0} followers</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Your Verification Challenge Code</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 text-emerald-600"
+                      onClick={() => {
+                        if (githubChallengeData?.challenge) {
+                          navigator.clipboard.writeText(githubChallengeData.challenge);
+                          toast.success("Challenge code copied to clipboard");
+                        }
+                      }}
+                    >
+                      Copy Code
+                    </Button>
+                  </div>
+                  <div className="font-mono text-center p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 font-bold select-all text-sm tracking-wide">
+                    {githubChallengeData?.challenge}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1.5 leading-relaxed">
+                  <strong className="text-[var(--wp-text-primary)] font-semibold block">Instructions to Complete:</strong>
+                  <p>1. Copy the verification code above.</p>
+                  <p>2. Add it temporarily to your public GitHub profile bio, or create a public Gist named <code>workpay-verify.md</code> containing this code.</p>
+                  <p>3. Click "Confirm &amp; Complete Verification" below. The server will contact GitHub directly to verify the challenge.</p>
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGithubStep("input")}
+                  disabled={verifyingGithub}
+                  className="text-xs"
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleConfirmGithubChallenge}
+                  disabled={verifyingGithub}
+                  className="text-xs font-semibold"
+                >
+                  {verifyingGithub ? "Verifying with GitHub..." : "Confirm & Complete Verification"}
+                </Button>
+              </DialogFooter>
             </div>
-
-            <DialogFooter className="gap-2 sm:gap-0 mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setGithubModalOpen(false)}
-                disabled={verifyingGithub}
-                className="text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={verifyingGithub}
-                className="text-xs font-semibold"
-              >
-                {verifyingGithub ? "Verifying..." : "Verify & Link Profile"}
-              </Button>
-            </DialogFooter>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1434,7 +1809,7 @@ function SettingsContent() {
                 <DialogTitle className="text-base font-semibold">Government Identity Verification</DialogTitle>
               </div>
               <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                Persona and Stripe Identity compliant verification. Unlocks individual tasks and milestone disbursements exceeding $1,000 USD.
+                Persona and Stripe Identity standard verification. Unlocks individual tasks and milestone disbursements exceeding $1,000 USD.
               </DialogDescription>
             </DialogHeader>
 
@@ -1454,35 +1829,63 @@ function SettingsContent() {
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="docType" className="text-xs">Document Type</Label>
-                <select
-                  id="docType"
-                  value={inputDocType}
-                  onChange={(e) => setInputDocType(e.target.value as "PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID")}
-                  className="w-full h-8 text-xs px-2.5 rounded-lg border border-[var(--wp-border)] bg-background text-foreground"
-                >
-                  <option value="PASSPORT">Passport</option>
-                  <option value="DRIVERS_LICENSE">Driver License</option>
-                  <option value="NATIONAL_ID">National Identity Card</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="docType" className="text-xs">Document Type</Label>
+                  <select
+                    id="docType"
+                    value={inputDocType}
+                    onChange={(e) => setInputDocType(e.target.value as "PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID")}
+                    className="w-full h-8 text-xs px-2.5 rounded-lg border border-[var(--wp-border)] bg-background text-foreground"
+                  >
+                    <option value="PASSPORT">Passport</option>
+                    <option value="DRIVERS_LICENSE">Driver License</option>
+                    <option value="NATIONAL_ID">National ID Card</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="country" className="text-xs">Issuing Country</Label>
+                  <Input
+                    id="country"
+                    placeholder="US, DE, GB, etc."
+                    value={inputCountry}
+                    onChange={(e) => setInputCountry(e.target.value)}
+                    required
+                    className="text-xs"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="country" className="text-xs">Issuing Country</Label>
-                <Input
-                  id="country"
-                  placeholder="United States (US)"
-                  value={inputCountry}
-                  onChange={(e) => setInputCountry(e.target.value)}
-                  required
-                  className="text-xs"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="docNumber" className="text-xs">Document Number</Label>
+                  <Input
+                    id="docNumber"
+                    placeholder="P12345678"
+                    value={inputDocNumber}
+                    onChange={(e) => setInputDocNumber(e.target.value)}
+                    required
+                    className="text-xs font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="docExpiry" className="text-xs">Expiry Date (Future)</Label>
+                  <Input
+                    id="docExpiry"
+                    type="date"
+                    value={inputExpiryDate}
+                    onChange={(e) => setInputExpiryDate(e.target.value)}
+                    required
+                    className="text-xs"
+                  />
+                </div>
               </div>
 
               <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
                 <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">Compliance Guarantee:</strong>
-                Identity documents are processed according to SOC2 and GDPR compliance standards. Documents are never stored in raw form on platform databases.
+                Identity documents are processed according to SOC2 and GDPR compliance standards. Documents are checked for checksums and expiry validity.
               </div>
             </div>
 
@@ -1503,7 +1906,7 @@ function SettingsContent() {
                 disabled={verifyingId}
                 className="text-xs font-semibold"
               >
-                {verifyingId ? "Verifying with Persona..." : "Complete Verification"}
+                {verifyingId ? "Verifying..." : "Complete Verification"}
               </Button>
             </DialogFooter>
           </form>
@@ -1513,80 +1916,149 @@ function SettingsContent() {
       {/* Dialog for PayPal Account Binding */}
       <Dialog open={paypalModalOpen} onOpenChange={setPaypalModalOpen}>
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleBindPaypal}>
-            <DialogHeader>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
-                  <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-                </div>
-                <DialogTitle className="text-base font-semibold">Link PayPal Account</DialogTitle>
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
+                <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
               </div>
-              <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                Connect your verified PayPal account for both Task Owner authorization holds and Specialist payout disbursements.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4 space-y-3.5">
-              <div className="space-y-1.5">
-                <Label htmlFor="paypalEmailInput" className="text-xs">PayPal Account Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="paypalEmailInput"
-                    type="email"
-                    placeholder="account@company.com"
-                    value={inputPaypalEmail}
-                    onChange={(e) => setInputPaypalEmail(e.target.value)}
-                    required
-                    className="pl-9 text-xs"
-                  />
-                </div>
-                <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                  Personal or corporate PayPal account. Disposable domains are rejected.
-                </p>
-              </div>
-
-              <div className="flex items-start gap-2.5 pt-1">
-                <input
-                  type="checkbox"
-                  id="autoHoldCheck"
-                  checked={inputAutoHold}
-                  onChange={(e) => setInputAutoHold(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-0.5"
-                />
-                <Label htmlFor="autoHoldCheck" className="text-xs leading-snug cursor-pointer font-normal">
-                  <span className="font-semibold text-[var(--wp-text-primary)] block">Enable 1-Click Non-Custodial Holds</span>
-                  Automatically place authorization holds on PayPal when commissioning approved tasks.
-                </Label>
-              </div>
-
-              <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">Non-Custodial Architecture:</strong>
-                WorkPay is strictly non-custodial. Payment authorizations remain with PayPal and settle directly upon cryptographic proof verification.
-              </div>
+              <DialogTitle className="text-base font-semibold">PayPal Account Binding</DialogTitle>
             </div>
+            <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
+              Connect your verified PayPal account for task authorization holds and specialist payouts.
+            </DialogDescription>
+          </DialogHeader>
 
-            <DialogFooter className="gap-2 sm:gap-0 mt-2">
+          <div className="py-4 space-y-4">
+            {/* Primary OAuth Method */}
+            <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                  Method 1: Connect with PayPal (OAuth 2.0)
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono text-blue-600 border-blue-400/30">
+                  Recommended
+                </Badge>
+              </div>
+              <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                Logs in via PayPal to automatically link and verify your PayPal Payer ID, primary email, and KYC standing in a single step.
+              </p>
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPaypalModalOpen(false)}
-                disabled={bindingPaypal}
-                className="text-xs"
+                onClick={handleConnectPayPalOAuth}
+                disabled={connectingPayPalOAuth}
+                className="w-full bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
               >
-                Cancel
+                <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                {connectingPayPalOAuth ? "Redirecting to PayPal..." : "Sign in & Connect with PayPal"}
               </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={bindingPaypal}
-                className="text-xs font-semibold"
-              >
-                {bindingPaypal ? "Connecting..." : "Bind PayPal Account"}
-              </Button>
-            </DialogFooter>
-          </form>
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-[var(--wp-border)]"></div>
+              <span className="flex-shrink mx-3 text-[11px] text-[var(--wp-text-secondary)] font-medium">Or verify specialist payout address</span>
+              <div className="flex-grow border-t border-[var(--wp-border)]"></div>
+            </div>
+
+            {/* Specialist Payout Challenge */}
+            {payoutVerifyStep === "input" ? (
+              <form onSubmit={handleRequestPayoutCode} className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="payoutEmailInput" className="text-xs">PayPal Payout Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="payoutEmailInput"
+                      type="email"
+                      placeholder="specialist@company.com"
+                      value={inputPaypalEmail}
+                      onChange={(e) => setInputPaypalEmail(e.target.value)}
+                      required
+                      className="pl-9 text-xs"
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--wp-text-secondary)]">
+                    Rejects disposable domains. Performs DNS MX verification before dispatching code.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaypalModalOpen(false)}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={sendingPayoutCode}
+                    className="text-xs font-semibold"
+                  >
+                    {sendingPayoutCode ? "Verifying Domain..." : "Send Confirmation Code"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleConfirmPayoutCode} className="space-y-3">
+                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)]">
+                  A 6-digit confirmation code was dispatched for <strong>{inputPaypalEmail}</strong>.
+                </div>
+
+                {issuedPayoutCode && (
+                  <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-mono text-xs text-center">
+                    Development Confirmation Code: <strong>{issuedPayoutCode}</strong>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="payoutCodeInput" className="text-xs">Enter 6-Digit Confirmation Code</Label>
+                  <Input
+                    id="payoutCodeInput"
+                    placeholder="123456"
+                    value={payoutVerifyCode}
+                    onChange={(e) => setPayoutVerifyCode(e.target.value)}
+                    required
+                    maxLength={6}
+                    className="text-center font-mono text-sm tracking-widest"
+                  />
+                </div>
+
+                <div className="flex justify-between items-center pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPayoutVerifyStep("input")}
+                    className="text-xs"
+                  >
+                    Change Email
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPaypalModalOpen(false)}
+                      className="text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={confirmingPayoutCode}
+                      className="text-xs font-semibold"
+                    >
+                      {confirmingPayoutCode ? "Confirming..." : "Confirm & Bind Address"}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

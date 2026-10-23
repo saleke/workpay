@@ -23,11 +23,13 @@ export type {
 export {
   getPaymentGateway,
   setPaymentGateway,
+  getPayPalOAuthClient,
   FakePayPal,
   SandboxPayPal,
 } from "./payments/index.js";
 export type {
   PaymentGateway,
+  PayPalUserInfo,
   AuthorizeRequest,
   AuthorizeResult,
   CaptureRequest,

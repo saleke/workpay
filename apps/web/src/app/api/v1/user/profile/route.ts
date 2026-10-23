@@ -27,6 +27,7 @@ export async function GET(req: Request) {
         displayName: users.displayName,
         legalName: users.legalName,
         email: users.email,
+        emailVerified: users.emailVerified,
         role: users.role,
         image: users.image,
         githubUsername: users.githubUsername,

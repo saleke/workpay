@@ -1,10 +1,11 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, jsonError } from "@/lib/server/api";
-import { users } from "@workpay/shared/db/schema/identity";
+import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
-import { hashPassword, newId } from "@workpay/shared/platform";
+import { hashPassword, newId, logger } from "@workpay/shared/platform";
 import { createSession, setSessionCookie } from "@/lib/server/session";
 import { validateEmailForRegistration, validateUsername } from "@/lib/server/disposable-emails";
 
@@ -105,6 +106,19 @@ export async function POST(req: Request) {
       currency: "USD",
       payoutEmail: parsed.email,
     }).onConflictDoNothing();
+
+    const verifyToken = randomBytes(32).toString("hex");
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await db
+      .insert(verificationTokens)
+      .values({
+        identifier: parsed.email.toLowerCase(),
+        token: verifyToken,
+        expires: tokenExpires,
+      })
+      .onConflictDoNothing();
+
+    logger.info({ email: parsed.email, verifyToken }, "issued email verification token for new user");
 
     const sessionToken = await createSession(userId);
     const res = NextResponse.json({

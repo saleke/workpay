@@ -37,6 +37,20 @@ export function setPaymentGateway(gateway: PaymentGateway | null): void {
   cached = gateway;
 }
 
+export function getPayPalOAuthClient(): SandboxPayPal | null {
+  const env = getEnv();
+  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) {
+    return null;
+  }
+  return new SandboxPayPal({
+    clientId: env.PAYPAL_CLIENT_ID,
+    clientSecret: env.PAYPAL_CLIENT_SECRET,
+    webhookId: env.PAYPAL_WEBHOOK_ID ?? "noop-webhook-id",
+    env: env.PAYPAL_ENV,
+  });
+}
+
 export * from "./types.js";
 export { FakePayPal } from "./fake.js";
-export { SandboxPayPal } from "./paypal.js";
+export { SandboxPayPal, type PayPalUserInfo } from "./paypal.js";
+

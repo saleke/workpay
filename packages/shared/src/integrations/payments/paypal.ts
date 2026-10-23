@@ -324,6 +324,87 @@ export class SandboxPayPal implements PaymentGateway {
     }
   }
 
+  getOAuthAuthorizeUrl(params: { redirectUri: string; state: string; scope?: string }): string {
+    const authBase =
+      this.options.env === "live" ? "https://www.paypal.com" : "https://www.sandbox.paypal.com";
+    const scope = params.scope ?? "openid profile email";
+    const search = new URLSearchParams({
+      client_id: this.options.clientId,
+      response_type: "code",
+      scope,
+      redirect_uri: params.redirectUri,
+      state: params.state,
+    });
+    return `${authBase}/signin/authorize?${search.toString()}`;
+  }
+
+  async exchangeOAuthCode(code: string, redirectUri: string): Promise<string> {
+    const basic = Buffer.from(`${this.options.clientId}:${this.options.clientSecret}`).toString(
+      "base64",
+    );
+    const bodyParams = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    });
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/v1/oauth2/token`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basic}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: bodyParams.toString(),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new AppError("EXTERNAL_FAILURE", "PayPal OAuth code exchange failed", {
+        details: { status: response.status, body: err },
+      });
+    }
+    const body = (await response.json()) as { access_token: string };
+    return body.access_token;
+  }
+
+  async getUserInfo(accessToken: string): Promise<PayPalUserInfo> {
+    const response = await this.fetchWithTimeout(
+      `${this.baseUrl}/v1/identity/oauth2/userinfo?schema=paypalv1.1`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    if (!response.ok) {
+      const err = await response.text();
+      throw new AppError("EXTERNAL_FAILURE", "PayPal UserInfo retrieval failed", {
+        details: { status: response.status, body: err },
+      });
+    }
+    const body = (await response.json()) as {
+      payer_id?: string;
+      user_id?: string;
+      email?: string;
+      name?: string;
+      verified?: boolean | string;
+      verified_account?: boolean | string;
+    };
+    const payerId = body.payer_id ?? (body.user_id ? body.user_id.split("/").pop() ?? "" : "");
+    const email = body.email ?? "";
+    const isVerified =
+      body.verified === true ||
+      body.verified === "true" ||
+      body.verified_account === true ||
+      body.verified_account === "true";
+    return {
+      payerId,
+      email,
+      name: body.name,
+      verifiedAccount: isVerified,
+    };
+  }
+
   private declinedFromBody(
     status: number,
     body: unknown,
@@ -341,6 +422,14 @@ export class SandboxPayPal implements PaymentGateway {
     };
   }
 }
+
+export interface PayPalUserInfo {
+  payerId: string;
+  email: string;
+  name?: string;
+  verifiedAccount?: boolean;
+}
+
 
 /** Convert integer minor units to the decimal string PayPal expects. */
 function minorToDecimalString(amountMinor: number): string {
