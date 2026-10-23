@@ -1,7 +1,9 @@
 import { apiFetch, apiUpload, type ApiResponse } from "./client";
 import type {
+  AcceptInvitationInput,
   ActivityEntryDto,
   ApprovalResultDto,
+  AuditCheckinDto,
   CaseDto,
   ContractDto,
   NotificationDto,
@@ -9,7 +11,9 @@ import type {
   ProviderSelectionDto,
   ProviderWorkDto,
   SubmissionDto,
+  TaskAuditStatusDto,
   TaskDto,
+  TaskInvitationDto,
   TaskRoomDto,
   VerificationDto,
   WorkSpecificationDto,
@@ -217,5 +221,34 @@ export function listProviders(): Promise<ApiResponse<ProviderProfileDto[]>> {
   return apiFetch<ProviderProfileDto[]>(`${BASE}/providers`);
 }
 
+export function getTaskInvitation(taskId: string): Promise<ApiResponse<TaskInvitationDto>> {
+  return apiFetch<TaskInvitationDto>(`${BASE}/tasks/${taskId}/invite`);
+}
+
+export function acceptTaskInvitation(
+  taskId: string,
+  input: AcceptInvitationInput,
+): Promise<ApiResponse<{ executionId: string; redirectUrl: string }>> {
+  return apiFetch<{ executionId: string; redirectUrl: string }>(`${BASE}/tasks/${taskId}/invite`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function getTaskAuditStatus(taskId: string): Promise<ApiResponse<TaskAuditStatusDto>> {
+  return apiFetch<TaskAuditStatusDto>(`${BASE}/tasks/${taskId}/audit-checkin`);
+}
+
+export function submitAuditCheckin(
+  taskId: string,
+  input: { status: "ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED"; notes?: string; percentComplete?: number },
+): Promise<ApiResponse<AuditCheckinDto>> {
+  return apiFetch<AuditCheckinDto>(`${BASE}/tasks/${taskId}/audit-checkin`, {
+    method: "POST",
+    body: input,
+  });
+}
+
 export { apiFetch };
 export type { ContractDto };
+

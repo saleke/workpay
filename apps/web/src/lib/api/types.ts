@@ -422,3 +422,52 @@ export interface ProviderWorkDto {
   acceptedAt: string | null;
   startedAt: string | null;
 }
+
+export interface TaskInvitationDto {
+  taskId: string;
+  taskTitle: string;
+  taskRequest: string;
+  budgetMinor: number;
+  currency: string;
+  deadline: string | null;
+  contractId: string;
+  contractVersion: number;
+  contractHash: string;
+  requirements: Array<{
+    id: string;
+    key: string;
+    statement: string;
+    acceptanceRelevant: boolean;
+  }>;
+  isAssigned: boolean;
+  assignedSpecialistName?: string | null;
+}
+
+export interface AcceptInvitationInput {
+  displayName: string;
+  payoutEmail: string;
+  bio?: string;
+  capabilities?: string[];
+}
+
+export interface AuditCheckinDto {
+  id: string;
+  taskId: string;
+  executionId: string;
+  status: "ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED";
+  notes?: string | null;
+  percentComplete?: number | null;
+  createdAt: string;
+}
+
+export interface TaskAuditStatusDto {
+  taskId: string;
+  deadline: string | null;
+  timeRemainingHours: number | null;
+  burnDownPercentage: number;
+  phase: "KICKOFF" | "PROGRESS_AUDIT" | "CRITICAL_PATH" | "FINAL_COUNTDOWN";
+  riskLevel: "LOW" | "ATTENTION" | "OVERDUE";
+  latestCheckin: AuditCheckinDto | null;
+  checkins: AuditCheckinDto[];
+}
+

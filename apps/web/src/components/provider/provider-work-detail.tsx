@@ -15,6 +15,7 @@ import {
   submitDeliverable,
 } from "@/lib/api/endpoints";
 import type { ProviderWorkDto } from "@/lib/api/types";
+import { AuditorCheckinCard } from "./auditor-checkin-card";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -124,6 +125,10 @@ export function ProviderWorkDetail({
               </div>
             </div>
           </div>
+
+          <Separator />
+
+          <AuditorCheckinCard taskId={work.taskId} onCheckinSubmitted={onChanged} />
 
           <Separator />
 

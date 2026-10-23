@@ -151,6 +151,23 @@ export function describeEvent(
       return { title: `Agent: ${p.actionType}`, description: `Action ${p.status}.` };
     case "AGENT_AUTHORITY_DENIED":
       return { title: "Agent action blocked", description: `${p.actionType}: ${p.reason}.` };
+    case "AUDIT_CHECKIN_SUBMITTED": {
+      const statusLabel =
+        p.status === "ON_TRACK"
+          ? "On Track"
+          : p.status === "MILESTONE_DRAFT"
+            ? "Milestone Draft Ready"
+            : "Specialist Needs Guidance";
+      return {
+        title: `Progress Audit: ${statusLabel}`,
+        description: String(p.notes || "Progress update recorded by specialist."),
+      };
+    }
+    case "PROVIDER_INVITATION_ACCEPTED":
+      return {
+        title: "Specialist accepted invitation",
+        description: `${String(p.displayName || "Specialist")} committed to agreement and registered payout email ${String(p.payoutEmail || "")}.`,
+      };
     default:
       return { title: type, description: "" };
   }

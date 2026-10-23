@@ -33,8 +33,10 @@ import {
 } from "@/lib/api/endpoints";
 import type { VerificationDto } from "@/lib/api/types";
 import { ActivityTimeline } from "./activity-timeline";
+import { AuditorMonitorCard } from "./auditor-monitor-card";
 import { CasesPanel } from "./cases-panel";
 import { ContractReview } from "./contract-review";
+import { InviteSpecialistCard } from "./invite-specialist-card";
 import { PaymentPanel } from "./payment-panel";
 import { ProviderRecommendation } from "./provider-recommendation";
 import { VerificationView } from "./verification-view";
@@ -256,6 +258,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         </TabsContent>
 
         <TabsContent value="state" className="mt-6 grid gap-4">
+          <InviteSpecialistCard taskId={taskId} isAssigned={!!execution} />
           {canSearchProviders ? (
             <Card className="border-border/70 shadow-xs">
               <CardHeader>
@@ -273,23 +276,26 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           ) : null}
           {providerSelection ? <ProviderRecommendation selection={providerSelection} /> : null}
           {execution ? (
-            <Card className="border-border/70 shadow-xs">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold">Active Execution</CardTitle>
-                  <StatusBadge tone={execution.status === "COMPLETED" ? "success" : "progress"}>
-                    {execution.status}
-                  </StatusBadge>
-                </div>
-                <CardDescription>
-                  Provider is assigned and working. Deliverable submissions are evaluated on upload:{" "}
-                  {execution.latestSubmission
-                    ? `Latest submission version ${execution.latestSubmission.version} (${execution.latestSubmission.status})`
-                    : "No submission uploaded yet"}
-                  .
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <>
+              <Card className="border-border/70 shadow-xs">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold">Active Execution</CardTitle>
+                    <StatusBadge tone={execution.status === "COMPLETED" ? "success" : "progress"}>
+                      {execution.status}
+                    </StatusBadge>
+                  </div>
+                  <CardDescription>
+                    Provider is assigned and working. Deliverable submissions are evaluated on upload:{" "}
+                    {execution.latestSubmission
+                      ? `Latest submission version ${execution.latestSubmission.version} (${execution.latestSubmission.status})`
+                      : "No submission uploaded yet"}
+                    .
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+              <AuditorMonitorCard taskId={taskId} />
+            </>
           ) : null}
           <ActivityTimeline entries={activity.data ?? []} />
         </TabsContent>

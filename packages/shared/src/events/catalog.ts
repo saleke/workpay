@@ -530,6 +530,35 @@ export const eventCatalog = {
       reason: z.string(),
     }),
   },
+
+  // ── Proactive Progress Audit & External Invitation ─────────────────────────
+  AUDIT_CHECKIN_SUBMITTED: {
+    type: "AUDIT_CHECKIN_SUBMITTED",
+    version: 1,
+    aggregateType: "EXECUTION",
+    visibility: "USER",
+    description: "Specialist submitted progress audit check-in",
+    payload: z.object({
+      taskId: z.string(),
+      executionId: z.string(),
+      status: z.enum(["ON_TRACK", "MILESTONE_DRAFT", "BLOCKED"]),
+      notes: z.string().optional(),
+      percentComplete: z.number().optional(),
+    }),
+  },
+  PROVIDER_INVITATION_ACCEPTED: {
+    type: "PROVIDER_INVITATION_ACCEPTED",
+    version: 1,
+    aggregateType: "EXECUTION",
+    visibility: "USER",
+    description: "External specialist accepted assignment invitation",
+    payload: z.object({
+      taskId: z.string(),
+      providerId: z.string(),
+      displayName: z.string(),
+      payoutEmail: z.string(),
+    }),
+  },
 } as const satisfies Record<string, EventDefinition>;
 
 export type EventType = keyof typeof eventCatalog;
