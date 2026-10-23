@@ -12,7 +12,7 @@ import { useApi } from "@/lib/use-api";
 import { listProviderWork } from "@/lib/api/endpoints";
 
 export function ProviderWorkList() {
-  const { data, error, loading, reload } = useApi(() => listProviderWork(), []);
+  const { data, error, loading, reload } = useApi(() => listProviderWork(), [], "provider-work");
 
   if (loading && !data) return <LoadingState label="Loading assigned work & payouts..." />;
   if (error) {

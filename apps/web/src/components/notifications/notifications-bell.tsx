@@ -50,7 +50,7 @@ function getNotificationIcon(type: string) {
 }
 
 export function NotificationsBell() {
-  const { data, reload } = useApi(() => listNotifications(), []);
+  const { data, reload } = useApi(() => listNotifications(), [], "notifications");
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationDto[]>([]);
   const [isPending, startTransition] = useTransition();

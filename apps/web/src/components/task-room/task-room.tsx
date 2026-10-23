@@ -53,9 +53,9 @@ function newIdempotencyKey(): string {
 }
 
 export function TaskRoom({ taskId }: { taskId: string }) {
-  const room = useApi(() => getTaskRoom(taskId), [taskId]);
-  const activity = useApi(() => getTaskActivity(taskId), [taskId]);
-  const payment = useApi(() => getTaskPayment(taskId), [taskId]);
+  const room = useApi(() => getTaskRoom(taskId), [taskId], `task-room-${taskId}`);
+  const activity = useApi(() => getTaskActivity(taskId), [taskId], `task-activity-${taskId}`);
+  const payment = useApi(() => getTaskPayment(taskId), [taskId], `task-payment-${taskId}`);
 
   const submissionId = room.data?.execution?.latestSubmission?.id ?? null;
   const verification = useApi<VerificationDto>(

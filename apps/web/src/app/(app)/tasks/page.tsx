@@ -86,8 +86,33 @@ function TaskLifecycleBar({ status }: { status: TaskStatus }) {
   );
 }
 
+function TaskTableSkeleton() {
+  return (
+    <Card className="border-border/80 shadow-xs overflow-hidden animate-pulse">
+      <div className="border-b border-border/60 bg-muted/20 px-6 py-4 flex items-center justify-between">
+        <div className="h-5 w-44 rounded bg-muted/60" />
+        <div className="h-8 w-60 rounded-lg bg-muted/40" />
+      </div>
+      <div className="divide-y divide-border/40">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="px-6 py-4 flex items-center justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="h-4 w-48 rounded bg-muted/60" />
+              <div className="h-3 w-80 rounded bg-muted/40" />
+            </div>
+            <div className="h-6 w-24 rounded-full bg-muted/50" />
+            <div className="h-3 w-24 rounded bg-muted/40" />
+            <div className="h-4 w-20 rounded bg-muted/60" />
+            <div className="h-8 w-24 rounded-lg bg-muted/50" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function TasksPage() {
-  const { data, error, loading, reload } = useApi(() => listTasks(), []);
+  const { data, error, loading, reload, isRefreshing } = useApi(() => listTasks(), [], "tasks");
   const [search, setSearch] = useState("");
   const [currentTab, setCurrentTab] = useState<FilterTab>("ALL");
 
@@ -236,7 +261,7 @@ export default function TasksPage() {
 
       {/* Task List Section */}
       {loading && !data ? (
-        <LoadingState label="Loading your tasks & contracts..." />
+        <TaskTableSkeleton />
       ) : error ? (
         <ErrorState
           title="Could not load tasks"

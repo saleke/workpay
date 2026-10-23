@@ -31,7 +31,7 @@ function severityTone(severity: CaseDto["severity"]) {
 }
 
 export function CasesReviewList() {
-  const { data, error, loading, reload } = useApi(() => listCases(), []);
+  const { data, error, loading, reload } = useApi(() => listCases(), [], "cases");
   const [resolving, setResolving] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 

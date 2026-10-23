@@ -25,7 +25,7 @@ import { listPayments } from "@/lib/api/endpoints";
 import type { PaymentStatus } from "@/lib/api/types";
 
 export default function PaymentsPage() {
-  const { data, error, loading, reload } = useApi(() => listPayments(), []);
+  const { data, error, loading, reload } = useApi(() => listPayments(), [], "payments");
   const [filter, setFilter] = useState<string>("ALL");
 
   if (loading && !data) return <LoadingState label="Loading PayPal escrow ledger..." />;

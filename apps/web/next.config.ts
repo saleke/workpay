@@ -2,8 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: [
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner",
+    "openai",
+    "pg",
+    "pg-boss",
+    "pino",
+  ],
   // The shared workspace package is authored in TypeScript with `.js` ESM import
-  // specifiers. Transpile it and alias `.js` → `.ts` so webpack resolves it.
+  // specifiers. Transpile it and alias `.js` -> `.ts` so webpack resolves it.
   transpilePackages: ["@workpay/shared"],
   experimental: {
     typedRoutes: false,

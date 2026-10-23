@@ -75,7 +75,7 @@ function ActorBadge({ actorType }: { actorType: string }) {
 }
 
 export default function ActivityPage() {
-  const { data, error, loading, reload } = useApi(() => listActivity(), []);
+  const { data, error, loading, reload } = useApi(() => listActivity(), [], "activity");
   const [filter, setFilter] = useState<string>("ALL");
 
   if (loading && !data) return <LoadingState label="Loading audit activity timeline..." />;

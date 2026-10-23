@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
+import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { PersonaSwitcher } from "@/components/demo/persona-switcher";
 import { UserNav } from "@/components/nav/user-nav";
 import { useSystemMode } from "@/lib/mode";
@@ -34,6 +36,11 @@ const navItems = [
 
 function SidebarNav() {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   return (
     <nav className="grid gap-1.5 text-sm font-medium">
@@ -41,20 +48,38 @@ function SidebarNav() {
         const Icon = item.icon;
         const isActive =
           pathname === item.href || (item.href !== "/tasks" && pathname.startsWith(item.href));
+        const isPending = pendingHref === item.href;
 
         return (
           <Link
             key={item.href}
             href={item.href}
+            onClick={() => {
+              if (pathname !== item.href) setPendingHref(item.href);
+            }}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all text-sm font-medium",
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all text-sm font-medium relative",
               isActive
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                : isPending
+                  ? "bg-primary/10 text-primary font-semibold ring-1 ring-primary/30"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
           >
-            <Icon className={cn("h-4 w-4", isActive ? "text-primary-foreground" : "text-muted-foreground")} />
+            <Icon
+              className={cn(
+                "h-4 w-4 transition-transform",
+                isActive
+                  ? "text-primary-foreground"
+                  : isPending
+                    ? "text-primary animate-pulse"
+                    : "text-muted-foreground",
+              )}
+            />
             <span>{item.label}</span>
+            {isPending ? (
+              <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+            ) : null}
           </Link>
         );
       })}
@@ -67,6 +92,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[240px_1fr] lg:grid-cols-[280px_1fr] bg-background">
+      <TopProgressBar />
       {/* Sidebar for Desktop */}
       <aside className="hidden border-r border-border/80 bg-card/60 backdrop-blur-md md:flex md:flex-col justify-between">
         <div className="flex flex-col gap-4">
