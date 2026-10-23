@@ -7,6 +7,7 @@
  */
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -23,16 +24,33 @@ export const users = pgTable(
   {
     id: varchar("id", { length: 64 }).primaryKey(),
     name: text("name"),
+    username: varchar("username", { length: 32 }),
+    displayName: text("display_name"),
+    legalName: text("legal_name"),
     email: text("email").notNull(),
     emailVerified: timestamp("email_verified", { withTimezone: true }),
     image: text("image"),
     passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("buyer"),
+    // Step 2: Developer verification (GitHub profile)
+    githubUsername: text("github_username"),
+    githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
+    // Step 3: Identity Verification (Persona / Stripe Identity flow & milestone threshold)
+    idVerificationStatus: varchar("id_verification_status", { length: 32 }).notNull().default("UNVERIFIED"),
+    idVerifiedAt: timestamp("id_verified_at", { withTimezone: true }),
+    idDocumentType: varchar("id_document_type", { length: 32 }),
+    // PayPal Account Linking and Binding
+    paypalPayerId: text("paypal_payer_id"),
+    paypalPayoutEmail: text("paypal_payout_email"),
+    paypalLinkedAt: timestamp("paypal_linked_at", { withTimezone: true }),
+    paypalVerified: boolean("paypal_verified").notNull().default(false),
+    paypalAutoHoldEnabled: boolean("paypal_auto_hold_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     emailIdx: uniqueIndex("users_email_unique").on(t.email),
+    usernameIdx: uniqueIndex("users_username_unique").on(t.username),
     roleIdx: index("users_role_idx").on(t.role),
   }),
 );

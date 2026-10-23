@@ -10,9 +10,22 @@ const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 export interface AuthenticatedUser {
   id: string;
   name: string | null;
+  username: string | null;
+  displayName: string | null;
+  legalName: string | null;
   email: string;
   role: "buyer" | "provider" | "admin_reviewer";
   image: string | null;
+  githubUsername: string | null;
+  githubVerifiedAt: Date | string | null;
+  idVerificationStatus: string;
+  idVerifiedAt: Date | string | null;
+  idDocumentType: string | null;
+  paypalPayerId: string | null;
+  paypalPayoutEmail: string | null;
+  paypalLinkedAt: Date | string | null;
+  paypalVerified: boolean;
+  paypalAutoHoldEnabled: boolean;
 }
 
 /**
@@ -43,9 +56,22 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
     .select({
       id: users.id,
       name: users.name,
+      username: users.username,
+      displayName: users.displayName,
+      legalName: users.legalName,
       email: users.email,
       role: users.role,
       image: users.image,
+      githubUsername: users.githubUsername,
+      githubVerifiedAt: users.githubVerifiedAt,
+      idVerificationStatus: users.idVerificationStatus,
+      idVerifiedAt: users.idVerifiedAt,
+      idDocumentType: users.idDocumentType,
+      paypalPayerId: users.paypalPayerId,
+      paypalPayoutEmail: users.paypalPayoutEmail,
+      paypalLinkedAt: users.paypalLinkedAt,
+      paypalVerified: users.paypalVerified,
+      paypalAutoHoldEnabled: users.paypalAutoHoldEnabled,
       expires: sessions.expires,
     })
     .from(sessions)
@@ -58,9 +84,22 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
   return {
     id: row.id,
     name: row.name,
+    username: row.username,
+    displayName: row.displayName || row.name,
+    legalName: row.legalName,
     email: row.email,
     role: row.role as AuthenticatedUser["role"],
     image: row.image,
+    githubUsername: row.githubUsername,
+    githubVerifiedAt: row.githubVerifiedAt,
+    idVerificationStatus: row.idVerificationStatus || "UNVERIFIED",
+    idVerifiedAt: row.idVerifiedAt,
+    idDocumentType: row.idDocumentType,
+    paypalPayerId: row.paypalPayerId,
+    paypalPayoutEmail: row.paypalPayoutEmail,
+    paypalLinkedAt: row.paypalLinkedAt,
+    paypalVerified: Boolean(row.paypalVerified),
+    paypalAutoHoldEnabled: row.paypalAutoHoldEnabled ?? true,
   };
 }
 

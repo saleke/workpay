@@ -40,6 +40,8 @@ import { useSystemMode } from "@/lib/mode";
 export interface AuthUser {
   id: string;
   name: string | null;
+  username?: string | null;
+  displayName?: string | null;
   email: string;
   role: "buyer" | "provider" | "admin_reviewer";
 }
@@ -47,6 +49,7 @@ export interface AuthUser {
 interface PersonaConfig {
   key: "buyer" | "provider" | "admin_reviewer";
   name: string;
+  username: string;
   roleTitle: string;
   badge: string;
   email: string;
@@ -60,6 +63,7 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "buyer",
     name: "Alice",
+    username: "alice",
     roleTitle: "Task Owner",
     badge: "Buyer",
     email: "alice@workpay.local",
@@ -71,6 +75,7 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "provider",
     name: "Bob",
+    username: "bob",
     roleTitle: "Specialist",
     badge: "Specialist",
     email: "bob@workpay.local",
@@ -82,6 +87,7 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "admin_reviewer",
     name: "Carol",
+    username: "carol",
     roleTitle: "Arbitrator",
     badge: "Arbitrator",
     email: "carol@workpay.local",
@@ -138,6 +144,8 @@ export function UserNav() {
       const defaultUser: AuthUser = {
         id: personaConfig.key === "provider" ? "usr_provider_bob" : personaConfig.key === "admin_reviewer" ? "usr_admin_carol" : "usr_buyer_alice",
         name: personaConfig.name,
+        username: personaConfig.username,
+        displayName: personaConfig.name,
         email: personaConfig.email,
         role: personaConfig.key,
       };
@@ -161,6 +169,8 @@ export function UserNav() {
     const nextUser: AuthUser = {
       id: persona.key === "provider" ? "usr_provider_bob" : persona.key === "admin_reviewer" ? "usr_admin_carol" : "usr_buyer_alice",
       name: persona.name,
+      username: persona.username,
+      displayName: persona.name,
       email: persona.email,
       role: persona.key,
     };
@@ -284,7 +294,14 @@ export function UserNav() {
           {/* Account Details Header */}
           <DropdownMenuLabel className="flex flex-col px-2.5 py-1.5 text-xs text-muted-foreground font-normal">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{displayName}</span>
+              <div>
+                <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{displayName}</span>
+                {user.username && (
+                  <span className="text-[11px] font-mono text-[var(--wp-text-secondary)] ml-1.5 opacity-80">
+                    @{user.username}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--wp-surface-subtle)] text-[var(--wp-text-secondary)] border border-[var(--wp-border)]">
                 {roleTitle}
               </span>

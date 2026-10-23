@@ -14,6 +14,7 @@
 // Context and identity
 export * from "./context.js";
 export * from "./identity/authorize.js";
+export * from "./identity/verification.js";
 
 // Tasks
 export * from "./tasks/state.js";

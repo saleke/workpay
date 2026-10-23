@@ -21,9 +21,21 @@ export async function POST(req: Request) {
       .select({
         id: users.id,
         name: users.name,
+        username: users.username,
+        displayName: users.displayName,
+        legalName: users.legalName,
         email: users.email,
         passwordHash: users.passwordHash,
         role: users.role,
+        githubUsername: users.githubUsername,
+        githubVerifiedAt: users.githubVerifiedAt,
+        idVerificationStatus: users.idVerificationStatus,
+        idVerifiedAt: users.idVerifiedAt,
+        paypalPayerId: users.paypalPayerId,
+        paypalPayoutEmail: users.paypalPayoutEmail,
+        paypalLinkedAt: users.paypalLinkedAt,
+        paypalVerified: users.paypalVerified,
+        paypalAutoHoldEnabled: users.paypalAutoHoldEnabled,
       })
       .from(users)
       .where(eq(users.email, parsed.email))
@@ -39,8 +51,20 @@ export async function POST(req: Request) {
         user: {
           id: user.id,
           name: user.name,
+          username: user.username,
+          displayName: user.displayName || user.name,
+          legalName: user.legalName,
           email: user.email,
           role: user.role,
+          githubUsername: user.githubUsername,
+          githubVerifiedAt: user.githubVerifiedAt,
+          idVerificationStatus: user.idVerificationStatus || "UNVERIFIED",
+          idVerifiedAt: user.idVerifiedAt,
+          paypalPayerId: user.paypalPayerId,
+          paypalPayoutEmail: user.paypalPayoutEmail,
+          paypalLinkedAt: user.paypalLinkedAt,
+          paypalVerified: Boolean(user.paypalVerified),
+          paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
         },
       },
     });

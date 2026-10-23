@@ -6,9 +6,11 @@ import { users } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
 import { hashPassword, newId } from "@workpay/shared/platform";
 import { createSession, setSessionCookie } from "@/lib/server/session";
+import { validateEmailForRegistration, validateUsername } from "@/lib/server/disposable-emails";
 
 const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
+  username: z.string().trim().optional(),
   email: z.string().trim().toLowerCase().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["buyer", "provider"]).default("buyer"),
@@ -20,15 +22,58 @@ export async function POST(req: Request) {
     const parsed = registerSchema.parse(body);
     const db = getDb();
 
+    // Step 1: Validate email against disposable/burner domain blacklist
+    const emailValidation = validateEmailForRegistration(parsed.email);
+    if (!emailValidation.ok) {
+      return jsonError({ code: "VALIDATION_ERROR", message: emailValidation.message }, 400);
+    }
+
+    // Determine and validate platform username
+    const emailPrefix = parsed.email.split("@")[0] ?? "user";
+    let normalizedUsername = (parsed.username || "").trim().toLowerCase().replace(/^@+/, "");
+    if (!normalizedUsername) {
+      // Derive candidate handle from name or email prefix
+      normalizedUsername = (parsed.name || emailPrefix)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "_")
+        .replace(/_+/g, "_")
+        .slice(0, 24);
+      if (normalizedUsername.length < 3) {
+        normalizedUsername = `user_${newId("user").slice(0, 8)}`;
+      }
+    }
+
+    const usernameValidation = validateUsername(normalizedUsername);
+    if (!usernameValidation.ok) {
+      return jsonError({ code: "VALIDATION_ERROR", message: usernameValidation.message }, 400);
+    }
+
     // Check if email already registered
-    const [existing] = await db
+    const [existingEmail] = await db
       .select({ id: users.id })
       .from(users)
       .where(eq(users.email, parsed.email))
       .limit(1);
 
-    if (existing) {
+    if (existingEmail) {
       return jsonError({ code: "DOMAIN_CONFLICT", message: "Email is already registered" }, 409);
+    }
+
+    // Check if username handle is already taken
+    const [existingUsername] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, normalizedUsername))
+      .limit(1);
+
+    if (existingUsername) {
+      return jsonError(
+        {
+          code: "DOMAIN_CONFLICT",
+          message: `Username @${normalizedUsername} is already registered. Please choose a different handle.`,
+        },
+        409,
+      );
     }
 
     const userId = newId("user");
@@ -37,9 +82,13 @@ export async function POST(req: Request) {
     await db.insert(users).values({
       id: userId,
       name: parsed.name,
+      displayName: parsed.name,
+      username: normalizedUsername,
       email: parsed.email,
       passwordHash,
       role: parsed.role,
+      idVerificationStatus: "UNVERIFIED",
+      paypalVerified: false,
     });
 
     // Automatically provision specialist capabilities so every account
@@ -63,8 +112,12 @@ export async function POST(req: Request) {
         user: {
           id: userId,
           name: parsed.name,
+          username: normalizedUsername,
+          displayName: parsed.name,
           email: parsed.email,
           role: parsed.role,
+          idVerificationStatus: "UNVERIFIED",
+          paypalVerified: false,
         },
       },
     });
