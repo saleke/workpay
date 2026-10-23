@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -31,7 +31,7 @@ import type { NotificationDto } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 function getNotificationIcon(type: string) {
-  if (type.includes("PAYMENT") || type.includes("MONEY") || type.includes("ESCROW")) {
+  if (type.includes("PAYMENT") || type.includes("MONEY") || type.includes("CAPTURE")) {
     return <Coins className="h-4 w-4 text-emerald-500" />;
   }
   if (type.includes("VERIF") || type.includes("SUBMITTED")) {
@@ -43,7 +43,7 @@ function getNotificationIcon(type: string) {
   if (type.includes("PROVIDER") || type.includes("SPECIALIST") || type.includes("OFFER")) {
     return <UserCheck className="h-4 w-4 text-purple-500" />;
   }
-  if (type.includes("CASE") || type.includes("DISPUTE") || type.includes("REVISION")) {
+  if (type.includes("CASE") || type.includes("DISPUTE") || type.includes("REVISION") || type.includes("ARBITRATION")) {
     return <Scale className="h-4 w-4 text-amber-500" />;
   }
   return <Bell className="h-4 w-4 text-primary" />;
@@ -53,6 +53,7 @@ export function NotificationsBell() {
   const { data, reload } = useApi(() => listNotifications(), [], "notifications");
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationDto[]>([]);
+  const [filterTab, setFilterTab] = useState<"ALL" | "UNREAD" | "PAYMENTS" | "VERIFICATIONS">("ALL");
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -67,6 +68,15 @@ export function NotificationsBell() {
   }, [open, reload]);
 
   const unreadCount = items.filter((n) => !n.readAt).length;
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (filterTab === "UNREAD") return !item.readAt;
+      if (filterTab === "PAYMENTS") return item.type.includes("PAYMENT") || item.type.includes("MONEY") || item.type.includes("CAPTURE");
+      if (filterTab === "VERIFICATIONS") return item.type.includes("VERIF") || item.type.includes("SUBMITTED") || item.type.includes("CASE") || item.type.includes("REVISION");
+      return true;
+    });
+  }, [items, filterTab]);
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -138,19 +148,79 @@ export function NotificationsBell() {
           ) : null}
         </div>
 
-        <div className="max-h-[380px] overflow-y-auto divide-y divide-border/40">
-          {items.length === 0 ? (
+        {/* Category Filter Tabs */}
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs">
+          <button
+            type="button"
+            onClick={() => setFilterTab("ALL")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "ALL"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            All ({items.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("UNREAD")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "UNREAD"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            Unread ({unreadCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("PAYMENTS")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "PAYMENTS"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            Payments
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("VERIFICATIONS")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "VERIFICATIONS"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            Verifications
+          </button>
+        </div>
+
+        <div className="max-h-[360px] overflow-y-auto divide-y divide-border/40">
+          {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground mb-2">
                 <BellOff className="h-5 w-5" />
               </div>
-              <p className="text-sm font-medium text-foreground">All caught up</p>
+              <p className="text-sm font-medium text-foreground">
+                {filterTab === "UNREAD"
+                  ? "No unread notifications"
+                  : filterTab === "PAYMENTS"
+                    ? "No payment notifications"
+                    : filterTab === "VERIFICATIONS"
+                      ? "No verification notifications"
+                      : "All caught up"}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                New payment events and verification updates will appear here.
+                New payment authorizations and verification updates will appear here.
               </p>
             </div>
           ) : (
-            items.slice(0, 15).map((n) => {
+            filteredItems.slice(0, 20).map((n) => {
               const isUnread = !n.readAt;
               const targetHref = n.href || (n.taskId ? `/tasks/${n.taskId}` : null);
 
@@ -220,7 +290,7 @@ export function NotificationsBell() {
             <span>View activity log</span>
             <ExternalLink className="h-3 w-3" />
           </Link>
-          <span className="text-[11px] text-muted-foreground">PayPal Agentic Gateway</span>
+          <span className="text-[11px] text-muted-foreground">Real-time updates</span>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

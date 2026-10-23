@@ -166,13 +166,20 @@ export async function POST(
             ? "working on a draft milestone"
             : "blocked and needs guidance";
 
+      const statusLabel =
+        parsed.status === "ON_TRACK"
+          ? "On track"
+          : parsed.status === "MILESTONE_DRAFT"
+            ? "Draft milestone ready"
+            : "Assistance needed";
+
       await tx.insert(notifications).values({
         id: newId("notif"),
         userId: task.userId,
         taskId: task.id,
         eventId: checkinId,
         type: "AUDIT_CHECKIN_SUBMITTED",
-        title: `Specialist progress update: ${parsed.status}`,
+        title: `Specialist update: ${statusLabel}`,
         body: `Specialist reported ${statusText} on "${task.title}": ${parsed.notes ?? "No extra notes."}`,
         href: `/tasks/${task.id}`,
       });

@@ -70,8 +70,8 @@ function getNotificationContent(
       };
     case "PAYMENT_AUTHORIZED":
       return {
-        title: "Payment authorized",
-        body: `Escrow hold authorized for "${taskTitle}". Specialist is starting work.`,
+        title: "Payment hold secured",
+        body: `Payment authorization hold secured on PayPal for "${taskTitle}". Specialist has commenced work.`,
       };
     case "WORK_STARTED":
       return {
@@ -85,30 +85,41 @@ function getNotificationContent(
       };
     case "VERIFICATION_COMPLETED": {
       const outcome = String(payload.outcome || "COMPLETED");
-      return {
-        title: `Verification: ${outcome}`,
-        body: `Deliverable verification for "${taskTitle}" finished with outcome: ${outcome}.`,
-      };
+      const title =
+        outcome === "PASS"
+          ? "Deliverable verified"
+          : outcome === "FAIL"
+            ? "Revision requested"
+            : outcome === "HUMAN_REVIEW"
+              ? "Arbitration required"
+              : `Verification ${outcome.toLowerCase()}`;
+      const body =
+        outcome === "PASS"
+          ? `All acceptance criteria confirmed for "${taskTitle}". Direct settlement approved.`
+          : outcome === "FAIL"
+            ? `Deliverable did not meet all acceptance criteria for "${taskTitle}". Revision requested from specialist.`
+            : `Verification flagged an ambiguity on "${taskTitle}". Case routed to arbitration.`;
+      return { title, body };
     }
     case "PAYMENT_CAPTURED":
       return {
-        title: "Payment released",
-        body: `Payment captured and released to specialist for "${taskTitle}".`,
+        title: "Payment settled",
+        body: `Payment captured from PayPal authorization hold and disbursed directly to specialist for "${taskTitle}".`,
       };
     case "TASK_COMPLETED":
       return {
         title: "Task completed",
-        body: `Task "${taskTitle}" is now complete.`,
+        body: `Task "${taskTitle}" is now complete and settled.`,
       };
     case "CASE_OPENED":
       return {
-        title: "Review case opened",
-        body: `A review case was opened for "${taskTitle}": ${String(payload.title || payload.category || "")}.`,
+        title: "Arbitration case opened",
+        body: `An arbitration review was opened for "${taskTitle}": ${String(payload.title || payload.category || "Verification review")}.`,
       };
     case "CASE_RESOLVED":
       return {
-        title: "Review case resolved",
-        body: `The review case for "${taskTitle}" has been resolved with outcome: ${String(payload.outcome || "")}.`,
+        title: "Arbitration ruling issued",
+        body: `The arbitration case for "${taskTitle}" has been resolved with outcome: ${String(payload.outcome || "ruling complete")}.`,
       };
     default:
       return null;

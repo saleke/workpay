@@ -224,22 +224,13 @@ export function UserNav() {
 
   if (!user) {
     return (
-      <div className="flex items-center gap-1 shrink-0">
-        <Link
-          href="/login"
-          className="h-8 flex items-center gap-1 px-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] rounded-lg transition-all duration-150 shrink-0 whitespace-nowrap"
-        >
-          <LogIn className="h-3.5 w-3.5" />
-          <span>Sign In</span>
-        </Link>
-        <Link
-          href="/register"
-          className="h-8 flex items-center gap-1 px-2.5 text-xs font-medium bg-[var(--wp-text-primary)] text-white hover:bg-black rounded-lg transition-all duration-150 shadow-xs shrink-0 whitespace-nowrap"
-        >
-          <UserPlus className="h-3.5 w-3.5" />
-          <span>Register</span>
-        </Link>
-      </div>
+      <Link
+        href="/login"
+        className="h-8 flex items-center gap-1.5 px-3 text-xs font-semibold text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] rounded-lg border border-[var(--wp-border)] bg-white/90 shadow-2xs transition-all duration-150 shrink-0 whitespace-nowrap active:scale-[0.98]"
+      >
+        <LogIn className="h-3.5 w-3.5" />
+        <span>Sign In</span>
+      </Link>
     );
   }
 

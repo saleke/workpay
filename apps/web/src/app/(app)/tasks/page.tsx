@@ -220,24 +220,69 @@ export default function TasksPage() {
             let statusBadge = "bg-blue-50 text-blue-700";
             let statusLabel = "In Execution";
 
-            if (task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY") {
-              statusBadge = "bg-amber-100 text-amber-800";
-              statusLabel = "Awaiting Sign-off";
-            } else if (task.status === "HUMAN_REVIEW") {
-              statusBadge = "bg-amber-100 text-amber-800";
-              statusLabel = "Verification Review Needed";
-            } else if (task.status === "REVISION_REQUIRED") {
-              statusBadge = "bg-red-50 text-red-700";
-              statusLabel = "Revision Requested";
-            } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
-              statusBadge = "bg-purple-50 text-purple-700";
-              statusLabel = "Verifying Proof";
-            } else if (isCompleted) {
-              statusBadge = "bg-emerald-50 text-emerald-700";
-              statusLabel = "Settled";
-            } else if (task.status === "PLANNING" || task.status === "CREATED") {
-              statusBadge = "bg-gray-100 text-gray-700";
-              statusLabel = "Synthesizing";
+            switch (task.status) {
+              case "DRAFT":
+                statusBadge = "bg-stone-100 text-stone-700";
+                statusLabel = "Draft";
+                break;
+              case "CREATED":
+              case "PLANNING":
+                statusBadge = "bg-blue-50 text-blue-700";
+                statusLabel = "Drafting Specification";
+                break;
+              case "AWAITING_CLARIFICATION":
+                statusBadge = "bg-amber-100 text-amber-800";
+                statusLabel = "Clarification Needed";
+                break;
+              case "CONTRACT_REVIEW":
+              case "AGREEMENT_READY":
+                statusBadge = "bg-amber-100 text-amber-800";
+                statusLabel = "Awaiting Sign-off";
+                break;
+              case "APPROVED":
+              case "PROVIDER_SEARCH":
+                statusBadge = "bg-indigo-50 text-indigo-700";
+                statusLabel = "Matching Specialist";
+                break;
+              case "NEGOTIATION":
+                statusBadge = "bg-indigo-50 text-indigo-700";
+                statusLabel = "Negotiating Terms";
+                break;
+              case "PAYMENT_AUTHORIZATION":
+                statusBadge = "bg-amber-50 text-amber-700";
+                statusLabel = "Authorizing Payment";
+                break;
+              case "WORK_IN_PROGRESS":
+                statusBadge = "bg-blue-50 text-blue-700";
+                statusLabel = "In Execution";
+                break;
+              case "SUBMITTED":
+              case "VERIFYING":
+                statusBadge = "bg-purple-50 text-purple-700";
+                statusLabel = "Verifying Proof";
+                break;
+              case "REVISION_REQUIRED":
+                statusBadge = "bg-rose-50 text-rose-700";
+                statusLabel = "Revision Requested";
+                break;
+              case "HUMAN_REVIEW":
+                statusBadge = "bg-amber-100 text-amber-800";
+                statusLabel = "In Arbitration";
+                break;
+              case "PAYMENT_RELEASE":
+              case "COMPLETED":
+                statusBadge = "bg-emerald-50 text-emerald-700";
+                statusLabel = "Settled";
+                break;
+              case "CANCELLED":
+              case "EXPIRED":
+                statusBadge = "bg-gray-100 text-gray-600";
+                statusLabel = "Closed";
+                break;
+              case "DISPUTED":
+                statusBadge = "bg-rose-100 text-rose-800";
+                statusLabel = "Disputed";
+                break;
             }
 
             return (
@@ -252,9 +297,6 @@ export default function TasksPage() {
                   <div className="flex items-center gap-2">
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}>
                       {statusLabel}
-                    </span>
-                    <span className="font-mono text-xs text-[var(--text-muted)]">
-                      {task.id.slice(0, 8)}
                     </span>
                   </div>
 

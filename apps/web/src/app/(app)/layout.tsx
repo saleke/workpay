@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Plus, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
 import { UserNav } from "@/components/nav/user-nav";
@@ -81,13 +81,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <EnvironmentToggle />
             <UserNav />
             <NotificationsBell />
-            <Link
-              href="/tasks/new"
-              className="h-8 flex items-center gap-1.5 bg-[var(--wp-text-primary)] text-white hover:bg-black px-3 rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 shadow-xs hover:shadow-sm active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] shrink-0 whitespace-nowrap"
-            >
-              <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">New task</span>
-            </Link>
 
             {/* Mobile Hamburger Button */}
             <button
