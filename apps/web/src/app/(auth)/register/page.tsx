@@ -63,7 +63,7 @@ export default function RegisterPage() {
           Create Your Account
         </CardTitle>
         <CardDescription className="text-xs">
-          One unified account to commission verified work, automate escrow safety, and fulfill assignments.
+          Sign up to get started with WorkPay.
         </CardDescription>
       </CardHeader>
 
@@ -121,16 +121,6 @@ export default function RegisterPage() {
                 className="pl-9 text-xs"
               />
             </div>
-          </div>
-
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
-            <div className="flex items-center gap-1.5 font-medium text-foreground text-[11px]">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              <span>Full Dual-Capability Account</span>
-            </div>
-            <p className="text-[11px] leading-relaxed">
-              Your account allows you to commission tasks with cryptographic escrow protection, or receive assignments and earn PayPal payouts in Work Studio.
-            </p>
           </div>
 
           <Button type="submit" className="w-full text-xs font-semibold" disabled={loading}>

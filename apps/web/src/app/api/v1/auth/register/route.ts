@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       displayName: parsed.name,
       type: "HUMAN",
       status: "ACTIVE",
-      bio: `Verified specialist: ${parsed.name}`,
+      bio: null,
       hourlyRateMinor: 5000,
       currency: "USD",
       payoutEmail: parsed.email,

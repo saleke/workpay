@@ -60,10 +60,10 @@ const PERSONAS: PersonaConfig[] = [
   {
     key: "buyer",
     name: "Alice",
-    roleTitle: "Buyer",
-    badge: "Buyer",
+    roleTitle: "Task Owner",
+    badge: "Task Owner",
     badgeColor: "text-[var(--room-text-strong)]",
-    description: "Posts tasks, reviews requirements, signs contracts, and authorizes PayPal payments.",
+    description: "Posts tasks, reviews requirements, approves contracts, and authorizes PayPal payments.",
     homeUrl: "/tasks",
     icon: User,
   },
@@ -203,9 +203,11 @@ export function PersonaSwitcher() {
               <span className="text-[var(--wp-text-primary)] font-medium">
                 {authUser ? authUser.name || authUser.email.split("@")[0] : current.name}
               </span>
-              <span className="text-[11px] text-[var(--wp-text-secondary)] opacity-80 font-normal">
-                ({authUser ? authUser.role : current.roleTitle})
-              </span>
+              {!authUser && (
+                <span className="text-[11px] text-[var(--wp-text-secondary)] opacity-80 font-normal">
+                  ({current.roleTitle})
+                </span>
+              )}
               <ChevronDown className="h-3 w-3 text-[var(--wp-text-secondary)] opacity-60" />
             </button>
           </DropdownMenuTrigger>
@@ -214,11 +216,8 @@ export function PersonaSwitcher() {
             {authUser ? (
               <>
                 <DropdownMenuLabel className="flex flex-col px-2.5 py-1.5 text-xs text-muted-foreground font-normal">
-                  <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{authUser.name}</span>
+                  <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{authUser.name || "My Account"}</span>
                   <span className="text-[11px] text-[var(--wp-text-secondary)] font-mono">{authUser.email}</span>
-                  <span className="mt-1.5 inline-flex w-fit items-center rounded-md border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-2 py-0.5 text-[10px] font-semibold text-[var(--wp-text-primary)] uppercase">
-                    Role: {authUser.role}
-                  </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1.5 bg-[var(--wp-border)]" />
                 <DropdownMenuItem

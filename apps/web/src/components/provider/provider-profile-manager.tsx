@@ -368,7 +368,7 @@ export function ProviderProfileManager() {
               </Badge>
             </div>
             <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-2xl leading-relaxed">
-              In WorkPay, any user can commission work as a task owner and perform work as a verified worker. Configure what work you can perform, when you are available, and the binding commercial rules under which you will accept assignments.
+              Configure the work you can perform, your availability schedule, and the commercial terms under which you accept assignments.
             </p>
           </div>
         </div>
@@ -423,13 +423,13 @@ export function ProviderProfileManager() {
         ))}
       </div>
 
-      {/* SECTION A: CAPABILITIES & SKILLS */}
+      {/* SECTION: CAPABILITIES & SKILLS */}
       {activeSection === "capabilities" && (
         <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Tag className="h-4 w-4 text-[var(--wp-accent)]" />
-              A. Work Profile &amp; Demonstrated Capabilities
+              Work Profile &amp; Demonstrated Capabilities
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Declare what tasks you can execute. Self-declared tags are matched against contract requirements, while demonstrated skills reflect passing verification history.
@@ -592,7 +592,7 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-[var(--wp-accent)]" />
-              B. Work Availability &amp; Workload Capacity
+              Availability &amp; Workload Capacity
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Control your capacity to accept new commitments. Marking yourself unavailable prevents new proposals without affecting work currently in progress.
@@ -739,7 +739,7 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-[var(--wp-accent)]" />
-              C. Work Pricing &amp; Commercial Terms
+              Pricing &amp; Commercial Terms
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Express your pricing structure. Minimum compensation rules are enforced as hard constraints during automated matching.
@@ -861,7 +861,7 @@ export function ProviderProfileManager() {
                 className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
               />
               <label htmlFor="willingToNegotiate" className="text-xs text-[var(--wp-text-primary)] cursor-pointer">
-                <strong>Willing to negotiate commercial terms:</strong> Permit buyer AI to propose counter-offers within 15% of target rate.
+                <strong>Willing to negotiate commercial terms:</strong> Permit task owners to propose counter-offers within 15% of target rate.
               </label>
             </div>
           </CardContent>
@@ -874,7 +874,7 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-[var(--wp-accent)]" />
-              D. Assignment Acceptance &amp; Commitment Rules
+              Assignment Acceptance Rules
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Rules determining how assignments are offered and confirmed. Finding work is distinct from binding contract acceptance.
@@ -981,7 +981,7 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <FileCheck className="h-4 w-4 text-[var(--wp-accent)]" />
-              E &amp; F. Execution Workflow &amp; Verification Integrity
+              Execution &amp; Verification Preferences
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Operational preferences for deliverables, intermediate reporting, and revision handling.
@@ -1093,7 +1093,7 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-              G. PayPal Payout Readiness &amp; Settlement Routing
+              Payout Configuration
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
               Configure where eligible payments are transferred upon verified proof and policy confirmation.

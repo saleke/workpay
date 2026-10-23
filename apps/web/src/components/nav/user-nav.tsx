@@ -97,11 +97,8 @@ export function UserNav() {
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
             {initials}
           </div>
-          <span className="font-semibold text-foreground max-w-[120px] truncate">
+          <span className="font-semibold text-foreground max-w-[140px] truncate">
             {user.name || user.email.split("@")[0]}
-          </span>
-          <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[9px] font-bold text-primary uppercase">
-            VERIFIED
           </span>
         </Button>
       </DropdownMenuTrigger>
@@ -115,7 +112,7 @@ export function UserNav() {
           <DropdownMenuItem asChild className="cursor-pointer text-xs">
             <Link href="/settings">
               <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-              Settings &amp; Diagnostics
+              Settings
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
