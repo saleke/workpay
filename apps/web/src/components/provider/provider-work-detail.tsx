@@ -77,7 +77,7 @@ export function ProviderWorkDetail({
       <p className="screen-label">Work order</p>
       <div className="sheet relative">
         <div className="sheet-meta">
-          Work order, from a verified buyer
+          Work order commitment
         </div>
         <h1 className="sheet-title">{work.taskTitle}</h1>
         <p style={{ color: "var(--ink-soft)" }}>{work.taskRequest}</p>
@@ -134,7 +134,7 @@ export function ProviderWorkDetail({
                 {busy === "accept" ? "Accepting..." : "Accept work"}
               </button>
               <span className="lbl">
-                {moneyAmount} is currently held in escrow.
+                {moneyAmount} is secured via PayPal authorization hold.
               </span>
             </div>
           )}
@@ -150,7 +150,7 @@ export function ProviderWorkDetail({
                 {busy === "start" ? "Starting..." : "Start work"}
               </button>
               <span className="lbl">
-                Let the buyer know you have begun execution.
+                Confirm you have begun execution.
               </span>
             </div>
           )}
@@ -186,7 +186,7 @@ export function ProviderWorkDetail({
                   {busy === "submit" ? "Submitting..." : "Submit for verification"}
                 </button>
                 <span className="lbl">
-                  Submitting work does not trigger payment. Automated verification does.
+                  Submitting work does not trigger payment. Automated verification and policy confirmation do.
                 </span>
               </div>
             </div>

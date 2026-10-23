@@ -278,7 +278,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               disabled={signing}
               className="inline-flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
             >
-              <span>{signing ? "Signing..." : "Sign and authorize PayPal escrow"}</span>
+              <span>{signing ? "Signing..." : "Sign and authorize PayPal payment hold"}</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           )}
@@ -305,49 +305,67 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         </div>
       </div>
 
-      {/* 2. Summary Ribbon (Section 9): Objective, Hirer, Provider, Price, Deadline, Escrow Status */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="workpay-card p-3.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Agreed Limit
+      {/* 2. 4-Stage Decoupled Lifecycle Matrix */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="workpay-card p-3.5 space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            1. Commitment
           </div>
-          <div className="mt-1 text-lg font-bold text-[var(--charcoal)]">{moneyAmount}</div>
-          <div className="text-[11px] text-[var(--text-muted)]">PayPal escrow</div>
-        </div>
-
-        <div className="workpay-card p-3.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Assigned Specialist
-          </div>
-          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)] truncate">
-            {providerName}
-          </div>
-          <div className="text-[11px] text-[var(--green)] font-medium">
-            {providerSelection?.provider?.firstPassAcceptancePct ?? 98}% first-pass pass rate
-          </div>
-        </div>
-
-        <div className="workpay-card p-3.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Target Deadline
-          </div>
-          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
-            {task.desiredDeadline
-              ? new Date(task.desiredDeadline).toLocaleDateString()
-              : "Tomorrow, 6:00 PM"}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)]">Strict schedule</div>
-        </div>
-
-        <div className="workpay-card p-3.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Settlement State
-          </div>
-          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
-            {isPaid ? "Released upon proof" : "Held in PayPal escrow"}
+          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+            {activeContract ? `Contract v${activeContract.version}` : "Drafting Terms"}
           </div>
           <div className="text-[11px] text-[var(--text-muted)]">
-            {isPaid ? "Payment complete" : "Awaiting 100% verification"}
+            {activeContract?.status === "ACTIVE" ? "Terms Agreed & Locked" : "Awaiting Sign-off"}
+          </div>
+        </div>
+
+        <div className="workpay-card p-3.5 space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            2. Execution
+          </div>
+          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+            {providerName}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">
+            {execution?.status === "COMPLETED"
+              ? "Deliverable Received"
+              : task.status === "REVISION_REQUIRED"
+                ? "Revising Deliverable"
+                : task.status === "WORK_IN_PROGRESS"
+                  ? "In Progress"
+                  : isDraftOrAwaiting
+                    ? "Pending Sign-off"
+                    : "Assigned"}
+          </div>
+        </div>
+
+        <div className="workpay-card p-3.5 space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            3. Verification
+          </div>
+          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+            {task.status === "HUMAN_REVIEW"
+              ? "Human Review Needed"
+              : verification.data?.outcome === "PASS"
+                ? "Passed (100% Proof)"
+                : verification.data?.outcome === "FAIL"
+                  ? "Failed (Revision Required)"
+                  : "Awaiting Deliverable"}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">
+            {requirements.length} acceptance criteria
+          </div>
+        </div>
+
+        <div className="workpay-card p-3.5 space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+            4. Settlement
+          </div>
+          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+            {isPaid ? "Captured to Specialist" : isDraftOrAwaiting ? "Authorization Needed" : "Authorization Held"}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">
+            {moneyAmount} via PayPal
           </div>
         </div>
       </div>
@@ -456,7 +474,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
             <div>
               <p className="text-xs text-[var(--text-muted)] font-medium mb-3">
-                Payment is captured from PayPal escrow only when every observable criterion below is cryptographically proven:
+                Payment is captured via PayPal only when every observable criterion below is cryptographically proven:
               </p>
 
               <div className="space-y-2.5">
@@ -537,7 +555,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             {isDraftOrAwaiting && activeContract && (
               <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="text-xs text-[var(--text-muted)]">
-                  By signing, you authorize external PayPal escrow hold up to {moneyAmount}.
+                  By signing, you authorize external PayPal payment hold up to {moneyAmount}.
                 </div>
 
                 <button
@@ -546,7 +564,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   disabled={signing}
                   className="bg-[var(--charcoal)] text-white hover:bg-black px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm self-start sm:self-auto"
                 >
-                  {signing ? "Authorizing with PayPal..." : "Sign contract and authorize PayPal escrow"}
+                  {signing ? "Authorizing with PayPal..." : "Sign contract and authorize PayPal payment hold"}
                 </button>
               </div>
             )}
@@ -583,7 +601,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     <strong>{providerSelection.provider.firstPassAcceptancePct ?? 98}%</strong> first-pass pass rate
                   </span>
                   <span>
-                    <strong>100%</strong> escrow compliance
+                    <strong>100%</strong> policy compliance
                   </span>
                 </div>
               </div>
@@ -611,7 +629,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   ) : (
                     <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
                   )}
-                  <span className="font-medium text-[var(--charcoal)]">2. Contract Signed & PayPal Escrow Authorized</span>
+                  <span className="font-medium text-[var(--charcoal)]">2. Contract Signed &amp; PayPal Payment Hold Authorized</span>
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
@@ -725,19 +743,19 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   <span>Human Review Decision Required</span>
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  Automated checking could not conclusively confirm every criterion. Funds ({moneyAmount}) remain safely held in PayPal escrow until you make a ruling.
+                  Automated checking could not conclusively confirm every criterion. Funds ({moneyAmount}) remain safely secured in PayPal authorization hold until you make a ruling.
                 </p>
 
                 <div className="flex flex-wrap gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() =>
-                      handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by buyer upon manual review")
+                      handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by task owner upon manual review")
                     }
                     disabled={resolvingCase}
                     className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
                   >
-                    Accept Work & Authorize Capture
+                    Accept Work &amp; Authorize Capture
                   </button>
                   <button
                     type="button"
@@ -752,7 +770,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   <button
                     type="button"
                     onClick={() =>
-                      handleResolveCase(humanReviewCase.id, "DISPUTE", "Buyer opened formal dispute")
+                      handleResolveCase(humanReviewCase.id, "DISPUTE", "Formal dispute opened")
                     }
                     disabled={resolvingCase}
                     className="bg-gray-700 text-white hover:bg-black px-4 py-2 rounded-xl text-xs font-medium transition-colors"
@@ -781,7 +799,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {isPaid ? "Captured on Verified Proof" : "Held in External PayPal Escrow"}
+                  {isPaid ? "Captured on Verified Proof" : "Held in PayPal Authorization Hold"}
                 </span>
               </div>
 
@@ -792,7 +810,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               <div className="mt-4 flex items-baseline justify-between">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    Escrow Settlement Amount
+                    Authorized Settlement Amount
                   </div>
                   <div className="text-3xl font-bold tracking-tight text-[var(--charcoal)]">
                     {moneyAmount}{" "}
@@ -826,14 +844,14 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 <div>
                   <span className="text-[var(--text-muted)] block">PayPal Authorization ID:</span>
                   <span className="font-mono font-medium text-[var(--charcoal)] block mt-0.5">
-                    {payment.data?.paypalAuthorizationId || "AUTH-PAYPAL-ESCROW-001"}
+                    {payment.data?.paypalAuthorizationId || "AUTH-PAYPAL-HOLD-001"}
                   </span>
                 </div>
 
                 <div>
                   <span className="text-[var(--text-muted)] block">Settlement Rail:</span>
                   <span className="font-medium text-[var(--charcoal)] block mt-0.5">
-                    PayPal Escrow (External Non-Custodial)
+                    PayPal Authorization Hold (Non-Custodial)
                   </span>
                 </div>
 
@@ -853,7 +871,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               </div>
 
               <div className="pt-2 text-xs text-[var(--text-muted)] leading-relaxed border-t border-[var(--border-subtle)]">
-                * Note on custody: WorkPay does not operate a wallet or store funds. Payments are held in external PayPal escrow and captured only upon verified proof completion.
+                * Note on custody: WorkPay does not operate a wallet or store funds. Payments are secured via external PayPal authorization holds and captured only upon verified proof completion.
               </div>
             </div>
           </div>
