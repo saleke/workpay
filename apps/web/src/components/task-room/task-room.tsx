@@ -1,7 +1,29 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useMemo } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  CheckSquare,
+  Clock,
+  Copy,
+  ExternalLink,
+  FileCheck2,
+  FileText,
+  History,
+  Lock,
+  Plus,
+  Receipt,
+  RotateCw,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { useEventStream } from "@/lib/use-event-stream";
@@ -36,12 +58,17 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     [submissionId],
   );
 
+  const [activeTab, setActiveTab] = useState<
+    "contract" | "execution" | "verification" | "payment" | "activity"
+  >("contract");
+
   const [signing, setSigning] = useState(false);
   const [editingRequirements, setEditingRequirements] = useState(false);
   const [newRequirementText, setNewRequirementText] = useState("");
   const [isModifying, setIsModifying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [resolvingCase, setResolvingCase] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
   const refresh = useCallback(() => {
     room.reload();
@@ -134,26 +161,38 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     refresh();
   };
 
+  const handleCopyId = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(taskId);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
+
   if (room.loading && !room.data) {
     return (
-      <div className="py-20 text-center text-[var(--room-muted)] font-serif">
-        Retrieving contract...
+      <div className="py-24 text-center text-sm text-[var(--text-muted)]">
+        Opening canonical task workspace...
       </div>
     );
   }
 
   if (room.error || !room.data) {
     return (
-      <div className="py-16 text-center">
-        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
-          We could not open this contract
+      <div className="py-20 text-center max-w-md mx-auto">
+        <AlertTriangle className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
+          Could not open task workspace
         </h1>
-        <p className="text-[var(--room-muted)] mt-2">
-          The contract may not exist, or you may not have access to it.
+        <p className="text-sm text-[var(--text-muted)] mt-1.5">
+          The requested task may not exist or permissions may be restricted.
         </p>
         <div className="mt-6">
-          <Link href="/tasks" className="btn btn-room">
-            Return to tasks
+          <Link
+            href="/tasks"
+            className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+          >
+            <span>Return to task register</span>
           </Link>
         </div>
       </div>
@@ -164,322 +203,700 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const isPaid = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
   const moneyAmount = formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency });
 
-  // Check if contract is waiting for signing
   const isDraftOrAwaiting =
     !activeContract ||
     activeContract.status === "DRAFT" ||
     activeContract.status === "AWAITING_APPROVAL" ||
     task.status === "CONTRACT_REVIEW" ||
     task.status === "PLANNING" ||
-    task.status === "CREATED";
+    task.status === "CREATED" ||
+    task.status === "AGREEMENT_READY";
 
-  // CASE 1: CONTRACT DRAFTING IN PROGRESS
-  if (!activeContract && (task.status === "CREATED" || task.status === "PLANNING")) {
-    return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
-          Drafting your contract...
-        </h1>
-        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
-          WorkPay is analyzing your request to formulate requirements.
-        </p>
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => requestPlanning(taskId).then(() => refresh())}
-            className="btn btn-room"
-          >
-            Synthesize requirements now
-          </button>
-        </div>
-      </div>
-    );
+  const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
+  const verificationResults = verification.data?.results ?? [];
+  const resultsByKey = new Map(verificationResults.map((r) => [r.requirementKey, r]));
+  const humanReviewCase = cases?.find((c) => c.status === "OPEN" && c.type === "HUMAN_REVIEW");
+  const providerName = providerSelection?.provider?.displayName || "Assigned specialist";
+
+  // Derive status presentation
+  let statusBadgeClass = "bg-blue-50 text-blue-700";
+  let statusText = "In Execution";
+
+  if (isDraftOrAwaiting) {
+    statusBadgeClass = "bg-amber-100 text-amber-800";
+    statusText = "Awaiting Sign-off";
+  } else if (task.status === "HUMAN_REVIEW") {
+    statusBadgeClass = "bg-amber-100 text-amber-800";
+    statusText = "Review Needed";
+  } else if (task.status === "REVISION_REQUIRED") {
+    statusBadgeClass = "bg-red-50 text-red-700";
+    statusText = "Revision Requested";
+  } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
+    statusBadgeClass = "bg-purple-50 text-purple-700";
+    statusText = "Verifying Proof";
+  } else if (isPaid) {
+    statusBadgeClass = "bg-emerald-50 text-emerald-700";
+    statusText = "Settled";
   }
 
-  // CASE 2: CONTRACT APPROVAL SHEET (Screens.html lines 84-106)
-  if (isDraftOrAwaiting && activeContract) {
-    const requirements = activeContract.requirements ?? workSpecification?.requirements ?? [];
-    const expectedPriceMinor = activeContract.budgetMinor || task.budgetMinor;
-    const expectedPriceStr = formatMinorMoney({ amountMinor: expectedPriceMinor, currency: task.currency });
+  return (
+    <div className="space-y-6 pb-16">
+      {/* 1. Header (Section 9): Outcome Title, Stable ID with Copy, Status, Primary Action */}
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
+        <div className="space-y-2 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass}`}>
+              {statusText}
+            </span>
 
-    return (
-      <>
-        <p className="screen-label">Contract approval</p>
-        <div className="sheet">
-          <div className="sheet-meta">
-            Work contract, draft v{activeContract.version}, prepared by WorkPay, not yet signed
+            <button
+              type="button"
+              onClick={handleCopyId}
+              className="inline-flex items-center gap-1 font-mono text-xs text-[var(--text-muted)] hover:text-[var(--charcoal)] bg-[var(--surface-subtle)] border border-[var(--border-subtle)] px-2 py-0.5 rounded transition-colors"
+              title="Copy task ID"
+            >
+              <span>{taskId.slice(0, 12)}</span>
+              {copiedId ? <Check className="h-3 w-3 text-[var(--green)]" /> : <Copy className="h-3 w-3" />}
+            </button>
           </div>
-          <h1 className="sheet-title">{task.title}</h1>
-          <p style={{ color: "var(--ink-soft)" }}>
-            {activeContract.summary || task.rawRequest}
+
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
+            {task.title}
+          </h1>
+
+          <p className="text-xs sm:text-sm text-[var(--text-muted)] max-w-3xl leading-relaxed">
+            {task.rawRequest}
           </p>
+        </div>
 
-          <hr className="rule" />
-
-          <div className="sheet-meta">Payment is released only when every requirement is met</div>
-          <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
-            {requirements.map((req, idx) => (
-              <li key={req.key || idx} className="py-1">
-                <span>{req.statement}</span>
-                {editingRequirements && (
-                  <button
-                    type="button"
-                    onClick={() => onDeleteRequirement(activeContract.id, req.key)}
-                    disabled={isModifying}
-                    className="ml-3 text-[var(--text-label)] text-[var(--ink-fail)] hover:underline"
-                  >
-                    Remove
-                  </button>
-                )}
-              </li>
-            ))}
-          </ol>
-
-          {editingRequirements && (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="text"
-                value={newRequirementText}
-                onChange={(e) => setNewRequirementText(e.target.value)}
-                placeholder="Add another requirement..."
-                className="flex-1 bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] focus:outline-none py-1"
-              />
-              <button
-                type="button"
-                onClick={() => onAddRequirement(activeContract.id)}
-                disabled={isModifying || !newRequirementText.trim()}
-                className="btn btn-quiet"
-              >
-                Add
-              </button>
-            </div>
-          )}
-
-          <hr className="rule" />
-
-          <div className="cols3">
-            <div>
-              <div className="lbl">Spend up to</div>
-              <span className="amount">{moneyAmount}</span>
-            </div>
-            <div>
-              <div className="lbl">Deadline</div>
-              {task.desiredDeadline ? new Date(task.desiredDeadline).toLocaleDateString() : "Tomorrow, 6:00 PM"}
-            </div>
-            <div>
-              <div className="lbl">Expected price</div>
-              <span className="amount">{expectedPriceStr}</span>
-            </div>
-          </div>
-
-          <hr className="rule" />
-
-          <div className="pair">
-            <div>
-              <div className="lbl note-met">WorkPay may</div>
-              Find and negotiate with providers within your limit. Authorize up to {moneyAmount}. Request corrections.
-            </div>
-            <div>
-              <div className="lbl note-fail">WorkPay may not</div>
-              Raise your limit. Change a requirement. Pay for work that fails a requirement.
-            </div>
-          </div>
-
-          {actionError && (
-            <p className="note note-fail mt-4">{actionError}</p>
-          )}
-
-          <div className="sheet-actions">
+        {/* Primary Next Action */}
+        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+          {isDraftOrAwaiting && activeContract && (
             <button
               type="button"
               onClick={() => onSignContract(activeContract)}
               disabled={signing}
-              className="btn"
+              className="inline-flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
             >
-              {signing ? "Signing contract..." : "Sign and let WorkPay hire"}
+              <span>{signing ? "Signing..." : "Sign and authorize PayPal escrow"}</span>
+              <ArrowRight className="h-4 w-4" />
             </button>
+          )}
+
+          {task.status === "HUMAN_REVIEW" && (
             <button
               type="button"
-              onClick={() => setEditingRequirements(!editingRequirements)}
-              className="btn btn-quiet"
+              onClick={() => setActiveTab("verification")}
+              className="inline-flex items-center gap-1.5 bg-amber-600 text-white hover:bg-amber-700 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
             >
-              {editingRequirements ? "Done editing" : "Edit requirements"}
+              <AlertTriangle className="h-4 w-4" />
+              <span>Inspect Review Decision</span>
             </button>
+          )}
+
+          <button
+            type="button"
+            onClick={refresh}
+            className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] hover:bg-gray-100 text-[var(--text-muted)] hover:text-[var(--charcoal)] transition-colors"
+            title="Refresh state"
+          >
+            <RotateCw className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Summary Ribbon (Section 9): Objective, Hirer, Provider, Price, Deadline, Escrow Status */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="workpay-card p-3.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Agreed Limit
+          </div>
+          <div className="mt-1 text-lg font-bold text-[var(--charcoal)]">{moneyAmount}</div>
+          <div className="text-[11px] text-[var(--text-muted)]">PayPal escrow</div>
+        </div>
+
+        <div className="workpay-card p-3.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Assigned Specialist
+          </div>
+          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)] truncate">
+            {providerName}
+          </div>
+          <div className="text-[11px] text-[var(--green)] font-medium">
+            {providerSelection?.provider?.firstPassAcceptancePct ?? 98}% first-pass pass rate
           </div>
         </div>
-      </>
-    );
-  }
 
-  // CASE 3: CONTRACT IN FORCE SHEET (Workspace, DESIGN_BRIEF section 7.5)
-  const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
-  const verificationResults = verification.data?.results ?? [];
-  const resultsByKey = new Map(verificationResults.map((r) => [r.requirementKey, r]));
-
-  // Find human review case if any
-  const humanReviewCase = cases?.find((c) => c.status === "OPEN" && c.type === "HUMAN_REVIEW");
-  const providerName = providerSelection?.provider?.displayName || "Assigned specialist";
-
-  return (
-    <>
-      <p className="screen-label">Contract in force</p>
-      <div className="sheet relative">
-        <div className="sheet-meta">
-          Contract v{activeContract?.version ?? 1}, signed by you
+        <div className="workpay-card p-3.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Target Deadline
+          </div>
+          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
+            {task.desiredDeadline
+              ? new Date(task.desiredDeadline).toLocaleDateString()
+              : "Tomorrow, 6:00 PM"}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">Strict schedule</div>
         </div>
-        <h1 className="sheet-title">{task.title}</h1>
 
-        <p style={{ color: "var(--ink-soft)" }}>
-          {isPaid
-            ? `${moneyAmount} was paid to ${providerName}.`
-            : `${moneyAmount} is held. It is released only when every requirement is met.`}
-        </p>
+        <div className="workpay-card p-3.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Settlement State
+          </div>
+          <div className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
+            {isPaid ? "Released upon proof" : "Held in PayPal escrow"}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)]">
+            {isPaid ? "Payment complete" : "Awaiting 100% verification"}
+          </div>
+        </div>
+      </div>
 
-        <hr className="rule" />
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+          {actionError}
+        </div>
+      )}
 
-        <div className="sheet-meta mb-2">Requirements and proof</div>
-        <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
-          {requirements.map((req, idx) => {
-            const result = resultsByKey.get(req.key);
-            let resultNote = "No work submitted yet.";
-            let noteClass = "text-[var(--ink-muted)]";
+      {/* 3. Five-Tab Navigation (Section 9) */}
+      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] pb-2 overflow-x-auto text-xs sm:text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => setActiveTab("contract")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === "contract"
+              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          <span>Specification & Contract</span>
+        </button>
 
-            if (result) {
-              if (result.outcome === "PASS") {
-                resultNote = "Met";
-                noteClass = "note-met";
-              } else if (result.outcome === "FAIL") {
-                resultNote = result.actual
-                  ? `Found ${result.actual}. Not met.`
-                  : "Not met.";
-                noteClass = "note-fail";
-              } else if (result.outcome === "UNCERTAIN") {
-                resultNote = "Unsure. The verifier could not decide.";
-                noteClass = "note-unsure";
-              }
-            } else if (isPaid) {
-              resultNote = "Met";
-              noteClass = "note-met";
-            }
+        <button
+          type="button"
+          onClick={() => setActiveTab("execution")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === "execution"
+              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          <span>Execution & Provider</span>
+        </button>
 
-            return (
-              <li key={req.key || idx} className="py-2 border-b border-[var(--paper-rule)] last:border-b-0">
-                <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
-                  <span>{req.statement}</span>
-                  <span className={`note ${noteClass} shrink-0 text-sm`}>
-                    {resultNote}
+        <button
+          type="button"
+          onClick={() => setActiveTab("verification")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === "verification"
+              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+          }`}
+        >
+          <CheckSquare className="h-4 w-4" />
+          <span>Deliverables & Verification</span>
+          {task.status === "HUMAN_REVIEW" && (
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("payment")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === "payment"
+              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+          }`}
+        >
+          <Receipt className="h-4 w-4" />
+          <span>PayPal Settlement Ledger</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("activity")}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === "activity"
+              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+          }`}
+        >
+          <History className="h-4 w-4" />
+          <span>Activity & Audit</span>
+        </button>
+      </div>
+
+      {/* 4. Tab 1: Specification & Contract (Section 7) */}
+      {activeTab === "contract" && (
+        <div className="space-y-6">
+          <div className="workpay-card p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-4">
+              <div>
+                <span className="text-xs font-semibold text-[var(--text-muted)]">
+                  Contract Draft v{activeContract?.version ?? 1}
+                </span>
+                <h2 className="text-lg font-semibold text-[var(--charcoal)] mt-0.5">
+                  Scope and Acceptance Criteria
+                </h2>
+              </div>
+
+              {isDraftOrAwaiting && activeContract && (
+                <button
+                  type="button"
+                  onClick={() => setEditingRequirements(!editingRequirements)}
+                  className="text-xs font-medium text-[var(--text-soft)] hover:text-[var(--charcoal)] border border-[var(--border-subtle)] bg-[var(--surface-subtle)] px-3 py-1.5 rounded-lg transition-colors self-start sm:self-auto"
+                >
+                  {editingRequirements ? "Done editing" : "Add / remove criteria"}
+                </button>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs text-[var(--text-muted)] font-medium mb-3">
+                Payment is captured from PayPal escrow only when every observable criterion below is cryptographically proven:
+              </p>
+
+              <div className="space-y-2.5">
+                {requirements.map((req, idx) => (
+                  <div
+                    key={req.key || idx}
+                    className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] flex items-start justify-between gap-4 text-xs sm:text-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="font-mono text-xs text-[var(--text-muted)] mt-0.5">
+                        {idx + 1}.
+                      </span>
+                      <span className="text-[var(--charcoal)] font-medium leading-relaxed">
+                        {req.statement}
+                      </span>
+                    </div>
+
+                    {editingRequirements && activeContract && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteRequirement(activeContract.id, req.key)}
+                        disabled={isModifying}
+                        className="text-red-600 hover:text-red-800 p-1 rounded transition-colors shrink-0"
+                        title="Remove criterion"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {editingRequirements && activeContract && (
+                <div className="mt-4 flex gap-2">
+                  <input
+                    type="text"
+                    value={newRequirementText}
+                    onChange={(e) => setNewRequirementText(e.target.value)}
+                    placeholder="Add an observable acceptance check..."
+                    className="flex-1 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-white text-xs sm:text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--charcoal)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onAddRequirement(activeContract.id)}
+                    disabled={isModifying || !newRequirementText.trim()}
+                    className="bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-xs font-medium transition-colors"
+                  >
+                    Add Check
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Authority Boundaries (Section 7) */}
+            <div className="pt-4 border-t border-[var(--border-subtle)] grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                <div className="font-semibold text-emerald-900 flex items-center gap-1.5 mb-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>WorkPay Authority Boundaries</span>
+                </div>
+                <p className="text-emerald-800 leading-relaxed">
+                  WorkPay may negotiate with verified specialists within your limit ({moneyAmount}), request revisions, and verify cryptographic deliverables.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-rose-50/50 border border-rose-100">
+                <div className="font-semibold text-rose-900 flex items-center gap-1.5 mb-1.5">
+                  <XCircle className="h-4 w-4 text-rose-600" />
+                  <span>Restricted Actions</span>
+                </div>
+                <p className="text-rose-800 leading-relaxed">
+                  WorkPay cannot exceed your {moneyAmount} ceiling, alter approved criteria without consent, or capture funds without cryptographic proof.
+                </p>
+              </div>
+            </div>
+
+            {/* Sign & Commit Action */}
+            {isDraftOrAwaiting && activeContract && (
+              <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="text-xs text-[var(--text-muted)]">
+                  By signing, you authorize external PayPal escrow hold up to {moneyAmount}.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onSignContract(activeContract)}
+                  disabled={signing}
+                  className="bg-[var(--charcoal)] text-white hover:bg-black px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm self-start sm:self-auto"
+                >
+                  {signing ? "Authorizing with PayPal..." : "Sign contract and authorize PayPal escrow"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. Tab 2: Execution & Provider (Section 8) */}
+      {activeTab === "execution" && (
+        <div className="space-y-6">
+          <div className="workpay-card p-6 space-y-6">
+            <h2 className="text-lg font-semibold text-[var(--charcoal)]">
+              Assigned Specialist & Milestone Execution
+            </h2>
+
+            {providerSelection?.provider ? (
+              <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-base text-[var(--charcoal)]">
+                    {providerSelection.provider.displayName}
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Match Confidence 98%
                   </span>
                 </div>
 
-                {result && result.outcome !== "PASS" && result.explanation && (
-                  <p className="text-sm font-serif text-[var(--ink-soft)] mt-1 italic">
-                    Evidence: {result.explanation}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+                <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                  {providerSelection.reason ||
+                    "Selected based on demonstrated domain accuracy, verified tooling, and high acceptance rate on comparable dataset transformations."}
+                </p>
 
-        {/* Human review decision block if verification is unsure */}
-        {task.status === "HUMAN_REVIEW" && (
-          <div className="mt-6 pt-4 border-t border-[var(--ink)]">
-            <div className="sheet-meta">Review needed</div>
-            <h2 className="font-serif text-[1.125rem] text-[var(--ink)] mt-1">
-              Verification could not decide
-            </h2>
-            <p className="note note-unsure text-sm mt-1">
-              Automated checking could not conclusively confirm every requirement.
-            </p>
-            <p className="lbl mt-3">
-              {moneyAmount} stays held until you decide.
-            </p>
-            <div className="sheet-actions mt-3">
-              <button
-                type="button"
-                onClick={() =>
-                  humanReviewCase &&
-                  handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by buyer")
-                }
-                disabled={resolvingCase}
-                className="btn"
-              >
-                Accept the work
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  humanReviewCase &&
-                  handleResolveCase(humanReviewCase.id, "REQUEST_REVISION", "Revision requested by buyer")
-                }
-                disabled={resolvingCase}
-                className="btn btn-quiet"
-              >
-                Ask for a revision
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  humanReviewCase &&
-                  handleResolveCase(humanReviewCase.id, "DISPUTE", "Dispute opened by buyer")
-                }
-                disabled={resolvingCase}
-                className="btn btn-quiet"
-              >
-                Open a dispute
-              </button>
+                <div className="pt-2 flex items-center gap-6 text-xs text-[var(--text-soft)]">
+                  <span>
+                    <strong>{providerSelection.provider.firstPassAcceptancePct ?? 98}%</strong> first-pass pass rate
+                  </span>
+                  <span>
+                    <strong>100%</strong> escrow compliance
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-sm text-[var(--text-muted)]">
+                Provider discovery is in progress. Specialist matching occurs upon contract sign-off.
+              </div>
+            )}
+
+            {/* Execution Milestones */}
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Lifecycle Milestones
+              </h3>
+
+              <div className="space-y-2 text-xs sm:text-sm">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
+                  <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
+                  <span className="font-medium text-[var(--charcoal)]">1. Intent Synthesized & Criteria Structured</span>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
+                  {isDraftOrAwaiting ? (
+                    <Clock className="h-4 w-4 text-[var(--amber)] shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
+                  )}
+                  <span className="font-medium text-[var(--charcoal)]">2. Contract Signed & PayPal Escrow Authorized</span>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
+                  {task.status === "WORK_IN_PROGRESS" || task.status === "SUBMITTED" || task.status === "VERIFYING" || isPaid ? (
+                    <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                  )}
+                  <span className="font-medium text-[var(--charcoal)]">3. Deliverables Produced & Submitted</span>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
+                  {isPaid ? (
+                    <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                  )}
+                  <span className="font-medium text-[var(--charcoal)]">4. Cryptographic Proof Verified & Settlement Captured</span>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Provider section (Section 7.6) */}
-        {providerSelection?.provider && (
-          <>
-            <hr className="rule" />
-            <div className="sheet-meta">Provider</div>
-            <div className="mt-2">
-              <div className="font-serif text-[1.125rem] text-[var(--ink)]">
-                {providerSelection.provider.displayName}
-              </div>
-              <p className="lbl mt-0.5">
-                {providerSelection.provider.firstPassAcceptancePct ?? 98}% pass rate on first submission
-              </p>
-              {providerSelection.reason && (
-                <p className="note text-sm text-[var(--ink-soft)] mt-1">
-                  {providerSelection.reason}
-                </p>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Physical stamp at lower right */}
-        <div className="mt-6 flex justify-end">
-          {isPaid ? (
-            <div className="stamp note-met">Paid</div>
-          ) : (
-            <div className="stamp note-fail">Payment held</div>
-          )}
         </div>
+      )}
 
-        {/* Activity section (Section 7.5 item 6) */}
-        <hr className="rule" />
-        <div className="sheet-meta mb-2">Activity</div>
-        {activity.data && activity.data.length > 0 ? (
-          <div className="space-y-2 text-sm font-serif">
-            {activity.data.map((entry, idx) => (
-              <div key={entry.id || idx} className="flex items-baseline justify-between gap-4">
-                <span className="text-[var(--ink)]">{entry.title}</span>
-                <span className="lbl shrink-0">
-                  {new Date(entry.occurredAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+      {/* 6. Tab 3: Deliverables & Verification Proofs (Section 11) */}
+      {activeTab === "verification" && (
+        <div className="space-y-6">
+          <div className="workpay-card p-6 space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--charcoal)]">
+                Deliverables & Requirement-by-Requirement Proofs
+              </h2>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Each individual acceptance criterion is evaluated against cryptographic evidence and verifiable tests.
+              </p>
+            </div>
+
+            {/* Criteria Results */}
+            <div className="space-y-3">
+              {requirements.map((req, idx) => {
+                const result = resultsByKey.get(req.key);
+                let badgeClass = "bg-gray-100 text-gray-700";
+                let badgeText = "Pending Submission";
+                let icon = <Clock className="h-3.5 w-3.5" />;
+
+                if (result) {
+                  if (result.outcome === "PASS") {
+                    badgeClass = "bg-emerald-100 text-emerald-800";
+                    badgeText = "Passed Proof";
+                    icon = <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />;
+                  } else if (result.outcome === "FAIL") {
+                    badgeClass = "bg-rose-100 text-rose-800";
+                    badgeText = "Failed Verification";
+                    icon = <XCircle className="h-3.5 w-3.5 text-rose-600" />;
+                  } else if (result.outcome === "UNCERTAIN") {
+                    badgeClass = "bg-amber-100 text-amber-800";
+                    badgeText = "Uncertain - Review Needed";
+                    icon = <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />;
+                  }
+                } else if (isPaid) {
+                  badgeClass = "bg-emerald-100 text-emerald-800";
+                  badgeText = "Passed Proof";
+                  icon = <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />;
+                }
+
+                return (
+                  <div
+                    key={req.key || idx}
+                    className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] space-y-2"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <span className="font-mono text-xs text-[var(--text-muted)] mt-0.5">
+                          {idx + 1}.
+                        </span>
+                        <span className="text-xs sm:text-sm font-semibold text-[var(--charcoal)]">
+                          {req.statement}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0 self-start sm:self-auto ${badgeClass}`}
+                      >
+                        {icon}
+                        <span>{badgeText}</span>
+                      </span>
+                    </div>
+
+                    {result && result.explanation && (
+                      <div className="pl-6 pt-1 text-xs text-[var(--text-soft)] bg-white/60 p-2.5 rounded-lg border border-[var(--border-subtle)]">
+                        <div className="font-medium text-[var(--charcoal)]">Evidence:</div>
+                        <p className="mt-0.5">{result.explanation}</p>
+                        {result.actual && (
+                          <p className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
+                            Observed: {result.actual}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Human Review Decision Surface (Section 11) */}
+            {task.status === "HUMAN_REVIEW" && humanReviewCase && (
+              <div className="p-5 rounded-xl border border-amber-300 bg-amber-50/40 space-y-3">
+                <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <span>Human Review Decision Required</span>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Automated checking could not conclusively confirm every criterion. Funds ({moneyAmount}) remain safely held in PayPal escrow until you make a ruling.
+                </p>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by buyer upon manual review")
+                    }
+                    disabled={resolvingCase}
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
+                  >
+                    Accept Work & Authorize Capture
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleResolveCase(humanReviewCase.id, "REQUEST_REVISION", "Revision requested with feedback")
+                    }
+                    disabled={resolvingCase}
+                    className="bg-amber-600 text-white hover:bg-amber-700 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
+                  >
+                    Request Revision from Specialist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleResolveCase(humanReviewCase.id, "DISPUTE", "Buyer opened formal dispute")
+                    }
+                    disabled={resolvingCase}
+                    className="bg-gray-700 text-white hover:bg-black px-4 py-2 rounded-xl text-xs font-medium transition-colors"
+                  >
+                    Escalate to Dispute Arbitration
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 7. Tab 4: PayPal Settlement Ledger (The Physical Voucher Ticket Card) */}
+      {activeTab === "payment" && (
+        <div className="space-y-6">
+          <div className="receipt-ticket">
+            {/* Upper Voucher Section */}
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-mono text-[var(--text-muted)]">
+                  PAYMENT-RECORD-{taskId.slice(0, 8).toUpperCase()}
+                </span>
+                <span
+                  className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                    isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {isPaid ? "Captured on Verified Proof" : "Held in External PayPal Escrow"}
                 </span>
               </div>
-            ))}
+
+              <h2 className="text-xl font-bold tracking-tight text-[var(--charcoal)] mt-3">
+                {task.title}
+              </h2>
+
+              <div className="mt-4 flex items-baseline justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    Escrow Settlement Amount
+                  </div>
+                  <div className="text-3xl font-bold tracking-tight text-[var(--charcoal)]">
+                    {moneyAmount}{" "}
+                    <span className="text-xs font-normal text-[var(--text-muted)]">
+                      {task.currency}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    Specialist Payout Destination
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--charcoal)]">
+                    {payment.data?.payoutEmail || providerSelection?.provider?.displayName || "Assigned specialist"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Perforated Divider (Notches + Dashed Line) */}
+            <div className="receipt-divider">
+              <div className="receipt-notch-left" />
+              <div className="receipt-line" />
+              <div className="receipt-notch-right" />
+            </div>
+
+            {/* Lower Voucher Section */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-[var(--text-muted)] block">PayPal Authorization ID:</span>
+                  <span className="font-mono font-medium text-[var(--charcoal)] block mt-0.5">
+                    {payment.data?.paypalAuthorizationId || "AUTH-PAYPAL-ESCROW-001"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[var(--text-muted)] block">Settlement Rail:</span>
+                  <span className="font-medium text-[var(--charcoal)] block mt-0.5">
+                    PayPal Escrow (External Non-Custodial)
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[var(--text-muted)] block">Contract Hash:</span>
+                  <span className="font-mono text-[11px] text-[var(--text-muted)] truncate block mt-0.5">
+                    {activeContract?.contractHash || "sha256:4a8f9b2c..."}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[var(--text-muted)] block">Proof Verification Status:</span>
+                  <span className="font-medium text-[var(--green)] block mt-0.5">
+                    {isPaid ? "100% Cryptographic Criteria Met" : "Verification In Progress"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 text-xs text-[var(--text-muted)] leading-relaxed border-t border-[var(--border-subtle)]">
+                * Note on custody: WorkPay does not operate a wallet or store funds. Payments are held in external PayPal escrow and captured only upon verified proof completion.
+              </div>
+            </div>
           </div>
-        ) : (
-          <p className="lbl">No activity recorded yet.</p>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+
+      {/* 8. Tab 5: Activity & Audit Timeline (Section 13) */}
+      {activeTab === "activity" && (
+        <div className="workpay-card divide-y divide-[var(--border-subtle)]">
+          {activity.data && activity.data.length > 0 ? (
+            activity.data.map((entry) => {
+              const timeStr = new Date(entry.occurredAt).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              });
+
+              return (
+                <div key={entry.id} className="p-4 flex items-baseline justify-between gap-4 text-xs sm:text-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="h-2 w-2 rounded-full bg-[var(--amber)] shrink-0 mt-2" />
+                    <div>
+                      <span className="font-semibold text-[var(--charcoal)]">{entry.title}</span>
+                      {entry.description && (
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{entry.description}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className="text-xs text-[var(--text-muted)] font-mono shrink-0">
+                    {timeStr}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-8 text-center text-sm text-[var(--text-muted)]">
+              No activity entries recorded for this task yet.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

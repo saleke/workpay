@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { History, Clock, ArrowRight, ShieldCheck } from "lucide-react";
 import { useApi } from "@/lib/use-api";
 import { listActivity } from "@/lib/api/endpoints";
 import type { ActivityEntryDto } from "@/lib/api/types";
@@ -28,7 +29,7 @@ function formatDayHeading(iso: string): string {
 
 export default function ActivityPage() {
   const { data, loading } = useApi(() => listActivity(), [], "activity");
-  const entries = data ?? [];
+  const entries: ActivityEntryDto[] = data ?? [];
 
   const grouped = useMemo(() => {
     const groups: { day: string; items: ActivityEntryDto[] }[] = [];
@@ -57,7 +58,7 @@ export default function ActivityPage() {
 
   if (loading && entries.length === 0) {
     return (
-      <div className="py-20 text-center text-[var(--room-muted)] font-serif">
+      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
         Retrieving activity log...
       </div>
     );
@@ -65,52 +66,76 @@ export default function ActivityPage() {
 
   if (entries.length === 0) {
     return (
-      <div className="py-20 text-center">
-        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
+      <div className="py-20 text-center max-w-md mx-auto">
+        <History className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
           No activity recorded yet
         </h1>
-        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
-          Actions, verifications, and payment releases will be recorded here in sequence.
+        <p className="text-sm text-[var(--text-muted)] mt-1.5">
+          Important lifecycle events, specification approvals, deliverable submissions, and cryptographic verifications will be recorded here in immutable sequence.
         </p>
       </div>
     );
   }
 
   return (
-    <>
-      <p className="screen-label">Activity</p>
-      <div className="sheet">
-        <div className="sheet-meta">Audit record of events and state changes</div>
+    <div className="space-y-6 pb-12">
+      {/* 1. Header */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
+            Activity & Audit Log
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Immutable chronological record of approvals, contract revisions, proof verification, and settlement.
+          </p>
+        </div>
+      </div>
 
-        {grouped.map((group, gIdx) => (
-          <div key={group.day} className={gIdx > 0 ? "mt-6" : "mt-4"}>
-            <p className="group-heading">{group.day}</p>
-            <div className="mt-2 divide-y divide-[var(--paper-rule)]">
-              {group.items.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="py-2.5 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 text-[var(--text-body)]"
-                >
-                  <div className="font-serif text-[var(--ink)]">
-                    <span className="font-medium">{entry.title}</span>
-                    {entry.description && (
-                      <span className="block text-sm text-[var(--ink-soft)] mt-0.5">
-                        {entry.description}
-                      </span>
-                    )}
+      {/* 2. Grouped Timeline Cards */}
+      <div className="space-y-6">
+        {grouped.map((group) => (
+          <div key={group.day} className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5" />
+              <span>{group.day}</span>
+            </h2>
+
+            <div className="workpay-card divide-y divide-[var(--border-subtle)]">
+              {group.items.map((entry) => {
+                const timeStr = new Date(entry.occurredAt).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 text-sm"
+                  >
+                    <div className="flex items-start gap-3 flex-1">
+                      <span className="h-2 w-2 rounded-full bg-[var(--amber)] shrink-0 mt-2" />
+                      <div>
+                        <div className="font-semibold text-[var(--charcoal)]">{entry.title}</div>
+                        {entry.description && (
+                          <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
+                            {entry.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-auto text-xs text-[var(--text-muted)] font-mono shrink-0">
+                      <span>{entry.actorType}</span>
+                      <span>{timeStr}</span>
+                    </div>
                   </div>
-                  <span className="lbl shrink-0">
-                    {new Date(entry.occurredAt).toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, CheckCircle2, Clock, Paperclip, Sparkles, AlertCircle } from "lucide-react";
 import { createTask, requestPlanning } from "@/lib/api/endpoints";
 
 function newIdempotencyKey(): string {
@@ -66,10 +67,15 @@ export default function NewTaskPage() {
     setStepIndex(1);
 
     try {
-      // First line of description or trimmed request as title
+      // Automatic title generation: do not make the user enter a title separately
       const trimmed = description.trim();
       const firstLine = trimmed.split("\n")[0]?.trim() || "";
-      const derivedTitle = firstLine.length > 5 && firstLine.length < 80 ? firstLine : trimmed.slice(0, 60);
+      const derivedTitle =
+        firstLine.length > 5 && firstLine.length < 80
+          ? firstLine
+          : trimmed.length > 60
+            ? `${trimmed.slice(0, 57)}...`
+            : trimmed;
 
       const created = await createTask(
         {
@@ -108,50 +114,55 @@ export default function NewTaskPage() {
 
   if (submitting) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
-          Drafting your contract...
-        </h1>
-        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
-          WorkPay is analyzing your request and structuring the requirements.
-        </p>
+      <div className="py-24 text-center max-w-md mx-auto space-y-6">
+        <Sparkles className="h-8 w-8 text-[var(--amber)] mx-auto animate-pulse" />
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
+            Synthesizing contract specification...
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1.5">
+            WorkPay is analyzing your objective, structuring observable acceptance criteria, and preparing the PayPal escrow terms.
+          </p>
+        </div>
 
-        <div className="mt-8 space-y-3 text-left border-t border-[var(--room-rule)] pt-6">
+        <div className="workpay-card p-5 space-y-3 text-left">
           <div
-            className={`flex items-center gap-3 text-[var(--text-body)] ${
-              stepIndex >= 0 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            className={`flex items-center gap-3 text-xs sm:text-sm ${
+              stepIndex >= 0 ? "text-[var(--charcoal)] font-medium" : "text-[var(--text-muted)]"
             }`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                stepIndex >= 0 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+            <CheckCircle2
+              className={`h-4 w-4 shrink-0 ${
+                stepIndex >= 0 ? "text-[var(--green)]" : "text-[var(--border-strong)]"
               }`}
             />
-            <span>Read your request</span>
+            <span>Analyzing intent and constraints</span>
           </div>
+
           <div
-            className={`flex items-center gap-3 text-[var(--text-body)] ${
-              stepIndex >= 1 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            className={`flex items-center gap-3 text-xs sm:text-sm ${
+              stepIndex >= 1 ? "text-[var(--charcoal)] font-medium" : "text-[var(--text-muted)]"
             }`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                stepIndex >= 1 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+            <CheckCircle2
+              className={`h-4 w-4 shrink-0 ${
+                stepIndex >= 1 ? "text-[var(--green)]" : "text-[var(--border-strong)]"
               }`}
             />
-            <span>Writing the requirements</span>
+            <span>Structuring verifiable acceptance criteria</span>
           </div>
+
           <div
-            className={`flex items-center gap-3 text-[var(--text-body)] ${
-              stepIndex >= 2 ? "text-[var(--room-text-strong)] font-medium" : "text-[var(--room-muted)]"
+            className={`flex items-center gap-3 text-xs sm:text-sm ${
+              stepIndex >= 2 ? "text-[var(--charcoal)] font-medium" : "text-[var(--text-muted)]"
             }`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                stepIndex >= 2 ? "bg-[var(--room-met)]" : "bg-[var(--room-rule)]"
+            <CheckCircle2
+              className={`h-4 w-4 shrink-0 ${
+                stepIndex >= 2 ? "text-[var(--green)]" : "text-[var(--border-strong)]"
               }`}
             />
-            <span>Finding providers</span>
+            <span>Matching specialist and setting PayPal ceiling</span>
           </div>
         </div>
       </div>
@@ -159,61 +170,66 @@ export default function NewTaskPage() {
   }
 
   return (
-    <>
-      <p className="screen-label">New task</p>
-      <div className="sheet">
-        <div className="sheet-meta">
-          New task. WorkPay turns this into a contract for you to sign.
-        </div>
+    <div className="max-w-3xl mx-auto space-y-6 pb-12">
+      <div className="border-b border-[var(--border-subtle)] pb-4">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--charcoal)]">
+          Create New Task
+        </h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">
+          Describe what you need accomplished. WorkPay will automatically generate a contract with observable acceptance criteria for you to approve.
+        </p>
+      </div>
 
+      <div className="workpay-card p-6 sm:p-7 space-y-6">
         {error && (
-          <p className="note note-fail mt-3">
-            {error}
-          </p>
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
 
-        <form onSubmit={onSubmit} className="mt-4 space-y-6">
+        <form onSubmit={onSubmit} className="space-y-6">
           <div>
             <label
               htmlFor="task-description"
-              className="block text-[var(--text-lead)] font-serif text-[var(--ink)] mb-2"
+              className="block text-sm font-semibold text-[var(--charcoal)] mb-2"
             >
               What do you need done?
             </label>
             <textarea
               id="task-description"
-              rows={4}
+              rows={5}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the deliverable, constraints, and how you will judge completion..."
+              placeholder="Describe the deliverable, constraints, and how you will judge completion (e.g. Clean 5,000 customer records in the attached CSV. Remove duplicates, preserve customer IDs, validate emails...)"
               required
-              className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-2 resize-y"
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--charcoal)] focus:bg-white transition-all resize-y"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="spend-cap" className="lbl block mb-1">
-                Spend up to
+              <label htmlFor="spend-cap" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                Spend Limit (USD)
               </label>
-              <div className="flex items-baseline border-b border-[var(--paper-rule)] focus-within:border-[var(--ink)]">
-                <span className="text-[var(--ink)] font-serif mr-1">$</span>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] focus-within:ring-1 focus-within:ring-[var(--charcoal)] focus-within:bg-white transition-all">
+                <span className="font-semibold text-sm text-[var(--charcoal)]">$</span>
                 <input
                   id="spend-cap"
                   type="number"
-                  min="1"
+                  min="5"
                   step="1"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
                   required
-                  className="w-full bg-transparent border-0 text-[var(--text-body)] font-serif text-[var(--ink)] focus:outline-none py-1 amount"
+                  className="w-full bg-transparent text-sm font-semibold text-[var(--charcoal)] focus:outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="finish-by" className="lbl block mb-1">
-                Finish by
+              <label htmlFor="finish-by" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                Target Deadline
               </label>
               <input
                 id="finish-by"
@@ -221,27 +237,30 @@ export default function NewTaskPage() {
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 placeholder="Tomorrow, 6:00 PM"
-                className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1"
+                className="w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--charcoal)] focus:bg-white transition-all"
               />
             </div>
 
             <div>
-              <label htmlFor="task-files" className="lbl block mb-1">
-                Files
+              <label htmlFor="task-files" className="block text-xs font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                Attachment Reference
               </label>
               <input
                 id="task-files"
                 type="text"
                 value={filesNote}
                 onChange={(e) => setFilesNote(e.target.value)}
-                placeholder="Optional URL or attachment reference"
-                className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1"
+                placeholder="Optional URL or CSV filename"
+                className="w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--charcoal)] focus:bg-white transition-all"
               />
             </div>
           </div>
 
+          {/* Sample Prompts */}
           <div className="pt-2">
-            <span className="lbl block mb-2">Or choose a starting point:</span>
+            <span className="block text-xs font-semibold text-[var(--text-muted)] mb-2">
+              Or select a sample objective:
+            </span>
             <div className="flex flex-wrap gap-2">
               {PRESETS.map((p) => (
                 <button
@@ -252,27 +271,29 @@ export default function NewTaskPage() {
                     setBudget(p.budget);
                     setDeadline(p.deadline);
                   }}
-                  className="text-[var(--text-small)] font-serif px-2.5 py-1 border border-[var(--paper-rule)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)] transition-colors text-left"
+                  className="text-xs text-[var(--charcoal)] bg-[var(--surface-subtle)] hover:bg-amber-50 hover:border-amber-200 border border-[var(--border-subtle)] px-3 py-1.5 rounded-lg transition-colors text-left font-medium"
                 >
-                  {p.title}
+                  {p.title} (${p.budget})
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="sheet-actions">
+          <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="text-xs text-[var(--text-muted)]">
+              Funds are never deducted now. PayPal escrow is authorized only after you review and approve the structured contract.
+            </div>
+
             <button
               type="submit"
-              className="btn"
+              className="flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm shrink-0 self-start sm:self-auto"
             >
-              Draft the contract
+              <span>Draft specification</span>
+              <ArrowRight className="h-4 w-4" />
             </button>
-            <span className="lbl">
-              Nothing is held until you sign the contract.
-            </span>
           </div>
         </form>
       </div>
-    </>
+    </div>
   );
 }

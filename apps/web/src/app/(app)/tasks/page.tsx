@@ -1,165 +1,105 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Filter,
+  Plus,
+  Search,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { listTasks } from "@/lib/api/endpoints";
 import type { TaskDto } from "@/lib/api/types";
 
-function formatDueOrCompleted(task: TaskDto, isPaid: boolean): string {
-  if (isPaid && task.completedAt) {
-    try {
-      const d = new Date(task.completedAt);
-      return `paid ${d.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`;
-    } catch {
-      return "paid recently";
-    }
-  }
-
-  if (task.desiredDeadline) {
-    try {
-      const due = new Date(task.desiredDeadline);
-      const now = new Date();
-      const diffMs = due.getTime() - now.getTime();
-      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-
-      if (diffHours > 0 && diffHours < 24) {
-        return `due in ${diffHours} hour${diffHours === 1 ? "" : "s"}`;
-      }
-      if (diffHours >= 24 && diffHours < 48) {
-        return "due tomorrow";
-      }
-      return `due ${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    } catch {
-      return "due soon";
-    }
-  }
-
-  return "in progress";
-}
-
-function getTaskDetails(task: TaskDto) {
-  const isPaid = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
-  const dueOrPaid = formatDueOrCompleted(task, isPaid);
-  const providerDisplay = task.plannerSource || "Assigned specialist";
-  const metaLine = `${providerDisplay}, ${dueOrPaid}`;
-
-  let group: "attention" | "in_progress" | "completed" = "in_progress";
-  let stateLabel = "Work in progress";
-  let noteClass = "";
-  let situationNote = "Work in progress.";
-
-  if (task.status === "HUMAN_REVIEW") {
-    group = "attention";
-    stateLabel = "Review needed";
-    noteClass = "note-unsure";
-    situationNote = "Verification could not decide one or more requirements. Review needed.";
-  } else if (task.status === "REVISION_REQUIRED") {
-    group = "attention";
-    stateLabel = "Revision requested";
-    noteClass = "note-fail";
-    situationNote = "One or more requirements were not met. Revision requested from provider.";
-  } else if (task.status === "CONTRACT_REVIEW") {
-    group = "attention";
-    stateLabel = "Signing needed";
-    noteClass = "note-unsure";
-    situationNote = "WorkPay drafted the requirements. Awaiting your signature.";
-  } else if (task.status === "DISPUTED") {
-    group = "attention";
-    stateLabel = "Review needed";
-    noteClass = "note-fail";
-    situationNote = "Contract is in arbitration.";
-  } else if (isPaid) {
-    group = "completed";
-    stateLabel = "Paid";
-    noteClass = "note-met";
-    situationNote = "Every requirement met.";
-  } else if (task.status === "CANCELLED") {
-    group = "completed";
-    stateLabel = "Cancelled";
-    noteClass = "text-[var(--ink-muted)]";
-    situationNote = "Contract was cancelled.";
-  } else if (task.status === "VERIFYING") {
-    group = "in_progress";
-    stateLabel = "Verifying";
-    noteClass = "note-unsure";
-    situationNote = "Deliverables submitted. Checking requirements.";
-  } else if (task.status === "SUBMITTED") {
-    group = "in_progress";
-    stateLabel = "Submitted";
-    noteClass = "note-unsure";
-    situationNote = "Work submitted by provider.";
-  } else if (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") {
-    group = "in_progress";
-    stateLabel = "Finding provider";
-    noteClass = "text-[var(--ink-muted)]";
-    situationNote = "WorkPay is finding and negotiating with providers within your limit.";
-  } else if (task.status === "PLANNING" || task.status === "CREATED") {
-    group = "in_progress";
-    stateLabel = "Drafting";
-    noteClass = "text-[var(--ink-muted)]";
-    situationNote = "Drafting requirements and contract terms.";
-  } else {
-    group = "in_progress";
-    stateLabel = "Work in progress";
-    noteClass = "text-[var(--ink-muted)]";
-    situationNote = "No work has been submitted yet.";
-  }
-
-  return {
-    group,
-    stateLabel,
-    noteClass,
-    situationNote,
-    isPaid,
-    metaLine,
-  };
-}
-
 export default function TasksPage() {
   const { data, loading } = useApi(() => listTasks(), [], "tasks");
   const tasks = data ?? [];
 
-  const { attentionTasks, inProgressTasks, completedTasks } = useMemo(() => {
-    const attention: TaskDto[] = [];
-    const inProgress: TaskDto[] = [];
-    const completed: TaskDto[] = [];
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTab, setFilterTab] = useState<"ALL" | "ATTENTION" | "IN_PROGRESS" | "COMPLETED">("ALL");
 
-    for (const task of tasks) {
-      const { group } = getTaskDetails(task);
-      if (group === "attention") attention.push(task);
-      else if (group === "completed") completed.push(task);
-      else inProgress.push(task);
+  const filteredTasks = useMemo(() => {
+    let list = tasks;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.rawRequest.toLowerCase().includes(q) ||
+          t.id.toLowerCase().includes(q),
+      );
     }
 
-    return {
-      attentionTasks: attention,
-      inProgressTasks: inProgress,
-      completedTasks: completed,
-    };
+    if (filterTab === "ATTENTION") {
+      list = list.filter(
+        (t) =>
+          t.status === "CONTRACT_REVIEW" ||
+          t.status === "HUMAN_REVIEW" ||
+          t.status === "REVISION_REQUIRED" ||
+          t.status === "AWAITING_CLARIFICATION" ||
+          t.status === "AGREEMENT_READY",
+      );
+    } else if (filterTab === "IN_PROGRESS") {
+      list = list.filter(
+        (t) =>
+          t.status !== "COMPLETED" &&
+          t.status !== "PAYMENT_RELEASE" &&
+          t.status !== "CANCELLED" &&
+          t.status !== "CONTRACT_REVIEW" &&
+          t.status !== "HUMAN_REVIEW" &&
+          t.status !== "REVISION_REQUIRED",
+      );
+    } else if (filterTab === "COMPLETED") {
+      list = list.filter((t) => t.status === "COMPLETED" || t.status === "PAYMENT_RELEASE");
+    }
+
+    return list;
+  }, [tasks, searchQuery, filterTab]);
+
+  const attentionCount = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        t.status === "CONTRACT_REVIEW" ||
+        t.status === "HUMAN_REVIEW" ||
+        t.status === "REVISION_REQUIRED" ||
+        t.status === "AWAITING_CLARIFICATION" ||
+        t.status === "AGREEMENT_READY",
+    ).length;
   }, [tasks]);
 
   if (loading && tasks.length === 0) {
     return (
-      <div className="py-16 text-center text-[var(--room-muted)] font-serif">
-        Opening the register...
+      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
+        Opening task register...
       </div>
     );
   }
 
   if (tasks.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <h1 className="font-serif text-[1.5rem] text-[var(--room-text-strong)] font-normal">
-          Give WorkPay something to do
+      <div className="py-20 text-center max-w-md mx-auto">
+        <Sparkles className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
+          No tasks created yet
         </h1>
-        <p className="text-[var(--room-muted)] mt-2 text-[var(--text-body)]">
-          Describe what you need done. WorkPay turns it into a contract, finds a verified provider, and protects your payment.
+        <p className="text-sm text-[var(--text-muted)] mt-1.5">
+          Describe the outcome you need accomplished. WorkPay drafts explicit acceptance criteria, matches a specialist, and holds funds in PayPal escrow until proven.
         </p>
         <div className="mt-6">
-          <Link href="/tasks/new" className="btn btn-room">
-            New task
+          <Link
+            href="/tasks/new"
+            className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create first task</span>
           </Link>
         </div>
       </div>
@@ -167,119 +107,183 @@ export default function TasksPage() {
   }
 
   return (
-    <>
-      <p className="screen-label">Tasks</p>
-      <div className="sheet">
-        <div
-          className="register-row heads"
-          style={{ paddingTop: 0, borderBottom: "var(--rule) solid var(--ink)" }}
-        >
-          <span className="lbl">Contract</span>
-          <span className="lbl">Money</span>
-          <span className="lbl">State</span>
+    <div className="space-y-6 pb-12">
+      {/* 1. Header */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
+            Task Register
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            All active, review-pending, and settled contracts. Verified proof dictates release.
+          </p>
         </div>
 
-        {attentionTasks.length > 0 && (
-          <>
-            <p className="group-heading" style={{ marginTop: "var(--space-3)" }}>
-              Needs your attention
-            </p>
-            {attentionTasks.map((task) => {
-              const info = getTaskDetails(task);
-              const moneyStr = formatMinorMoney({
-                amountMinor: task.budgetMinor,
-                currency: task.currency,
-              });
-
-              return (
-                <div key={task.id} className="register-row">
-                  <div>
-                    <div className="row-title">
-                      <Link href={`/tasks/${task.id}`} className="hover:underline">
-                        {task.title}
-                      </Link>
-                    </div>
-                    <div className="lbl">{info.metaLine}</div>
-                    <div className={`note ${info.noteClass}`}>{info.situationNote}</div>
-                  </div>
-                  <div className="money amount">
-                    {moneyStr} <span className="lbl">{info.isPaid ? "paid" : "held"}</span>
-                  </div>
-                  <div className="state">
-                    <span className={`state-label ${info.noteClass}`}>{info.stateLabel}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {inProgressTasks.length > 0 && (
-          <>
-            <p className="group-heading">In progress</p>
-            {inProgressTasks.map((task) => {
-              const info = getTaskDetails(task);
-              const moneyStr = formatMinorMoney({
-                amountMinor: task.budgetMinor,
-                currency: task.currency,
-              });
-
-              return (
-                <div key={task.id} className="register-row">
-                  <div>
-                    <div className="row-title">
-                      <Link href={`/tasks/${task.id}`} className="hover:underline">
-                        {task.title}
-                      </Link>
-                    </div>
-                    <div className="lbl">{info.metaLine}</div>
-                    <div className={`note ${info.noteClass}`}>{info.situationNote}</div>
-                  </div>
-                  <div className="money amount">
-                    {moneyStr} <span className="lbl">{info.isPaid ? "paid" : "held"}</span>
-                  </div>
-                  <div className="state">
-                    <span className={`state-label ${info.noteClass}`}>{info.stateLabel}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {completedTasks.length > 0 && (
-          <>
-            <p className="group-heading">Completed</p>
-            {completedTasks.map((task) => {
-              const info = getTaskDetails(task);
-              const moneyStr = formatMinorMoney({
-                amountMinor: task.budgetMinor,
-                currency: task.currency,
-              });
-
-              return (
-                <div key={task.id} className="register-row">
-                  <div>
-                    <div className="row-title">
-                      <Link href={`/tasks/${task.id}`} className="hover:underline">
-                        {task.title}
-                      </Link>
-                    </div>
-                    <div className="lbl">{info.metaLine}</div>
-                    <div className={`note ${info.noteClass}`}>{info.situationNote}</div>
-                  </div>
-                  <div className="money amount">
-                    {moneyStr} <span className="lbl">{info.isPaid ? "paid" : "held"}</span>
-                  </div>
-                  <div className="state">
-                    <span className={`state-label ${info.noteClass}`}>{info.stateLabel}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
+        <Link
+          href="/tasks/new"
+          className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors self-start sm:self-auto shadow-xs"
+        >
+          <Plus className="h-4 w-4" />
+          <span>New task</span>
+        </Link>
       </div>
-    </>
+
+      {/* 2. Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm font-medium">
+          <button
+            type="button"
+            onClick={() => setFilterTab("ALL")}
+            className={`px-3 py-1.5 rounded-lg transition-colors ${
+              filterTab === "ALL"
+                ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+                : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+            }`}
+          >
+            All tasks ({tasks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("ATTENTION")}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              filterTab === "ATTENTION"
+                ? "bg-amber-100 text-amber-900 font-semibold border border-amber-300"
+                : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+            }`}
+          >
+            <span>Needs Attention</span>
+            {attentionCount > 0 && (
+              <span className="h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {attentionCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("IN_PROGRESS")}
+            className={`px-3 py-1.5 rounded-lg transition-colors ${
+              filterTab === "IN_PROGRESS"
+                ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+                : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+            }`}
+          >
+            In Progress
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("COMPLETED")}
+            className={`px-3 py-1.5 rounded-lg transition-colors ${
+              filterTab === "COMPLETED"
+                ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
+                : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+            }`}
+          >
+            Settled
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative sm:w-64">
+          <Search className="h-4 w-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tasks..."
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-xs sm:text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--charcoal)] focus:bg-white transition-all"
+          />
+        </div>
+      </div>
+
+      {/* 3. Task Cards List */}
+      {filteredTasks.length === 0 ? (
+        <div className="workpay-card p-12 text-center text-sm text-[var(--text-muted)]">
+          No tasks found matching your filters.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredTasks.map((task) => {
+            const isCompleted = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
+            const isAttention =
+              task.status === "CONTRACT_REVIEW" ||
+              task.status === "HUMAN_REVIEW" ||
+              task.status === "REVISION_REQUIRED" ||
+              task.status === "AWAITING_CLARIFICATION" ||
+              task.status === "AGREEMENT_READY";
+
+            const moneyStr = formatMinorMoney({
+              amountMinor: task.budgetMinor,
+              currency: task.currency,
+            });
+
+            let statusBadge = "bg-blue-50 text-blue-700";
+            let statusLabel = "In Execution";
+
+            if (task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY") {
+              statusBadge = "bg-amber-100 text-amber-800";
+              statusLabel = "Awaiting Sign-off";
+            } else if (task.status === "HUMAN_REVIEW") {
+              statusBadge = "bg-amber-100 text-amber-800";
+              statusLabel = "Verification Review Needed";
+            } else if (task.status === "REVISION_REQUIRED") {
+              statusBadge = "bg-red-50 text-red-700";
+              statusLabel = "Revision Requested";
+            } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
+              statusBadge = "bg-purple-50 text-purple-700";
+              statusLabel = "Verifying Proof";
+            } else if (isCompleted) {
+              statusBadge = "bg-emerald-50 text-emerald-700";
+              statusLabel = "Settled";
+            } else if (task.status === "PLANNING" || task.status === "CREATED") {
+              statusBadge = "bg-gray-100 text-gray-700";
+              statusLabel = "Synthesizing";
+            }
+
+            return (
+              <Link
+                key={task.id}
+                href={`/tasks/${task.id}`}
+                className={`workpay-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-[var(--charcoal)] transition-all group ${
+                  isAttention ? "border-amber-200 bg-amber-50/20" : ""
+                }`}
+              >
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}>
+                      {statusLabel}
+                    </span>
+                    <span className="font-mono text-xs text-[var(--text-muted)]">
+                      {task.id.slice(0, 8)}
+                    </span>
+                  </div>
+
+                  <h3 className="text-base font-semibold text-[var(--charcoal)] group-hover:text-[var(--blue)] transition-colors">
+                    {task.title}
+                  </h3>
+
+                  <p className="text-xs text-[var(--text-muted)] line-clamp-1 max-w-2xl">
+                    {task.rawRequest}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-6 sm:border-l sm:border-[var(--border-subtle)] sm:pl-6 shrink-0">
+                  <div className="text-right">
+                    <div className="text-base font-bold text-[var(--charcoal)]">{moneyStr}</div>
+                    <div className="text-[11px] text-[var(--text-muted)]">
+                      {isCompleted ? "Paid upon proof" : "Held in PayPal escrow"}
+                    </div>
+                  </div>
+
+                  <div className="h-8 w-8 rounded-lg bg-[var(--surface-subtle)] flex items-center justify-center text-[var(--text-muted)] group-hover:bg-[var(--charcoal)] group-hover:text-white transition-colors">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
