@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkPay visual reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=Source+Serif+4:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  .page { max-width: 52rem; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-7); }
+  .screen-label { color: var(--room-muted); margin: var(--space-6) 0 var(--space-2); }
+  .shell { display: flex; align-items: baseline; gap: var(--space-5); padding-bottom: var(--space-4); color: var(--room-muted); }
+  .shell b { font-family: var(--font-voice); font-weight: 400; font-size: var(--text-lead); color: var(--room-text-strong); margin-right: auto; }
+  .shell .on { color: var(--room-text-strong); }
+  .shell .new { background: var(--paper); color: var(--ink); border-radius: var(--radius-control); padding: var(--space-1) var(--space-3); }
+  .group { font-family: var(--font-chrome); font-size: var(--text-label); color: var(--ink-muted); margin: var(--space-4) 0 0; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 9rem; gap: var(--space-4); align-items: start; padding: var(--space-3) 0; border-bottom: var(--rule) solid var(--paper-rule); }
+  .row:last-child { border-bottom: 0; }
+  .row-title { font-size: var(--text-lead); }
+  .row .note { font-size: var(--text-body); margin-top: var(--space-1); }
+  .cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+  .req { padding: var(--space-2) 0; border-bottom: var(--rule) solid var(--paper-rule); }
+  .req:last-child { border-bottom: 0; }
+  .diff { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-2) 0; border-bottom: var(--rule) solid var(--paper-rule); }
+  .diff-head { color: var(--ink-muted); font-family: var(--font-chrome); font-size: var(--text-label); }
+  .actions { margin-top: var(--space-5); padding-top: var(--space-3); border-top: var(--rule) solid var(--ink); display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+  .lbl { font-family: var(--font-chrome); font-size: var(--text-label); color: var(--ink-muted); }
+
+  @media (max-width: 40rem) {
+    .page { padding: var(--space-3) var(--space-2) var(--space-6); }
+    .shell { gap: var(--space-4); flex-wrap: wrap; }
+    .row { grid-template-columns: minmax(0, 1fr) auto; }
+    .row .money { grid-column: 1; grid-row: 2; }
+    .row .state { grid-column: 2; grid-row: 2; justify-self: end; }
+    .row .heads { display: none; }
+    .cols3, .pair { grid-template-columns: 1fr; }
+    .diff { grid-template-columns: 1fr; gap: 0; }
+    .diff-head { display: none; }
+    .diff .lbl-in { display: inline; }
+    .actions { flex-direction: column; align-items: stretch; }
+    .actions .btn { text-align: center; padding: var(--space-3) var(--space-4); }
+  }
+  @media (min-width: 40.001rem) { .lbl-in { display: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="shell"><b>WorkPay</b><span class="on">Tasks</span><span>Payments</span><span>Activity</span><span>Settings</span><span class="new">New task</span></div>
+
+  <p class="screen-label">Tasks</p>
+  <div class="sheet">
+    <div class="row heads" style="padding-top:0;border-bottom:var(--rule) solid var(--ink)">
+      <span class="lbl">Contract</span><span class="lbl">Money</span><span class="lbl">State</span>
+    </div>
+    <p class="group" style="margin-top:var(--space-3)">Needs your attention</p>
+    <div class="row">
+      <div><div class="row-title">Translate onboarding guide to Spanish</div><div class="lbl">LinguaWorks, due in 2 hours</div><div class="note note-unsure">Four of five requirements met. The verifier cannot tell whether the terminology in requirement 5 matches.</div></div>
+      <div class="money amount">$80 <span class="lbl">held</span></div>
+      <div class="state"><span class="state-label note-unsure">Review needed</span></div>
+    </div>
+    <p class="group">In progress</p>
+    <div class="row">
+      <div><div class="row-title">Clean 5,000 customer records</div><div class="lbl">DataWorks, due in 5 hours</div><div class="note note-fail">Four of five requirements met. Duplicates are 7.2%, and the limit is 1%.</div></div>
+      <div class="money amount">$135 <span class="lbl">held</span></div>
+      <div class="state"><span class="state-label note-fail">Revision requested</span></div>
+    </div>
+    <div class="row">
+      <div><div class="row-title">Tag 300 product photos</div><div class="lbl">PixelTag, due tomorrow</div><div class="note" style="color:var(--ink-muted)">No work has been submitted yet.</div></div>
+      <div class="money amount">$90 <span class="lbl">held</span></div>
+      <div class="state"><span class="state-label" style="color:var(--ink-muted)">Work in progress</span></div>
+    </div>
+    <p class="group">Completed</p>
+    <div class="row">
+      <div><div class="row-title">Summarize 40 support tickets</div><div class="lbl">Briefly, paid October 21</div><div class="note note-met">Every requirement met.</div></div>
+      <div class="money amount">$60 <span class="lbl">paid</span></div>
+      <div class="state"><span class="state-label note-met">Paid</span></div>
+    </div>
+  </div>
+
+  <p class="screen-label">Contract approval</p>
+  <div class="sheet">
+    <div class="sheet-meta">Work contract, draft v1, prepared by WorkPay, not yet signed</div>
+    <h1 class="sheet-title">Clean 5,000 customer records</h1>
+    <p style="color:var(--ink-soft)">WorkPay will hire a provider to clean and normalize the attached customer file.</p>
+    <hr class="rule">
+    <div class="sheet-meta">Payment is released only when every requirement is met</div>
+    <ol style="margin:var(--space-2) 0 0;padding-left:1.4rem">
+      <li>Preserve every customer ID</li><li>Keep the schema valid</li><li>Duplicates under 1%</li><li>Account for all 5,000 records</li><li>No required field lost</li>
+    </ol>
+    <hr class="rule">
+    <div class="cols3">
+      <div><div class="lbl">Spend up to</div><span class="amount">$150</span></div>
+      <div><div class="lbl">Deadline</div>Tomorrow, 6:00 PM</div>
+      <div><div class="lbl">Expected price</div><span class="amount">$135</span></div>
+    </div>
+    <hr class="rule">
+    <div class="pair">
+      <div><div class="lbl note-met">WorkPay may</div>Find and negotiate with providers within your limit. Authorize up to $150. Request corrections.</div>
+      <div><div class="lbl note-fail">WorkPay may not</div>Raise your limit. Change a requirement. Pay for work that fails a requirement.</div>
+    </div>
+    <div class="actions"><button class="btn">Sign and let WorkPay hire</button><button class="btn btn-quiet">Edit requirements</button></div>
+  </div>
+
+  <p class="screen-label">Review needed</p>
+  <div class="sheet">
+    <div class="sheet-meta">Review needed, translate onboarding guide to Spanish</div>
+    <h1 class="sheet-title">Verification could not decide requirement 5</h1>
+    <p style="color:var(--ink-soft)">Use the approved product terminology list.</p>
+    <p class="note note-unsure">38 of 41 terms matched. Three were unclear.</p>
+    <div class="diff diff-head"><span>Term</span><span>Approved list says</span><span>Submitted work says</span></div>
+    <div class="diff"><span>workspace</span><span><span class="lbl lbl-in">List says: </span>área de trabajo</span><span><span class="lbl lbl-in">Work says: </span>espacio de trabajo</span></div>
+    <div class="diff"><span>invite</span><span><span class="lbl lbl-in">List says: </span>invitar</span><span><span class="lbl lbl-in">Work says: </span>convocar</span></div>
+    <div class="diff" style="border-bottom:0"><span>admin</span><span><span class="lbl lbl-in">List says: </span>administrador</span><span><span class="lbl lbl-in">Work says: </span>admin</span></div>
+    <p class="lbl" style="margin-top:var(--space-4)">$80 stays held until you decide.</p>
+    <div class="actions" style="margin-top:var(--space-2)"><button class="btn">Accept the work</button><button class="btn btn-quiet">Ask for a revision</button><button class="btn btn-quiet">Open a dispute</button></div>
+  </div>
+
+</div>
+</body>
+</html>

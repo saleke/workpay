@@ -1,0 +1,186 @@
+/*
+  WorkPay design tokens
+  Single source of truth for color, type, spacing, and motion.
+  Rule: no raw color, font size, spacing, or radius value may appear in
+  component code. Reference these variables only.
+*/
+
+:root {
+  /* The room: the dark surface around every sheet */
+  --room: #121212;
+  --room-rule: #2a2a2a;
+  --room-text: #cfcac0;
+  --room-text-strong: #efebe2;
+  --room-muted: #8d887c;
+
+  /* The paper: the single bright object on every screen */
+  --paper: #efebe2;
+  --paper-rule: #c9c3b3;
+  --ink: #1d1b17;
+  --ink-soft: #4a463d;
+  --ink-muted: #6b665a;
+
+  /* State ink on paper (always paired with words, never color alone) */
+  --ink-met: #2f6b4a;
+  --ink-fail: #a8392b;
+  --ink-unsure: #7a5c0f;
+
+  /* State ink on the room (lighter variants for the dark surface) */
+  --room-met: #7fbf9d;
+  --room-fail: #e0786d;
+  --room-unsure: #d2ae5a;
+
+  /* Typefaces. Load with next/font. Change only with design approval. */
+  --font-voice: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-chrome: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Type scale (rem). Two weights only: 400 and 500. */
+  --text-label: 0.75rem;     /* 12px, small labels and metadata */
+  --text-small: 0.8125rem;   /* 13px, notes and chrome */
+  --text-body: 0.9375rem;    /* 15px, requirement and body text on paper */
+  --text-lead: 1.0625rem;    /* 17px, task titles in lists */
+  --text-title: 1.375rem;    /* 22px, sheet titles */
+  --text-display: 1.75rem;   /* 28px, rare, workspace title on desktop */
+  --leading-voice: 1.55;     /* serif text needs more line height */
+  --leading-chrome: 1.45;
+
+  /* Spacing (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Shape. Nothing in the system is rounder than 4px. */
+  --radius-sheet: 2px;
+  --radius-control: 4px;
+  --rule: 1px;               /* use 0.5px only on high-density displays */
+
+  /* Layout */
+  --sheet-max: 46rem;        /* the sheet, 736px */
+  --margin-col: 13rem;       /* annotation column beside the sheet on wide screens */
+  --bp-margin: 60rem;        /* 960px: margin column appears */
+  --bp-phone: 40rem;         /* 640px: everything stacks, sheet goes near edge to edge */
+
+  /* Motion. One idea only: a stamp pressing onto the sheet. */
+  --dur-stamp: 160ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------------------------------------------------------------
+   Room defaults (shadcn/ui variable names, hex source of truth).
+   If the project uses the HSL-channel format (Tailwind v3 shadcn),
+   convert these values to channels. Do not change the colors.
+---------------------------------------------------------------- */
+:root {
+  --background: var(--room);
+  --foreground: var(--room-text-strong);
+  --muted-foreground: var(--room-muted);
+  --border: var(--room-rule);
+  --input: var(--room-rule);
+  --ring: var(--room-text-strong);
+  --primary: var(--paper);
+  --primary-foreground: var(--ink);
+  --secondary: transparent;
+  --secondary-foreground: var(--room-text-strong);
+  --destructive: var(--room-fail);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --radius: var(--radius-control);
+}
+
+/* Inside a sheet, the same shadcn components switch to ink on paper. */
+.sheet {
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --muted-foreground: var(--ink-muted);
+  --border: var(--paper-rule);
+  --input: var(--paper-rule);
+  --ring: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --secondary: transparent;
+  --secondary-foreground: var(--ink);
+  --destructive: var(--ink-fail);
+}
+
+/* ---------------------------------------------------------------
+   Base primitives. Build screens from these before inventing new ones.
+---------------------------------------------------------------- */
+body {
+  background: var(--room);
+  color: var(--room-text);
+  font-family: var(--font-chrome);
+  font-size: var(--text-small);
+  line-height: var(--leading-chrome);
+}
+
+/* The sheet: the one bright object per screen */
+.sheet {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-voice);
+  font-size: var(--text-body);
+  line-height: var(--leading-voice);
+  border-radius: var(--radius-sheet);
+  padding: var(--space-5) var(--space-6);
+  max-width: var(--sheet-max);
+  margin: 0 auto;
+}
+@media (max-width: 40rem) {
+  .sheet { padding: var(--space-4); }
+}
+
+.sheet-meta { font-family: var(--font-chrome); font-size: var(--text-label); color: var(--ink-muted); }
+.sheet-title { font-size: var(--text-title); font-weight: 400; line-height: 1.25; margin: var(--space-2) 0; }
+.rule { border: 0; border-top: var(--rule) solid var(--paper-rule); margin: var(--space-4) 0; }
+
+/* A written note in ink, used for every explanation of state */
+.note { font-style: italic; }
+.note-met { color: var(--ink-met); }
+.note-fail { color: var(--ink-fail); }
+.note-unsure { color: var(--ink-unsure); }
+
+/* Money is always a sentence plus an amount with tabular figures */
+.amount { font-variant-numeric: tabular-nums lining-nums; }
+
+/* State label: plain outlined words, never an icon or a dot */
+.state-label {
+  font-family: var(--font-chrome);
+  font-size: var(--text-label);
+  border: var(--rule) solid currentColor;
+  border-radius: var(--radius-sheet);
+  padding: 1px var(--space-2);
+  white-space: nowrap;
+}
+
+/* Stamp: used only on the task workspace for "Payment held" and "Paid" */
+.stamp {
+  font-family: var(--font-chrome);
+  font-size: var(--text-small);
+  border: 1.5px solid currentColor;
+  padding: var(--space-1) var(--space-3);
+  transform: rotate(-4deg);
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stamp[data-just-changed] { animation: press var(--dur-stamp) var(--ease-out); }
+  @keyframes press { from { transform: rotate(-4deg) scale(1.06); } to { transform: rotate(-4deg) scale(1); } }
+}
+
+/* Buttons: one solid per view, the rest outlined */
+.btn {
+  font-family: var(--font-chrome);
+  font-size: var(--text-small);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-4);
+  border: var(--rule) solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-quiet { background: transparent; color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
