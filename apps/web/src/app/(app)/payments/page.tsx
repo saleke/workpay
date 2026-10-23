@@ -72,21 +72,21 @@ export default function PaymentsPage() {
   if (paymentsLoading && payments.length === 0) {
     return (
       <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Opening escrow ledger...
+        Opening payment ledger...
       </div>
     );
   }
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Header with clear non-custodial notice (Section 12) */}
+      {/* 1. Header with clear non-custodial notice */}
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
             PayPal Settlement Ledger
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-            Immutable record of PayPal escrow authorizations and cryptographically verified captures. WorkPay does not operate a wallet; funds remain held externally on PayPal until deliverables pass verifiable checks.
+            Immutable record of PayPal authorization holds and cryptographically verified captures. WorkPay does not operate a wallet; funds remain held externally on PayPal until deliverables pass verifiable checks.
           </p>
         </div>
 
@@ -100,11 +100,11 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* 2. Escrow & Settlement Metrics */}
+      {/* 2. Authorization & Settlement Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>In External PayPal Escrow</span>
+            <span>PayPal Authorization Holds</span>
             <Lock className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
@@ -137,7 +137,7 @@ export default function PaymentsPage() {
             {summary.totalCount}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Authoritative escrow payment records attached to tasks.
+            Authoritative payment records attached to tasks.
           </p>
         </div>
       </div>
@@ -164,7 +164,7 @@ export default function PaymentsPage() {
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
           }`}
         >
-          In Escrow
+          Authorized Holds
         </button>
         <button
           type="button"
@@ -215,13 +215,13 @@ export default function PaymentsPage() {
               : "Recent";
 
             let badgeBg = "bg-amber-100 text-amber-800";
-            let badgeText = "Held in External Escrow";
+            let badgeText = "PayPal Authorization Hold";
             if (isCaptured) {
               badgeBg = "bg-emerald-100 text-emerald-800";
               badgeText = "Captured on Verified Proof";
             } else if (isRefunded) {
               badgeBg = "bg-gray-100 text-gray-700";
-              badgeText = "Refunded to Buyer";
+              badgeText = "Voided to Task Owner";
             }
 
             return (

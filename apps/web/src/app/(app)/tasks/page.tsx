@@ -91,7 +91,7 @@ export default function TasksPage() {
           No tasks created yet
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          Describe the outcome you need accomplished. WorkPay drafts explicit acceptance criteria, matches a specialist, and holds funds in PayPal escrow until proven.
+          Describe the outcome you need accomplished. WorkPay drafts explicit acceptance criteria, matches a specialist, and reserves funds via PayPal authorization hold until proven.
         </p>
         <div className="mt-6">
           <Link
@@ -271,7 +271,7 @@ export default function TasksPage() {
                   <div className="text-right">
                     <div className="text-base font-bold text-[var(--charcoal)]">{moneyStr}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">
-                      {isCompleted ? "Paid upon proof" : "Held in PayPal escrow"}
+                      {isCompleted ? "Paid upon proof" : "PayPal Authorization Hold"}
                     </div>
                   </div>
 

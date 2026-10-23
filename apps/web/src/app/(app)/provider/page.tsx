@@ -125,7 +125,7 @@ export default function ProviderPortalPage() {
                 <div className="text-right">
                   <div className="text-base font-bold text-[var(--charcoal)]">{info.moneyStr}</div>
                   <div className="text-[11px] text-[var(--text-muted)]">
-                    {info.isPaid ? "Paid upon proof" : "Held in PayPal escrow"}
+                    {info.isPaid ? "Paid upon proof" : "PayPal Authorization Hold"}
                   </div>
                 </div>
 

@@ -58,7 +58,7 @@ export default function HomeDashboardPage() {
           return;
         }
       }
-      const storedPersona = window.localStorage.getItem("workpay_demo_persona");
+      const storedPersona = window.localStorage.getItem("workpay_persona");
       if (storedPersona === "provider") setUserName("Bob");
       else if (storedPersona === "admin_reviewer") setUserName("Carol");
       else setUserName("Alice");
@@ -228,18 +228,18 @@ export default function HomeDashboardPage() {
         </div>
       </div>
 
-      {/* 2. Commitment Summary Ribbon (Real PayPal Escrow Data - Section 5 & 12) */}
+      {/* 2. Commitment Summary Ribbon (Real PayPal Authorization Data - Section 5 & 12) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>PayPal Escrow Hold</span>
+            <span>PayPal Authorization Hold</span>
             <ShieldCheck className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {commitments.held}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Held externally in PayPal escrow. Captured only after proof verification passes.
+            Secured externally via PayPal authorization hold. Captured only after proof verification passes.
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export default function HomeDashboardPage() {
           What do you need done?
         </h2>
         <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-          Describe the outcome, requirements, and constraints. WorkPay interprets your request, automatically generates a task title, recommends acceptance criteria, and holds funds in PayPal escrow only upon your explicit approval.
+          Describe the outcome, requirements, and constraints. WorkPay interprets your request, automatically generates a task title, recommends acceptance criteria, and reserves funds via PayPal authorization hold only upon your explicit approval.
         </p>
 
         {intakeError && (
@@ -418,7 +418,7 @@ export default function HomeDashboardPage() {
                       <span className="font-semibold text-[var(--charcoal)]">
                         {formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency })}
                       </span>{" "}
-                      held in escrow
+                      authorized on PayPal
                     </div>
 
                     <Link

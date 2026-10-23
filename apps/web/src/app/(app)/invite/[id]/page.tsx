@@ -70,7 +70,7 @@ export default function TaskInvitationPage({
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) {
-      setSubmitError("You must agree to the Definition of Done and escrow terms.");
+      setSubmitError("You must agree to the Definition of Done and payment terms.");
       return;
     }
     if (!displayName.trim() || !payoutEmail.trim()) {
@@ -103,7 +103,7 @@ export default function TaskInvitationPage({
   };
 
   if (loading) {
-    return <LoadingState label="Verifying work agreement invitation & escrow terms..." />;
+    return <LoadingState label="Verifying work agreement invitation & payment terms..." />;
   }
 
   if (error || !invitation) {
@@ -138,7 +138,7 @@ export default function TaskInvitationPage({
             </p>
           </div>
 
-          {/* Budget Ceiling & Escrow Card */}
+          {/* Budget Ceiling & Authorization Card */}
           <div className="rounded-xl border border-border/80 bg-background/80 p-4 text-right shadow-xs shrink-0 min-w-[200px]">
             <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
               Payment on Verified Delivery
@@ -151,7 +151,7 @@ export default function TaskInvitationPage({
             </div>
             <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
               <Lock className="h-3 w-3" />
-              <span>Direct PayPal Escrow Protected</span>
+              <span>Direct PayPal Authorization Protected</span>
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function TaskInvitationPage({
             <div>
               <div className="font-semibold text-base">Assignment Sealed &amp; In Progress</div>
               <p className="text-sm mt-0.5">
-                This assignment has already been accepted and locked into escrow by specialist{" "}
+                This assignment has already been accepted and secured by specialist{" "}
                 <strong>{invitation.assignedSpecialistName || "an assigned specialist"}</strong>.
               </p>
             </div>
@@ -242,7 +242,7 @@ export default function TaskInvitationPage({
                   <span>Accept Assignment &amp; Set Up Payout</span>
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Register as a specialist to commit to this agreement and lock escrow.
+                  Register as a specialist to commit to this agreement and secure assignment.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleAccept}>
@@ -324,7 +324,7 @@ export default function TaskInvitationPage({
                     />
                     <label htmlFor="agree" className="text-xs text-muted-foreground leading-snug cursor-pointer">
                       I accept this Work Agreement and commit to satisfying the Definition of Done.
-                      I understand funds are secured in PayPal escrow and released upon verification.
+                      I understand funds are secured via PayPal authorization hold and released upon verification.
                     </label>
                   </div>
                 </CardContent>
@@ -335,7 +335,7 @@ export default function TaskInvitationPage({
                     ) : (
                       <CheckCircle2 className="h-4 w-4" />
                     )}
-                    <span>{submitting ? "Securing Escrow..." : "Commit & Open Work Studio"}</span>
+                    <span>{submitting ? "Securing Assignment..." : "Commit & Open Work Studio"}</span>
                   </Button>
                 </CardFooter>
               </form>

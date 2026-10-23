@@ -146,7 +146,7 @@ export function NotificationsBell() {
               </div>
               <p className="text-sm font-medium text-foreground">All caught up</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                New escrow events and verification updates will appear here.
+                New payment events and verification updates will appear here.
               </p>
             </div>
           ) : (

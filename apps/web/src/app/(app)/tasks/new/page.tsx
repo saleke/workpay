@@ -121,7 +121,7 @@ export default function NewTaskPage() {
             Synthesizing contract specification...
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1.5">
-            WorkPay is analyzing your objective, structuring observable acceptance criteria, and preparing the PayPal escrow terms.
+            WorkPay is analyzing your objective, structuring observable acceptance criteria, and preparing the PayPal authorization terms.
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export default function NewTaskPage() {
 
           <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="text-xs text-[var(--text-muted)]">
-              Funds are never deducted now. PayPal escrow is authorized only after you review and approve the structured contract.
+              Funds are never deducted now. PayPal authorization is created only after you review and approve the structured contract.
             </div>
 
             <button

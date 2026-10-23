@@ -12,10 +12,10 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <Wallet className="h-4 w-4 text-primary" /> PayPal Escrow Ledger
+            <Wallet className="h-4 w-4 text-primary" /> PayPal Settlement Ledger
           </CardTitle>
           <CardDescription>
-            No payment has been initialized for this contract yet. Escrow authorization is created once the contract is approved.
+            No payment has been initialized for this contract yet. Authorization hold is created once the contract is approved.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -32,16 +32,16 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
 
   return (
     <div className="grid gap-4">
-      {/* Top Escrow Banner */}
+      {/* Top Settlement Banner */}
       {isCaptured ? (
         <div className="flex items-start gap-3 rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-xs dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200 shrink-0">
             <ShieldCheck className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Escrow Capture Succeeded</div>
+            <div className="font-semibold text-base">Settlement Capture Succeeded</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              {amount} has been captured from escrow authorization hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "specialist account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
+              {amount} has been captured from PayPal authorization hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "specialist account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
             </p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
           <div>
             <div className="font-semibold text-base">PayPal Authorization Hold Active</div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              {amount} is secured in PayPal escrow authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned specialist"}.
+              {amount} is secured in PayPal authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned specialist"}.
             </p>
           </div>
         </div>

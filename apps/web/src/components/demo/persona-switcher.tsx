@@ -352,10 +352,10 @@ export function PersonaSwitcher() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-primary" />
-              WorkPay Protocol Walkthrough: Automated Escrow Lifecycle
+              WorkPay Execution Architecture
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Interactive walkthrough of programmable escrow execution from agreement to verified PayPal release.
+              Autonomous execution and non-custodial PayPal settlement lifecycle.
             </DialogDescription>
           </DialogHeader>
 
@@ -363,10 +363,10 @@ export function PersonaSwitcher() {
             <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <h4 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">1</span>
-                Task Owner Step: Agreement &amp; Escrow Lock
+                Task Owner Step: Agreement &amp; Authorization Hold
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Click <strong>"New Escrow Task"</strong> or select an existing task. Review the Definition of Done, add or customize criteria as needed, and click <strong>"Approve Agreement &amp; Match Specialist"</strong>. The agent reserves funds via PayPal Authorization hold into escrow.
+                Click <strong>"New Task"</strong> or select an existing task. Review the Definition of Done, add or customize criteria as needed, and click <strong>"Approve Agreement &amp; Match Specialist"</strong>. The agent reserves funds via PayPal Authorization hold.
               </p>
             </div>
 
@@ -386,7 +386,7 @@ export function PersonaSwitcher() {
                 Verification Proofs &amp; PayPal Settlement
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                WorkPay automatically inspects the deliverable against the agreed Definition of Done. If flawed, it rejects it and keeps funds safe in escrow. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment and completing the task.
+                WorkPay automatically inspects the deliverable against the agreed Definition of Done. If flawed, it rejects it and preserves the authorization hold for revision. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment directly to the specialist.
               </p>
             </div>
 

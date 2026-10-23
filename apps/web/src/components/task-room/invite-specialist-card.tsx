@@ -63,7 +63,7 @@ export function InviteSpecialistCard({ taskId, isAssigned }: InviteSpecialistCar
           )}
         </div>
         <CardDescription className="text-xs sm:text-sm">
-          Found an eligible candidate on GitHub, open-source repositories, or email? Share this direct, authenticated agreement link. They can review the immutable Definition of Done, register their PayPal payout account, and lock escrow authorization on acceptance.
+          Found an eligible candidate on GitHub, open-source repositories, or email? Share this direct, authenticated agreement link. They can review the immutable Definition of Done, register their PayPal payout account, and secure PayPal authorization hold on acceptance.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">

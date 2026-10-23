@@ -12,11 +12,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="text-xl font-bold tracking-tight text-foreground">WorkPay</span>
-              <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                ESCROW
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                RUNTIME
               </span>
             </div>
-            <span className="text-xs text-muted-foreground">Autonomous Agent Commerce</span>
+            <span className="text-xs text-muted-foreground">Economic Execution System</span>
           </div>
         </Link>
       </div>

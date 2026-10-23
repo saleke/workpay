@@ -213,7 +213,7 @@ export async function POST(
 
     const actor = { kind: "USER" as const, id: userId, role: "provider" as const };
 
-    // 3. Complete atomic assignment & escrow authorization hold
+    // 3. Complete atomic assignment & PayPal authorization hold
     const result = await withTransaction(async (tx) => {
       const agreementId = newId("agreement");
       const deliveryDeadline =
@@ -260,7 +260,7 @@ export async function POST(
         agreementHash,
       });
 
-      // Secure payment in PayPal authorization escrow hold
+      // Secure payment in PayPal authorization hold
       const payment = await ensurePaymentForAgreement(tx, {
         taskId: task.id,
         agreementId,

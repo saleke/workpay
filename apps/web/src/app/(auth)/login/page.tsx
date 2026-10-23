@@ -41,6 +41,7 @@ export default function LoginPage() {
       if (user) {
         window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
         window.localStorage.setItem("workpay_persona", user.role);
+        window.localStorage.removeItem("workpay_signed_out");
         document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
         router.push(user.role === "provider" ? "/provider" : "/tasks");
         router.refresh();
@@ -51,9 +52,19 @@ export default function LoginPage() {
     }
   };
 
+  const DEMO_PROFILES: Record<string, { id: string; name: string; email: string; role: "buyer" | "provider" | "admin_reviewer" }> = {
+    buyer: { id: "usr_buyer_alice", name: "Alice", email: "alice@workpay.local", role: "buyer" },
+    provider: { id: "usr_provider_bob", name: "Bob", email: "bob@workpay.local", role: "provider" },
+    admin_reviewer: { id: "usr_admin_carol", name: "Carol", email: "carol@workpay.local", role: "admin_reviewer" },
+  };
+
   const handleDemoLogin = (role: "buyer" | "provider" | "admin_reviewer", homeUrl: string) => {
-    window.localStorage.removeItem("workpay_auth_user");
+    const profile = DEMO_PROFILES[role];
+    if (profile) {
+      window.localStorage.setItem("workpay_auth_user", JSON.stringify(profile));
+    }
     window.localStorage.setItem("workpay_persona", role);
+    window.localStorage.removeItem("workpay_signed_out");
     document.cookie = `workpay_persona=${role}; path=/; max-age=31536000`;
     router.push(homeUrl);
     router.refresh();
@@ -66,7 +77,7 @@ export default function LoginPage() {
           Sign In to WorkPay
         </CardTitle>
         <CardDescription className="text-xs">
-          Enter your email and password to access your escrow tasks and deliverables.
+          Enter your email and password to access your tasks and deliverables.
         </CardDescription>
       </CardHeader>
 

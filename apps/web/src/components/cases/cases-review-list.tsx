@@ -63,7 +63,7 @@ export function CasesReviewList() {
           Arbitration & Human Review
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Inspect uncertain verifications, evaluate evidence diffs, and rule on PayPal escrow release.
+          Inspect uncertain verifications, evaluate evidence diffs, and rule on settlement capture dispatch.
         </p>
       </div>
 
@@ -127,7 +127,7 @@ export function CasesReviewList() {
               </div>
 
               <div className="text-xs text-[var(--text-muted)]">
-                PayPal escrow funds remain safely locked until an authoritative ruling is submitted below.
+                PayPal authorization hold remains safely locked until an authoritative ruling is submitted below.
               </div>
 
               {!isResolved ? (

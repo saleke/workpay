@@ -21,7 +21,7 @@ export function EnvironmentToggle() {
     if (mode === "demo") {
       toast.success("Switched to Sandbox Environment");
     } else {
-      toast.success("Switched to Live Production Escrow");
+      toast.success("Switched to Live Production Mode");
     }
   };
 
@@ -38,7 +38,7 @@ export function EnvironmentToggle() {
               isDemo ? "bg-[var(--wp-accent)] shadow-[0_0_8px_rgba(183,121,45,0.4)]" : "bg-[var(--wp-success)] shadow-[0_0_8px_rgba(40,122,83,0.4)]"
             }`}
           />
-          <span className="font-medium">{isDemo ? "Sandbox" : "Live Escrow"}</span>
+          <span className="font-medium">{isDemo ? "Sandbox" : "Production"}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 p-2">
@@ -78,7 +78,7 @@ export function EnvironmentToggle() {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-xs text-[var(--wp-text-primary)]">Live Production Escrow</span>
+              <span className="font-semibold text-xs text-[var(--wp-text-primary)]">Live Production Mode</span>
               {!isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-success)]" />}
             </div>
             <p className="text-[11px] text-[var(--wp-text-secondary)] leading-tight mt-0.5">

@@ -24,11 +24,11 @@ export function VerificationView({ verification }: { verification: VerificationD
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">PayPal Escrow Hold Maintained</div>
+            <div className="font-semibold text-base">PayPal Authorization Hold Maintained</div>
             <p className="mt-0.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
               {isFailed
                 ? "The deliverable failed deterministic validation checks. Funds are strictly held in PayPal authorization hold and cannot be captured until a compliant revision is verified."
-                : "Verification requires human arbitration. Funds remain protected in escrow until a reviewer resolves the case."}
+                : "Verification requires human arbitration. Funds remain protected in PayPal authorization hold until an arbitrator resolves the case."}
             </p>
           </div>
         </div>

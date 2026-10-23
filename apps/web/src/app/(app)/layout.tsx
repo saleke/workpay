@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Menu, Plus, X } from "lucide-react";
 import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
-import { PersonaSwitcher } from "@/components/demo/persona-switcher";
 import { UserNav } from "@/components/nav/user-nav";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { useSystemMode } from "@/lib/mode";
@@ -80,7 +79,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Right Controls */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             <EnvironmentToggle />
-            {isDemo ? <PersonaSwitcher /> : <UserNav />}
+            <UserNav />
             <NotificationsBell />
             <Link
               href="/tasks/new"
