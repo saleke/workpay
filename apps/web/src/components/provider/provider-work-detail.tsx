@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Download, FileUp, Play, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,8 +40,14 @@ export function ProviderWorkDetail({
     setError(null);
     const res = await acceptProviderWork(work.executionId, newIdempotencyKey());
     setBusy(null);
-    if (res.error) setError("Could not accept this work. It may have changed.");
-    else onChanged();
+    if (res.error) {
+      const err = "Could not accept this work. It may have changed.";
+      setError(err);
+      toast.error(err);
+    } else {
+      toast.success("Assignment accepted! Escrow authorization locked in PayPal.");
+      onChanged();
+    }
   }, [work.executionId, onChanged]);
 
   const start = useCallback(async () => {
@@ -48,22 +55,34 @@ export function ProviderWorkDetail({
     setError(null);
     const res = await startProviderWork(work.executionId, newIdempotencyKey());
     setBusy(null);
-    if (res.error) setError("Could not start this work.");
-    else onChanged();
+    if (res.error) {
+      const err = "Could not start this work.";
+      setError(err);
+      toast.error(err);
+    } else {
+      toast.success("Execution started. Status updated to in progress.");
+      onChanged();
+    }
   }, [work.executionId, onChanged]);
 
   const submit = useCallback(async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setError("Choose a file to submit.");
+      const err = "Choose a file to submit.";
+      setError(err);
+      toast.error(err);
       return;
     }
     setBusy("submit");
     setError(null);
     const res = await submitDeliverable(work.executionId, file, note.trim(), newIdempotencyKey());
     setBusy(null);
-    if (res.error) setError("The submission could not be recorded. Please try again.");
-    else {
+    if (res.error) {
+      const err = "The submission could not be recorded. Please try again.";
+      setError(err);
+      toast.error(err);
+    } else {
+      toast.success("Deliverable submitted! Automated verification against Definition of Done initiated.");
       setNote("");
       if (fileRef.current) fileRef.current.value = "";
       onChanged();

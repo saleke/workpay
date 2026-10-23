@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { CheckCircle2, XCircle, Plus, Trash2, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,20 +72,25 @@ export function ContractReview({
     setIsModifying(false);
 
     if (res.error) {
-      setCriteriaError("Failed to add criterion. Please try again.");
+      const err = "Failed to add criterion. Please try again.";
+      setCriteriaError(err);
+      toast.error(err);
       return;
     }
 
     if (res.data) {
       setCurrentContract(res.data);
       setNewCriterion("");
+      toast.success("Criterion added to Work Agreement");
       onContractUpdated?.();
     }
   };
 
   const handleDeleteCriterion = async (key: string) => {
     if (currentContract.requirements.length <= 1) {
-      setCriteriaError("A work agreement must retain at least one completion criterion.");
+      const err = "A work agreement must retain at least one completion criterion.";
+      setCriteriaError(err);
+      toast.error(err);
       return;
     }
 
@@ -97,12 +103,15 @@ export function ContractReview({
     setIsModifying(false);
 
     if (res.error) {
-      setCriteriaError("Failed to remove criterion.");
+      const err = "Failed to remove criterion.";
+      setCriteriaError(err);
+      toast.error(err);
       return;
     }
 
     if (res.data) {
       setCurrentContract(res.data);
+      toast.success("Criterion removed from Work Agreement");
       onContractUpdated?.();
     }
   };

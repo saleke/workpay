@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   CheckCircle2,
@@ -54,12 +55,16 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
     setSubmitting(false);
 
     if (res.error) {
-      setErrorMessage("Could not submit check-in. Please try again.");
+      const err = "Could not submit check-in. Please try again.";
+      setErrorMessage(err);
+      toast.error(err);
       return;
     }
 
     setNotes("");
-    setSuccessMessage("Your status check-in has been logged and shared with the task owner.");
+    const msg = "Your status check-in has been logged and shared with the task owner.";
+    setSuccessMessage(msg);
+    toast.success(msg);
     setTimeout(() => setSuccessMessage(null), 4000);
     await loadAudit();
     if (onCheckinSubmitted) onCheckinSubmitted();

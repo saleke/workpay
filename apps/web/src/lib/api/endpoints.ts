@@ -137,6 +137,17 @@ export function listNotifications(): Promise<ApiResponse<NotificationDto[]>> {
   return apiFetch<NotificationDto[]>(`${BASE}/notifications`);
 }
 
+export function markNotificationRead(body: {
+  id?: string;
+  markAllRead?: boolean;
+}): Promise<ApiResponse<{ ok: boolean }>> {
+  return apiFetch<{ ok: boolean }>(`${BASE}/notifications`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 /** Provider portal (B). */
 export function listProviderWork(): Promise<ApiResponse<ProviderWorkDto[]>> {
   return apiFetch<ProviderWorkDto[]>(`${BASE}/provider/work`);

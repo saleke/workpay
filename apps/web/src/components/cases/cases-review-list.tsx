@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Scale } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,8 +41,14 @@ export function CasesReviewList() {
       setErr(null);
       const res = await resolveCase(caseId, { outcome }, newIdempotencyKey());
       setResolving(null);
-      if (res.error) setErr("Could not resolve this case.");
-      else reload();
+      if (res.error) {
+        const msg = "Could not resolve this case.";
+        setErr(msg);
+        toast.error(msg);
+      } else {
+        toast.success(`Case resolved: ${outcome}`);
+        reload();
+      }
     },
     [reload],
   );

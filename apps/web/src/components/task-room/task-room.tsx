@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
 import {
+  ArrowLeft,
+  Check,
   Coins,
+  Copy,
   FileCheck,
   FileText,
   Loader2,
@@ -63,6 +68,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
   const [approving, setApproving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
+
+  const copyTaskId = async () => {
+    try {
+      await navigator.clipboard.writeText(taskId);
+      setCopiedId(true);
+      toast.success("Task ID copied to clipboard");
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch {
+      toast.error("Could not copy Task ID");
+    }
+  };
 
   const refresh = useCallback(() => {
     room.reload();
@@ -98,11 +115,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       );
       setApproving(false);
       if (res.error) {
-        setActionError(
-          "This contract changed since you reviewed it, or the approval could not be recorded. Please refresh and review again.",
-        );
+        const msg =
+          "This contract changed since you reviewed it, or the approval could not be recorded. Please refresh and review again.";
+        setActionError(msg);
+        toast.error(msg);
         return;
       }
+      toast.success("Work Agreement approved and PayPal Escrow authorization locked!");
       refresh();
     },
     [room, refresh],
@@ -110,15 +129,27 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
   const runPlanning = useCallback(async () => {
     setActionError(null);
+    toast.info("Autonomous planner started. Synthesizing specification...");
     const res = await requestPlanning(taskId);
-    if (res.error) setActionError("Planning could not be started. Please try again.");
+    if (res.error) {
+      setActionError("Planning could not be started. Please try again.");
+      toast.error("Planning could not be started.");
+    } else {
+      toast.success("Autonomous specification synthesized!");
+    }
     refresh();
   }, [taskId, refresh]);
 
   const runProviderSearch = useCallback(async () => {
     setActionError(null);
+    toast.info("Scoring and evaluating specialists against contract criteria...");
     const res = await startProviderSearch(taskId);
-    if (res.error) setActionError("Provider search could not be started.");
+    if (res.error) {
+      setActionError("Provider search could not be started.");
+      toast.error("Provider search could not be started.");
+    } else {
+      toast.success("Specialist matched based on criteria fit!");
+    }
     refresh();
   }, [taskId, refresh]);
 
@@ -143,6 +174,45 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Breadcrumb Navigation & Action bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" asChild className="h-7 w-7 rounded-lg">
+            <Link href="/tasks">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="sr-only">Back to tasks</span>
+            </Link>
+          </Button>
+          <div className="flex items-center gap-1.5">
+            <Link href="/tasks" className="hover:underline">
+              Tasks
+            </Link>
+            <span>/</span>
+            <span className="font-mono text-xs text-foreground font-semibold">
+              {taskId.slice(0, 14)}...
+            </span>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={copyTaskId}
+          className="h-7 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground rounded-lg"
+        >
+          {copiedId ? (
+            <>
+              <Check className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              <span>Copy Task ID</span>
+            </>
+          )}
+        </Button>
+      </div>
+
       {/* Hero Task Header */}
       <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-blue-50/30 dark:to-blue-950/20 p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

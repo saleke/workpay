@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Check, Copy, ExternalLink, ShieldCheck, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function InviteSpecialistCard({ taskId, isAssigned }: InviteSpecialistCar
     try {
       await navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
+      toast.success("Invitation link copied to clipboard!");
       setTimeout(() => setCopied(false), 2500);
     } catch {
       // Fallback for older browsers
@@ -37,6 +39,7 @@ export function InviteSpecialistCard({ taskId, isAssigned }: InviteSpecialistCar
       document.execCommand("copy");
       document.body.removeChild(input);
       setCopied(true);
+      toast.success("Invitation link copied to clipboard!");
       setTimeout(() => setCopied(false), 2500);
     }
   };

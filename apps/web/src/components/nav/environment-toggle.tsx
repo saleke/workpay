@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, FlaskConical, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { useSystemMode } from "@/lib/mode";
 import {
   DropdownMenu,
@@ -13,6 +14,16 @@ import {
 
 export function EnvironmentToggle() {
   const { isDemo, setMode } = useSystemMode();
+
+  const handleSelectMode = (mode: "demo" | "production") => {
+    if ((mode === "demo" && isDemo) || (mode === "production" && !isDemo)) return;
+    setMode(mode);
+    if (mode === "demo") {
+      toast.success("Switched to Sandbox Environment");
+    } else {
+      toast.success("Switched to Live Production Escrow");
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -43,7 +54,7 @@ export function EnvironmentToggle() {
         <DropdownMenuSeparator className="my-1" />
 
         <DropdownMenuItem
-          onClick={() => setMode("demo")}
+          onClick={() => handleSelectMode("demo")}
           className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer ${
             isDemo ? "bg-accent/80 font-medium" : "hover:bg-muted/60"
           }`}
@@ -61,7 +72,7 @@ export function EnvironmentToggle() {
         </DropdownMenuItem>
 
         <DropdownMenuItem
-          onClick={() => setMode("production")}
+          onClick={() => handleSelectMode("production")}
           className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer ${
             !isDemo ? "bg-accent/80 font-medium" : "hover:bg-muted/60"
           }`}
