@@ -7,6 +7,12 @@ import {
   extractMultiSlotAnswers,
   evaluateFeasibility,
 } from "./consultation.js";
+import { analyzeUniversal4DMatrix, type Universal4DMatrix } from "./matrix.js";
+import {
+  evaluateCommodityFilter,
+  generateStrategicMacroDifferentiators,
+  type MacroDifferentiatorSlot,
+} from "./commodity-filter.js";
 import type {
   CognitiveScopeCanvas,
   DimensionStatus,
@@ -80,11 +86,13 @@ export function detectTechnicalLiteracy(text: string): number {
 /**
  * Layer 2: Parameter Matrix & Information Threshold Gauge.
  * Evaluates the 4 core dimensions: Core Objective, Technical Constraints, Validation Proof, Boundary Constraints.
+ * Incorporates the Universal 4-Dimensional Task Matrix (Substance, Scale, Inertia, Criticality).
  */
 export function evaluateInformationThreshold(
   rawGoal: string,
   domain: DomainDefinition,
   filledSlots: Record<string, string>,
+  matrix?: Universal4DMatrix,
 ): {
   gauge: number;
   dimensions: Record<ScopingDimensionKey, ScopingDimensionState>;
@@ -94,28 +102,59 @@ export function evaluateInformationThreshold(
   const goalLength = rawGoal.trim().length;
   const isGoalSubstantial = goalLength >= 15;
 
-  // 1. Core Objective
+  // 1. Core Objective (Substance & Raw Goal)
+  const hasSubstance = Boolean(matrix?.substance?.type);
   const hasCoreObjective = isGoalSubstantial;
-  const coreScore = hasCoreObjective ? Math.min(100, Math.max(60, goalLength * 2)) : 30;
+  const coreScore = hasCoreObjective
+    ? Math.min(100, Math.max(80, goalLength * 2 + (hasSubstance ? 15 : 0)))
+    : 30;
   const coreStatus: DimensionStatus = coreScore >= 80 ? "satisfied" : coreScore >= 50 ? "partial" : "missing";
 
-  // 2. Technical Constraints
+  // 2. Technical Constraints (Architecture & Structural Scale)
+  const isScaleDefined = Boolean(
+    matrix?.structuralScale.isDefined ||
+    filledSlots.structuralScale ||
+    filledSlots.unitOfMeasurement,
+  );
   const techSlots = domain.slots.filter((s) => s.dimension === "technicalConstraints");
   const techFilled = techSlots.filter((s) => Boolean(filledSlots[s.slotKey]));
-  const techScore = techSlots.length === 0 ? 80 : Math.round((techFilled.length / techSlots.length) * 100);
+  let techScore = techSlots.length === 0 ? 80 : Math.round((techFilled.length / techSlots.length) * 100);
+  if (isScaleDefined) {
+    techScore = Math.max(techScore, techFilled.length > 0 || techSlots.length === 0 ? 100 : 85);
+  }
   const techStatus: DimensionStatus = techScore >= 80 ? "satisfied" : techScore >= 40 ? "partial" : "missing";
 
-  // 3. Validation Proof
+  // 3. Validation Proof (Objective Verification Mechanism)
   const valSlots = domain.slots.filter((s) => s.dimension === "validationProof");
   const valFilled = valSlots.filter((s) => Boolean(filledSlots[s.slotKey]));
-  const hasValidation = valFilled.length > 0 || filledSlots.validationProof;
+  const hasValidation = valFilled.length > 0 || Boolean(filledSlots.validationProof);
   const valScore = hasValidation ? 100 : 25;
   const valStatus: DimensionStatus = valScore >= 80 ? "satisfied" : "missing";
 
-  // 4. Boundary Constraints
+  // 4. Boundary Constraints (System Inertia & Operational Limits)
+  const isBrownfield = matrix?.systemInertia.type === "brownfield";
+  const hasInertiaAccess =
+    !isBrownfield ||
+    Boolean(
+      filledSlots.systemInertiaAccess ||
+      filledSlots.accessMode ||
+      filledSlots.networkScope ||
+      filledSlots.environment ||
+      filledSlots.cloudEnvironment ||
+      filledSlots.securityTarget ||
+      filledSlots.deliverableFormat ||
+      filledSlots.automationArchitecture ||
+      filledSlots.customScopeNotes ||
+      filledSlots.inventorySource,
+    );
   const boundSlots = domain.slots.filter((s) => s.dimension === "boundaryConstraints");
   const boundFilled = boundSlots.filter((s) => Boolean(filledSlots[s.slotKey]));
-  const boundScore = boundSlots.length === 0 ? 80 : Math.round((boundFilled.length / boundSlots.length) * 100);
+  let boundScore = boundSlots.length === 0 ? 80 : Math.round((boundFilled.length / boundSlots.length) * 100);
+  if (hasInertiaAccess && (boundFilled.length > 0 || boundSlots.length === 0)) {
+    boundScore = 100;
+  } else if (!hasInertiaAccess) {
+    boundScore = Math.min(boundScore, 40);
+  }
   const boundStatus: DimensionStatus = boundScore >= 80 ? "satisfied" : boundScore >= 40 ? "partial" : "missing";
 
   const dimensions: Record<ScopingDimensionKey, ScopingDimensionState> = {
@@ -125,7 +164,9 @@ export function evaluateInformationThreshold(
       status: coreStatus,
       score: coreScore,
       summary: hasCoreObjective
-        ? `Deliverable identified: "${rawGoal.slice(0, 60)}${rawGoal.length > 60 ? "..." : ""}"`
+        ? `Deliverable identified: "${rawGoal.slice(0, 60)}${rawGoal.length > 60 ? "..." : ""}"${
+            matrix ? ` (${matrix.substance.label})` : ""
+          }`
         : "Initial objective statement is very brief and needs clarification.",
       details: [hasCoreObjective ? "Objective scope captured" : "Awaiting detailed asset description"],
     },
@@ -135,8 +176,10 @@ export function evaluateInformationThreshold(
       status: techStatus,
       score: techScore,
       summary:
-        techFilled.length > 0
-          ? `${techFilled.length} of ${techSlots.length} technical architecture decisions confirmed.`
+        techFilled.length > 0 || isScaleDefined
+          ? `${techFilled.length} of ${techSlots.length} technical architecture decisions confirmed.${
+              isScaleDefined ? ` Scale: ${filledSlots.structuralScale || matrix?.structuralScale.estimatedVolume || "Defined"}.` : ""
+            }`
           : "Architecture, data sources, and platform constraints not yet selected.",
       details: techSlots.map((s) =>
         filledSlots[s.slotKey]
@@ -160,8 +203,10 @@ export function evaluateInformationThreshold(
       status: boundStatus,
       score: boundScore,
       summary:
-        boundFilled.length > 0
-          ? "Execution limits, out-of-scope boundaries, and delivery rules structured."
+        boundFilled.length > 0 || hasInertiaAccess
+          ? `Execution limits and delivery rules structured.${
+              isBrownfield ? ` Access: ${filledSlots.systemInertiaAccess || "Staging sandbox"}.` : " Greenfield zero-inertia canvas."
+            }`
           : "Operational limits, turnaround timelines, and failure boundaries need specification.",
       details: boundSlots.map((s) =>
         filledSlots[s.slotKey]
@@ -227,13 +272,14 @@ export function extractUserBudget(text: string): number | null {
 
 /**
  * Calculates a dynamic, realistic budget estimate based on domain complexity,
- * custom user requirements, and any explicitly declared client budget.
+ * custom user requirements, declared client budget, and Universal 4D Task Matrix drivers.
  */
 export function calculateDynamicEstimatedBudget(
   domain: DomainDefinition,
   rawGoal: string,
   filledSlots: Record<string, string>,
   fullContext: string,
+  matrix?: Universal4DMatrix,
 ): { estimatedBudgetMinor: number; targetTimelineDays: number } {
   // Check if explicit budget was captured or parsed
   const explicitBudget =
@@ -290,6 +336,24 @@ export function calculateDynamicEstimatedBudget(
     days = Math.max(2, Math.round(days * 0.7));
   }
 
+  // Universal 4D Task Matrix: Scale, Inertia, and Criticality Drivers
+  if (matrix) {
+    if (matrix.structuralScale.scalingMultiplier > 1.0) {
+      calculatedMinor = Math.round(calculatedMinor * matrix.structuralScale.scalingMultiplier);
+      if (matrix.structuralScale.scalingMultiplier > 1.3) {
+        days = Math.round(days * (matrix.structuralScale.scalingMultiplier * 0.8));
+      }
+    }
+    if (matrix.systemInertia.type === "brownfield") {
+      calculatedMinor = Math.round(calculatedMinor * 1.2);
+      days = Math.round(days * 1.25);
+    }
+    if (matrix.complianceCriticality.level === "high") {
+      calculatedMinor = Math.round(calculatedMinor * 1.25);
+      days = Math.max(days, 5);
+    }
+  }
+
   // Feature add-ons
   if (filledSlots.fulfillmentModel?.includes("Shipping")) {
     calculatedMinor += 10000; // Carrier integration and live rates (+$100)
@@ -322,14 +386,17 @@ export function buildCognitiveScopeCanvas(
   filledSlots: Record<string, string>,
   literacyLevel: number,
   fullTextContext?: string,
+  matrix?: Universal4DMatrix,
 ): CognitiveScopeCanvas {
   const title = deriveProjectTitle(rawGoal, domain);
+  const taskMatrix = matrix || analyzeUniversal4DMatrix(rawGoal, fullTextContext);
 
   const budgetEstimate = calculateDynamicEstimatedBudget(
     domain,
     rawGoal,
     filledSlots,
     fullTextContext || rawGoal,
+    taskMatrix,
   );
   const estimatedBudgetMinor = budgetEstimate.estimatedBudgetMinor;
   const targetTimelineDays = budgetEstimate.targetTimelineDays;
@@ -457,6 +524,14 @@ export function buildCognitiveScopeCanvas(
     "Observable verification test proof and validation report",
   ];
 
+  if (taskMatrix.systemInertia.type === "brownfield") {
+    boundariesAndLimits += ` [System Inertia: Brownfield] Work strictly bounded to existing documented infrastructure. Access mode: ${filledSlots.systemInertiaAccess || "Staging sandbox simulation"}.`;
+  }
+  if (taskMatrix.structuralScale.estimatedVolume || filledSlots.structuralScale) {
+    const scaleDesc = filledSlots.structuralScale || taskMatrix.structuralScale.estimatedVolume;
+    boundariesAndLimits += ` [Structural Scale Bound: ${scaleDesc}].`;
+  }
+
   const acceptanceCriteria = [
     {
       key: "functional_core_delivery",
@@ -478,6 +553,15 @@ export function buildCognitiveScopeCanvas(
     },
   ];
 
+  if (taskMatrix.complianceCriticality.level === "high") {
+    acceptanceCriteria.push({
+      key: "high_criticality_review_gate",
+      statement: `Compliance & Criticality Gate: Mandated extended ${taskMatrix.complianceCriticality.verificationWindowHours}-hour soak review and multi-party sign-off before PayPal payment authorization settlement.`,
+      verificationMethod: "HUMAN_REVIEW" as const,
+      proofMechanism: "Multi-party attestation confirming zero unresolved security, financial, or data compliance issues.",
+    });
+  }
+
   return {
     title,
     domain: domain.label,
@@ -488,6 +572,9 @@ export function buildCognitiveScopeCanvas(
     estimatedBudgetMinor,
     currency: "USD",
     targetTimelineDays,
+    taskMatrix,
+    verificationWindowHours: taskMatrix.complianceCriticality.verificationWindowHours,
+    requiresHumanReviewGate: taskMatrix.complianceCriticality.requiresHumanReviewGate,
     deliverables,
     acceptanceCriteria,
     suggestedMilestones: milestones,
@@ -540,6 +627,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
 
   const domain = matchDomain(fullTextContext);
   const literacyLevel = request.literacyLevel || detectTechnicalLiteracy(fullTextContext);
+  const matrix = analyzeUniversal4DMatrix(rootGoal, fullTextContext);
 
   // Check if an explicit budget was declared
   let declaredBudget: number | undefined = request.customBudgetMinor;
@@ -554,35 +642,74 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   let recommendedOptionId: string | null = null;
   let isClarificationQuery = false;
 
+  const macroSlots = generateStrategicMacroDifferentiators(matrix, rootGoal, incomingSlots);
+
   // 1. If user selected an option from the previous turn, map it to the corresponding slot
   if (request.selectedOptionId) {
-    for (const slotDef of domain.slots) {
+    let matched = false;
+    for (const slotDef of macroSlots) {
       const match = slotDef.options.find((opt) => opt.id === request.selectedOptionId);
       if (match) {
         incomingSlots[slotDef.slotKey] = match.value;
-        if (slotDef.dimension === "validationProof") {
+        if (slotDef.dimension === "scale") {
+          incomingSlots.structuralScale = match.value;
+        } else if (slotDef.dimension === "inertia") {
+          incomingSlots.systemInertiaAccess = match.value;
+        } else if (slotDef.dimension === "criticality" || slotDef.slotKey === "validationProof") {
           incomingSlots.validationProof = match.value;
         }
+        matched = true;
         break;
+      }
+    }
+    if (!matched) {
+      for (const slotDef of domain.slots) {
+        const match = slotDef.options.find((opt) => opt.id === request.selectedOptionId);
+        if (match) {
+          incomingSlots[slotDef.slotKey] = match.value;
+          if (slotDef.dimension === "validationProof") {
+            incomingSlots.validationProof = match.value;
+          }
+          break;
+        }
       }
     }
   } else if (history.length > 0) {
     // 2. Custom reply submitted by the user in response to the active question
     const targetSlotKey =
       request.activeSlotKey ||
+      macroSlots.find((s) => !incomingSlots[s.slotKey])?.slotKey ||
       domain.slots.find((s) => !incomingSlots[s.slotKey])?.slotKey ||
       "customScopeNotes";
-    const targetSlotDef = domain.slots.find((s) => s.slotKey === targetSlotKey);
+
+    const macroMatch = macroSlots.find((s) => s.slotKey === targetSlotKey);
+    const domainMatch = domain.slots.find((s) => s.slotKey === targetSlotKey);
+    const targetSlotDef =
+      domainMatch ||
+      (macroMatch
+        ? {
+            slotKey: macroMatch.slotKey,
+            label: macroMatch.label,
+            dimension:
+              macroMatch.dimension === "scale"
+                ? ("technicalConstraints" as const)
+                : macroMatch.dimension === "inertia"
+                ? ("boundaryConstraints" as const)
+                : ("validationProof" as const),
+            questionLayman: macroMatch.question,
+            questionTechnical: macroMatch.question,
+            helperContextLayman: macroMatch.helperContext,
+            helperContextTechnical: macroMatch.helperContext,
+            options: macroMatch.options,
+          }
+        : undefined);
 
     // Classify user turn intent (clarification query vs answer)
     const turnIntent = classifyUserTurnIntent(request.message, targetSlotDef);
 
     if (turnIntent.type === "CLARIFICATION_QUERY") {
       isClarificationQuery = true;
-      const activeSlotForAdvisory =
-        targetSlotDef ||
-        domain.slots.find((s) => !incomingSlots[s.slotKey]) ||
-        domain.slots[0];
+      const activeSlotForAdvisory = targetSlotDef || domain.slots[0];
 
       if (activeSlotForAdvisory) {
         const advisory = generateConsultativeAdvisory(
@@ -597,7 +724,11 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       // User provided an answer
       if (targetSlotKey) {
         incomingSlots[targetSlotKey] = request.message.trim();
-        if (
+        if (targetSlotKey === "structuralScale") {
+          incomingSlots.structuralScale = request.message.trim();
+        } else if (targetSlotKey === "systemInertiaAccess") {
+          incomingSlots.systemInertiaAccess = request.message.trim();
+        } else if (
           targetSlotKey === "validationProof" ||
           request.message.toLowerCase().includes("test") ||
           request.message.toLowerCase().includes("verify") ||
@@ -641,8 +772,8 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
     }
   }
 
-  // Evaluate the 4 baseline dimensions using root goal
-  const evaluation = evaluateInformationThreshold(rootGoal, domain, incomingSlots);
+  // Evaluate the 4 baseline dimensions using root goal & matrix
+  const evaluation = evaluateInformationThreshold(rootGoal, domain, incomingSlots, matrix);
 
   // Determine dialogue history
   const dialogueTurn: ScopingDialogueTurn = {
@@ -697,13 +828,14 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       });
     }
   } else if (evaluation.thresholdMet) {
-    // Generate the Reverse Pitch Canvas using the root user objective and full context
+    // Generate the Reverse Pitch Canvas using the root user objective, full context, and 4D matrix
     reversePitchCanvas = buildCognitiveScopeCanvas(
       rootGoal,
       domain,
       incomingSlots,
       literacyLevel,
       fullTextContext,
+      matrix,
     );
 
     // Run Feasibility & Scope-Trimming Advisory
@@ -729,20 +861,48 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       timestamp: new Date().toISOString(),
     });
   } else {
-    // Locate the first unfilled slot for this domain
-    const unfilledSlot = domain.slots.find((s) => !incomingSlots[s.slotKey]);
+    // 1. Evaluate domain slots against the Dynamic Commodity Filter (The Value Screen)
+    const valueScreenedDomainSlots = domain.slots.filter((s) => {
+      if (incomingSlots[s.slotKey]) return false;
+      const screen = evaluateCommodityFilter(`${s.slotKey} ${s.dimension} ${s.questionLayman} ${s.questionTechnical}`);
+      return screen.passesValueScreen;
+    });
 
-    if (unfilledSlot) {
-      currentSlotKey = unfilledSlot.slotKey;
+    // 2. Evaluate Strategic Macro-Differentiator Slots (Scale, Brownfield Access, Validation Proof)
+    const currentMacroSlots = generateStrategicMacroDifferentiators(matrix, rootGoal, incomingSlots);
+    const unfilledMacroSlot = currentMacroSlots.find((s) => !incomingSlots[s.slotKey]);
+
+    if (valueScreenedDomainSlots.length > 0) {
+      const nextSlot = valueScreenedDomainSlots[0]!;
+      currentSlotKey = nextSlot.slotKey;
       currentQuestion =
-        literacyLevel <= 2 ? unfilledSlot.questionLayman : unfilledSlot.questionTechnical;
+        literacyLevel <= 2 ? nextSlot.questionLayman : nextSlot.questionTechnical;
       currentHelperContext =
-        literacyLevel <= 2 ? unfilledSlot.helperContextLayman : unfilledSlot.helperContextTechnical;
-      currentOptions = unfilledSlot.options;
+        literacyLevel <= 2 ? nextSlot.helperContextLayman : nextSlot.helperContextTechnical;
+      currentOptions = nextSlot.options;
 
       let introLead = "Got it! ";
       if (history.length === 0) {
         introLead = `Great objective. To structure the exact blueprints for your specialist, I need to understand a few key decisions. `;
+      } else if (!request.selectedOptionId) {
+        introLead = "Noted your specification. ";
+      }
+
+      updatedDialogue.push({
+        id: `turn_ai_${randomUUID()}`,
+        role: "assistant",
+        content: `${introLead}${currentQuestion}`,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (unfilledMacroSlot) {
+      currentSlotKey = unfilledMacroSlot.slotKey;
+      currentQuestion = unfilledMacroSlot.question;
+      currentHelperContext = unfilledMacroSlot.helperContext;
+      currentOptions = unfilledMacroSlot.options;
+
+      let introLead = "Got it! ";
+      if (history.length === 0) {
+        introLead = `Great objective. To calibrate engineering hours and milestone criteria, `;
       } else if (!request.selectedOptionId) {
         introLead = "Noted your specification. ";
       }
@@ -811,6 +971,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
     detectedResources,
     allowCustomInput: true,
     reversePitchCanvas,
+    taskMatrix: matrix,
   };
 }
 

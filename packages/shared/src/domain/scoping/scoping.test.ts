@@ -5,6 +5,11 @@ import {
   processScopingTurn,
 } from "./engine.js";
 import { matchDomain } from "./capability-tree.js";
+import { analyzeUniversal4DMatrix } from "./matrix.js";
+import {
+  evaluateCommodityFilter,
+  generateStrategicMacroDifferentiators,
+} from "./commodity-filter.js";
 
 describe("Consultative Scoping & Information Threshold Model", () => {
   describe("Layer 1: Domain & Mental Model Classifier", () => {
@@ -389,5 +394,111 @@ describe("Consultative Scoping & Information Threshold Model", () => {
       expect(underfundedTurn.scopeTrimmingAdvisory).toContain("Phase 1");
     });
   });
+
+  describe("The Universal 4-Dimensional Task Matrix", () => {
+    it("Dimension 1: Substance & Medium - extracts raw material and maps to objective verification proof", () => {
+      // Code & Data -> API Check
+      const codeMatrix = analyzeUniversal4DMatrix("Build a FastAPI backend with 12 PostgreSQL endpoints");
+      expect(codeMatrix.substance.type).toBe("code_data");
+      expect(codeMatrix.substance.verificationProofType).toBe("API_CHECK");
+
+      // Prose & Text -> Originality Audit
+      const proseMatrix = analyzeUniversal4DMatrix("Write a 3,000 word whitepaper on distributed consensus");
+      expect(proseMatrix.substance.type).toBe("prose_text");
+      expect(proseMatrix.substance.verificationProofType).toBe("ORIGINALITY_AUDIT");
+
+      // Static Visuals -> Structural Asset Check
+      const visualMatrix = analyzeUniversal4DMatrix("Design a modern brand identity logo suite and Figma UI kit");
+      expect(visualMatrix.substance.type).toBe("static_visuals");
+      expect(visualMatrix.substance.verificationProofType).toBe("STRUCTURAL_ASSET_CHECK");
+
+      // Time & Presence -> Mutual Attestation
+      const timeMatrix = analyzeUniversal4DMatrix("Schedule a 3-hour pair programming and system architecture advisory session");
+      expect(timeMatrix.substance.type).toBe("time_presence");
+      expect(timeMatrix.substance.verificationProofType).toBe("MUTUAL_ATTESTATION");
+
+      // Physical Assets -> Physical Proof
+      const physicalMatrix = analyzeUniversal4DMatrix("Install and wire server rack equipment switch hardware in Austin datacenter");
+      expect(physicalMatrix.substance.type).toBe("physical_assets");
+      expect(physicalMatrix.substance.verificationProofType).toBe("PHYSICAL_PROOF");
+    });
+
+    it("Dimension 2: Structural Scale - extracts dynamic volume units and applies scaling multiplier", () => {
+      // High volume endpoints (> 10)
+      const matrix = analyzeUniversal4DMatrix("Create 15 API endpoints for payment processing and accounts");
+      expect(matrix.structuralScale.isDefined).toBe(true);
+      expect(matrix.structuralScale.estimatedVolume).toContain("15 API endpoints");
+      expect(matrix.structuralScale.scalingMultiplier).toBeGreaterThan(1.0);
+
+      // Deep prose (> 2500 words)
+      const prose = analyzeUniversal4DMatrix("Draft a 4,000 word technical specification document");
+      expect(prose.structuralScale.isDefined).toBe(true);
+      expect(prose.structuralScale.estimatedVolume).toContain("4,000 words");
+      expect(prose.structuralScale.scalingMultiplier).toBeGreaterThan(1.0);
+    });
+
+    it("Dimension 3: System Inertia - discovers Greenfield vs Brownfield and injects access questions", () => {
+      // Greenfield
+      const greenfield = analyzeUniversal4DMatrix("Build a new logo and visual branding from scratch");
+      expect(greenfield.systemInertia.type).toBe("greenfield");
+      expect(greenfield.systemInertia.discoveryRisk).toBe("low");
+      expect(greenfield.systemInertia.requiresAccessAudit).toBe(false);
+
+      // Brownfield
+      const brownfield = analyzeUniversal4DMatrix("Fix a bug in our existing Shopify app and refactor database query");
+      expect(brownfield.systemInertia.type).toBe("brownfield");
+      expect(brownfield.systemInertia.discoveryRisk).toBe("high");
+      expect(brownfield.systemInertia.requiresAccessAudit).toBe(true);
+      expect(brownfield.systemInertia.brownfieldDiscoveryQuestions.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("Dimension 4: Compliance & Criticality - scales verification window and mandates human-in-the-loop review", () => {
+      // High criticality (financial / medical / security)
+      const highCrit = analyzeUniversal4DMatrix("Migrate production database and integrate live PayPal payment banking flows");
+      expect(highCrit.complianceCriticality.level).toBe("high");
+      expect(highCrit.complianceCriticality.verificationWindowHours).toBe(120);
+      expect(highCrit.complianceCriticality.requiresHumanReviewGate).toBe(true);
+
+      // Low criticality
+      const lowCrit = analyzeUniversal4DMatrix("Create a rough internal draft slide deck prototype");
+      expect(lowCrit.complianceCriticality.level).toBe("low");
+      expect(lowCrit.complianceCriticality.verificationWindowHours).toBe(48);
+      expect(lowCrit.complianceCriticality.requiresHumanReviewGate).toBe(false);
+    });
+  });
+
+  describe("The Dynamic Commodity Filter (The Value Screen)", () => {
+    it("passes variables that directly impact price, hours, or PayPal hold release verification", () => {
+      const priceResult = evaluateCommodityFilter("API endpoints volume and database schema architecture");
+      expect(priceResult.passesValueScreen).toBe(true);
+      expect(priceResult.impactsPriceOrHours).toBe(true);
+
+      const verificationResult = evaluateCommodityFilter("Automated test suite coverage benchmark with passing exit code");
+      expect(verificationResult.passesValueScreen).toBe(true);
+      expect(verificationResult.impactsVerificationProof).toBe(true);
+    });
+
+    it("discards commodity trivia and cosmetic noise that do not impact engineering scope or settlement", () => {
+      const triviaResult = evaluateCommodityFilter("Make the button color blue with a cool name");
+      expect(triviaResult.passesValueScreen).toBe(false);
+      expect(triviaResult.rationale).toContain("commodity trivia");
+    });
+  });
+
+  describe("Strategic Macro-Differentiator Matrix", () => {
+    it("dynamically extracts only 2 or 3 high-impact operational variables without static hardcoding", () => {
+      const matrix = analyzeUniversal4DMatrix("Fix failing endpoints in our live payment microservice");
+      const differentiators = generateStrategicMacroDifferentiators(matrix, "Fix failing endpoints in our live payment microservice", {});
+
+      expect(differentiators.length).toBeLessThanOrEqual(3);
+      expect(differentiators.length).toBeGreaterThanOrEqual(2);
+
+      const keys = differentiators.map((d) => d.slotKey);
+      expect(keys).toContain("structuralScale");
+      expect(keys).toContain("systemInertiaAccess");
+      expect(keys).toContain("validationProof");
+    });
+  });
 });
+
 

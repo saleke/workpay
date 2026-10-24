@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Universal4DMatrix } from "./matrix.js";
 
 export type ScopingDimensionKey =
   | "coreObjective"
@@ -49,6 +50,9 @@ export interface CognitiveScopeCanvas {
   targetTimelineDays: number;
   feasibilityRating?: "healthy" | "tight" | "underfunded";
   scopeTrimmingAdvisory?: string;
+  taskMatrix?: Universal4DMatrix;
+  verificationWindowHours?: number;
+  requiresHumanReviewGate?: boolean;
   deliverables: string[];
   acceptanceCriteria: Array<{
     key: string;
@@ -88,6 +92,7 @@ export interface ScopingSessionState {
   detectedResources?: { repo?: boolean; schema?: boolean; logs?: boolean };
   allowCustomInput: boolean;
   reversePitchCanvas: CognitiveScopeCanvas | null;
+  taskMatrix?: Universal4DMatrix;
   baselineFrozenAt?: string;
 }
 
@@ -132,6 +137,9 @@ export const finalizeScopeSchema = z.object({
     estimatedBudgetMinor: z.number().int().positive(),
     currency: z.string().default("USD"),
     targetTimelineDays: z.number().int().positive(),
+    verificationWindowHours: z.number().int().positive().optional(),
+    requiresHumanReviewGate: z.boolean().optional(),
+    taskMatrix: z.any().optional(),
     deliverables: z.array(z.string()),
     acceptanceCriteria: z.array(
       z.object({

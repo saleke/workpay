@@ -55,6 +55,7 @@ export default function NewTaskPage() {
   const [finalizing, setFinalizing] = useState(false);
   const [sessionState, setSessionState] = useState<ScopingSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [humanReviewAcknowledged, setHumanReviewAcknowledged] = useState(false);
 
   // Contextual resource ingestion state
   const [showResourceDrawer, setShowResourceDrawer] = useState(false);
@@ -280,6 +281,7 @@ export default function NewTaskPage() {
     setSchemaSpec("");
     setErrorLogs("");
     setError(null);
+    setHumanReviewAcknowledged(false);
   };
 
   // Manual Mode Form Submission
@@ -513,6 +515,25 @@ export default function NewTaskPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Universal 4D Task Matrix Live Classification */}
+              {sessionState?.taskMatrix && (
+                <div className="pt-3 border-t border-[var(--wp-border)]/70 flex flex-wrap items-center gap-2 text-[10px]">
+                  <span className="font-mono uppercase font-semibold text-[var(--wp-text-secondary)]">4D Task Matrix:</span>
+                  <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-mono text-[10px]">
+                    1. {sessionState.taskMatrix.substance.label} ({sessionState.taskMatrix.substance.verificationProofType})
+                  </Badge>
+                  <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-mono text-[10px]">
+                    2. Scale: {sessionState.taskMatrix.structuralScale.estimatedVolume || sessionState.taskMatrix.structuralScale.unitLabel}
+                  </Badge>
+                  <Badge variant="outline" className={`font-mono text-[10px] ${sessionState.taskMatrix.systemInertia.type === "brownfield" ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+                    3. Inertia: {sessionState.taskMatrix.systemInertia.type === "brownfield" ? "Brownfield (Live System)" : "Greenfield (Blank Canvas)"}
+                  </Badge>
+                  <Badge variant="outline" className={`font-mono text-[10px] ${sessionState.taskMatrix.complianceCriticality.level === "high" ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400" : "border-neutral-500/30 bg-neutral-500/10 text-[var(--wp-text-secondary)]"}`}>
+                    4. Risk: {sessionState.taskMatrix.complianceCriticality.level === "high" ? "High Criticality (120h Window)" : `${sessionState.taskMatrix.complianceCriticality.verificationWindowHours}h Window`}
+                  </Badge>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -958,6 +979,75 @@ export default function NewTaskPage() {
                     </div>
                   </div>
 
+                  {/* Universal 4D Task Matrix Blueprint */}
+                  {sessionState.reversePitchCanvas.taskMatrix && (
+                    <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Compass className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                            Universal 4-Dimensional Task Matrix Classification
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-mono border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                          Programmatic Scope Blueprint
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-[11px]">
+                        <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-background space-y-1">
+                          <span className="text-[10px] uppercase font-mono text-[var(--wp-text-secondary)] block">1. Substance & Proof</span>
+                          <div className="font-semibold text-[var(--wp-text-primary)]">
+                            {sessionState.reversePitchCanvas.taskMatrix.substance.label}
+                          </div>
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block font-mono">
+                            {sessionState.reversePitchCanvas.taskMatrix.substance.verificationProofType}
+                          </span>
+                          <p className="text-[10px] text-[var(--wp-text-secondary)] leading-tight">
+                            {sessionState.reversePitchCanvas.taskMatrix.substance.recommendedProofMechanism}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-background space-y-1">
+                          <span className="text-[10px] uppercase font-mono text-[var(--wp-text-secondary)] block">2. Structural Scale</span>
+                          <div className="font-semibold text-[var(--wp-text-primary)]">
+                            {sessionState.reversePitchCanvas.taskMatrix.structuralScale.estimatedVolume || "Custom Defined Volume"}
+                          </div>
+                          <span className="text-[10px] text-[var(--wp-text-secondary)] block">
+                            Unit: {sessionState.reversePitchCanvas.taskMatrix.structuralScale.unitLabel}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-background space-y-1">
+                          <span className="text-[10px] uppercase font-mono text-[var(--wp-text-secondary)] block">3. System Inertia</span>
+                          <div className="font-semibold text-[var(--wp-text-primary)]">
+                            {sessionState.reversePitchCanvas.taskMatrix.systemInertia.type === "brownfield"
+                              ? "Brownfield (Existing System)"
+                              : "Greenfield (Blank Canvas)"}
+                          </div>
+                          <span className={`text-[10px] font-mono block ${sessionState.reversePitchCanvas.taskMatrix.systemInertia.discoveryRisk === "high" ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            Discovery Risk: {sessionState.reversePitchCanvas.taskMatrix.systemInertia.discoveryRisk.toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg border border-[var(--wp-border)] bg-background space-y-1">
+                          <span className="text-[10px] uppercase font-mono text-[var(--wp-text-secondary)] block">4. Compliance & Window</span>
+                          <div className="font-semibold text-[var(--wp-text-primary)]">
+                            {sessionState.reversePitchCanvas.taskMatrix.complianceCriticality.label}
+                          </div>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono block">
+                            {sessionState.reversePitchCanvas.verificationWindowHours || 72}-Hour Inspection Window
+                          </span>
+                          {sessionState.reversePitchCanvas.requiresHumanReviewGate && (
+                            <Badge className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-[9px] mt-0.5">
+                              Human Review Gate Mandated
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Suggested Milestones Blueprint */}
                   <div className="space-y-3 pt-2">
                     <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
@@ -1001,6 +1091,30 @@ export default function NewTaskPage() {
                     </div>
                   </div>
 
+                  {/* High-Criticality Human Review Gate */}
+                  {sessionState.reversePitchCanvas.requiresHumanReviewGate && (
+                    <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 space-y-2 text-xs">
+                      <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-semibold text-xs">
+                        <ShieldCheck className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <span>High-Criticality Compliance Gate & Extended Verification Soak Window</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                        This task involves financial, live database, or high-security operational data. WorkPay has scaled the inspection hold window to {sessionState.reversePitchCanvas.verificationWindowHours || 120} hours and mandates explicit verification confirmation before PayPal settlement capture.
+                      </p>
+                      <label className="flex items-start gap-2.5 pt-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={humanReviewAcknowledged}
+                          onChange={(e) => setHumanReviewAcknowledged(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-red-400 text-red-600 focus:ring-red-500"
+                        />
+                        <span className="text-[11px] font-medium text-[var(--wp-text-primary)]">
+                          I acknowledge the scaled {sessionState.reversePitchCanvas.verificationWindowHours || 120}-hour inspection soak window and confirm extra human-in-the-loop review before final PayPal authorization capture.
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
                   {/* Valuation & Non-Custodial Guarantee */}
                   <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
@@ -1038,7 +1152,7 @@ export default function NewTaskPage() {
                       <Button
                         type="button"
                         size="lg"
-                        disabled={finalizing}
+                        disabled={finalizing || Boolean(sessionState.reversePitchCanvas.requiresHumanReviewGate && !humanReviewAcknowledged)}
                         onClick={handleApproveBaseline}
                         className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
