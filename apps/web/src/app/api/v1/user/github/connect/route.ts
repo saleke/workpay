@@ -17,16 +17,19 @@ export async function GET(req: NextRequest) {
       if (wantsJson) {
         return NextResponse.json({
           configured: false,
-          message: "GITHUB_CLIENT_ID is not configured in environment. You can use the manual bio verification option.",
+          message: "GITHUB_CLIENT_ID is not configured in environment. You can use the public Gist verification option.",
         });
       }
-      const appUrl = env.APP_URL.replace(/\/$/, "");
-      return NextResponse.redirect(`${appUrl}/settings?tab=account&error=github_oauth_not_configured`);
+      const rawAppUrl = env.APP_URL.replace(/\/$/, "");
+      const origin = req.headers.get("x-forwarded-host")
+        ? `${req.headers.get("x-forwarded-proto") || "https"}://${req.headers.get("x-forwarded-host")}`
+        : req.nextUrl.origin || rawAppUrl;
+      return NextResponse.redirect(`${origin}/settings?tab=account&error=github_oauth_not_configured`);
     }
 
     const state = randomBytes(16).toString("hex");
-    const appUrl = env.APP_URL.replace(/\/$/, "");
-    const redirectUri = `${appUrl}/api/v1/user/github/callback`;
+    const rawAppUrl = env.APP_URL.replace(/\/$/, "");
+    const redirectUri = `${rawAppUrl}/api/v1/user/github/callback`;
 
     const authorizeUrl =
       `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}` +

@@ -9,16 +9,23 @@ interface GitHubUserResponse {
   login: string;
   id: number;
   name?: string;
-  bio?: string;
   avatar_url?: string;
   public_repos?: number;
   followers?: number;
   created_at?: string;
 }
 
+interface GitHubGistFile {
+  filename?: string;
+  content?: string;
+  raw_url?: string;
+  size?: number;
+}
+
 interface GitHubGistResponse {
+  id: string;
   description?: string;
-  files?: Record<string, { filename?: string; content?: string }>;
+  files?: Record<string, GitHubGistFile>;
 }
 
 export async function POST(req: NextRequest) {
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     const action = body.action || "confirm";
-    const identifier = `github_verify:${actor.id}:${username.toLowerCase()}`;
+    const identifier = `github_gist_verify:${actor.id}:${username.toLowerCase()}`;
     const db = getDb();
     const now = new Date();
 
@@ -74,7 +81,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const challenge = `workpay-verify-${randomBytes(5).toString("hex")}`;
+      const challenge = `workpay-verify-${randomBytes(4).toString("hex")}`;
       const expires = new Date(Date.now() + 60 * 60 * 1000);
 
       await db.delete(verificationTokens).where(eq(verificationTokens.identifier, identifier));
@@ -91,8 +98,7 @@ export async function POST(req: NextRequest) {
         avatarUrl: ghData.avatar_url,
         publicRepos: ghData.public_repos ?? 0,
         followers: ghData.followers ?? 0,
-        bio: ghData.bio || "",
-        instructions: `Add the verification code '${challenge}' to your GitHub bio or create a public gist containing this code. Then click 'Confirm Verification'.`,
+        instructions: `Create a public Gist at gist.github.com containing '${challenge}' in the description or file, then click 'Confirm Verification'.`,
       });
     }
 
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
       return jsonError(
         {
           code: "NO_ACTIVE_CHALLENGE",
-          message: `No active verification challenge found for @${username}. Please generate a verification challenge first.`,
+          message: `No active verification token found for @${username}. Please generate a verification code first.`,
         },
         400,
       );
@@ -132,37 +138,58 @@ export async function POST(req: NextRequest) {
     }
 
     const ghUserData = (await ghUserRes.json()) as GitHubUserResponse;
-    const bioText = ghUserData.bio || "";
-    let challengeFound = bioText.includes(expectedChallenge);
+    let challengeFound = false;
 
-    if (!challengeFound) {
-      const gistsRes = await fetch(
-        `https://api.github.com/users/${encodeURIComponent(username)}/gists?per_page=5`,
-        {
-          headers: {
-            "User-Agent": "WorkPay-Verification/1.0",
-            Accept: "application/vnd.github.v3+json",
-          },
-          cache: "no-store",
+    const gistsRes = await fetch(
+      `https://api.github.com/users/${encodeURIComponent(username)}/gists?per_page=10`,
+      {
+        headers: {
+          "User-Agent": "WorkPay-Verification/1.0",
+          Accept: "application/vnd.github.v3+json",
         },
-      );
+        cache: "no-store",
+      },
+    );
 
-      if (gistsRes.ok) {
-        const gists = (await gistsRes.json()) as GitHubGistResponse[];
-        for (const gist of gists) {
-          if (gist.description?.includes(expectedChallenge)) {
-            challengeFound = true;
-            break;
-          }
-          if (gist.files) {
-            for (const fileKey of Object.keys(gist.files)) {
-              if (fileKey.includes("workpay") || fileKey.includes(expectedChallenge)) {
-                challengeFound = true;
-                break;
+    if (gistsRes.ok) {
+      const gists = (await gistsRes.json()) as GitHubGistResponse[];
+      for (const gist of gists) {
+        if (gist.description?.toLowerCase().includes(expectedChallenge.toLowerCase())) {
+          challengeFound = true;
+          break;
+        }
+
+        if (gist.files) {
+          for (const [filename, fileMeta] of Object.entries(gist.files)) {
+            if (
+              filename.toLowerCase().includes(expectedChallenge.toLowerCase()) ||
+              (fileMeta.content && fileMeta.content.includes(expectedChallenge))
+            ) {
+              challengeFound = true;
+              break;
+            }
+
+            if (fileMeta.raw_url) {
+              try {
+                const rawRes = await fetch(fileMeta.raw_url, {
+                  signal: AbortSignal.timeout(3000),
+                  cache: "no-store",
+                });
+                if (rawRes.ok) {
+                  const rawText = await rawRes.text();
+                  if (rawText.includes(expectedChallenge)) {
+                    challengeFound = true;
+                    break;
+                  }
+                }
+              } catch {
+                // Ignore raw fetch failure and continue
               }
             }
           }
         }
+
+        if (challengeFound) break;
       }
     }
 
@@ -170,7 +197,7 @@ export async function POST(req: NextRequest) {
       return jsonError(
         {
           code: "CHALLENGE_NOT_FOUND",
-          message: `Verification code '${expectedChallenge}' was not found in @${username}'s GitHub bio or public gists. Please ensure it is saved on GitHub and retry.`,
+          message: `Verification token '${expectedChallenge}' was not found in public gists for @${username}. Please make sure you have created a public gist containing this token at gist.github.com and retry.`,
         },
         400,
       );
@@ -190,7 +217,7 @@ export async function POST(req: NextRequest) {
 
     logger.info(
       { userId: actorId, github: ghUserData.login, repos: ghUserData.public_repos },
-      "successfully completed authentic github verification",
+      "successfully completed authentic public gist github verification",
     );
 
     return NextResponse.json({
@@ -199,10 +226,10 @@ export async function POST(req: NextRequest) {
       publicRepos: ghUserData.public_repos ?? 0,
       followers: ghUserData.followers ?? 0,
       verifiedAt: new Date().toISOString(),
-      message: `Successfully verified developer profile @${ghUserData.login}. Verified Developer status unlocked.`,
+      message: `Successfully verified developer profile @${ghUserData.login} via public Gist. Verified Developer status unlocked.`,
     });
   } catch (error) {
-    logger.error({ err: String(error) }, "error verifying github profile");
+    logger.error({ err: String(error) }, "error verifying github profile via gist");
     return jsonError({ code: "INTERNAL_ERROR", message: "Failed to verify GitHub profile" }, 500);
   }
 }

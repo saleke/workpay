@@ -8,16 +8,33 @@ const MODE_OVERRIDE_KEY = "workpay_mode_override";
 
 /**
  * Returns true if the system should run in Sandbox mode.
- * Defaults to true for test evaluation unless explicitly configured
- * via NEXT_PUBLIC_DEMO_MODE="false" or client-side runtime override.
+ * Authenticated sections and active user sessions ALWAYS default to production, never demo.
  */
 export function isDemoMode(): boolean {
   if (typeof window !== "undefined") {
+    const authUser = window.localStorage.getItem("workpay_auth_user");
+    const hasSessionCookie = document.cookie.includes("workpay_session=");
+    const pathname = window.location.pathname;
+    const isAuthenticatedSection =
+      pathname.startsWith("/tasks") ||
+      pathname.startsWith("/payments") ||
+      pathname.startsWith("/activity") ||
+      pathname.startsWith("/provider") ||
+      pathname.startsWith("/review") ||
+      pathname.startsWith("/settings");
+
+    // Authenticated sections and users must always default to production
+    if (authUser || hasSessionCookie || isAuthenticatedSection) {
+      const override = window.localStorage.getItem(MODE_OVERRIDE_KEY);
+      if (override === "demo") return true;
+      return false;
+    }
+
     const override = window.localStorage.getItem(MODE_OVERRIDE_KEY);
     if (override === "production") return false;
     if (override === "demo") return true;
   }
-  return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.WORKPAY_MODE !== "production";
 }
 
 export function getSystemMode(): SystemMode {
@@ -46,7 +63,10 @@ export function useSystemMode(): {
   setMode: (mode: SystemMode | null) => void;
   envDefault: SystemMode;
 } {
-  const envDefault: SystemMode = process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? "production" : "demo";
+  const envDefault: SystemMode =
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.WORKPAY_MODE !== "production"
+      ? "demo"
+      : "production";
   const [mode, setModeState] = useState<SystemMode>(envDefault);
 
   useEffect(() => {

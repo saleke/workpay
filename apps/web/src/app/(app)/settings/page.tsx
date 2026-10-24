@@ -13,6 +13,7 @@ import {
   DollarSign,
   ExternalLink,
   FileCheck2,
+  FileCode2,
   Fingerprint,
   FlaskConical,
   Github,
@@ -30,6 +31,7 @@ import {
   Unlink,
   User,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,7 +185,7 @@ function SettingsContent() {
   // Developer Verification (Step 2 - GitHub Challenge)
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [inputGithub, setInputGithub] = useState("");
-  const [githubStep, setGithubStep] = useState<"input" | "challenge">("input");
+  const [githubStep, setGithubStep] = useState<"select" | "gist_input" | "gist_confirm">("select");
   const [githubChallengeData, setGithubChallengeData] = useState<{
     challenge: string;
     githubUsername: string;
@@ -225,16 +227,29 @@ function SettingsContent() {
 
   const loadProfile = async () => {
     try {
-      const res = await fetch("/api/v1/user/profile");
+      const res = await fetch("/api/v1/user/profile", { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
-        if (json?.data?.user) {
-          const u = json.data.user as UserProfileData;
+        const u = (json?.data?.user || json?.user) as UserProfileData;
+        if (u) {
           setUserProfile(u);
           setProfileName(u.displayName || u.name || "");
           setPayoutEmail(u.paypalPayoutEmail || u.email || "");
           setInputPaypalEmail(u.paypalPayoutEmail || u.email || "");
           setInputAutoHold(u.paypalAutoHoldEnabled ?? true);
+
+          const stored = window.localStorage.getItem("workpay_auth_user");
+          if (stored) {
+            try {
+              const currentStored = JSON.parse(stored);
+              window.localStorage.setItem(
+                "workpay_auth_user",
+                JSON.stringify({ ...currentStored, ...u }),
+              );
+            } catch {
+              // Ignore parse error
+            }
+          }
         }
       }
     } catch {
@@ -267,14 +282,17 @@ function SettingsContent() {
       toast.success("PayPal account linked and verified via authentic PayPal OAuth!");
       params.delete("success");
       router.replace(`/settings?${params.toString()}`, { scroll: false });
+      loadProfile();
     } else if (success === "email_verified") {
       toast.success("Email address verified successfully!");
       params.delete("success");
       router.replace(`/settings?${params.toString()}`, { scroll: false });
+      loadProfile();
     } else if (success === "github_linked") {
       toast.success("GitHub developer profile verified via authorized GitHub OAuth!");
       params.delete("success");
       router.replace(`/settings?${params.toString()}`, { scroll: false });
+      loadProfile();
     } else if (error) {
       toast.error(reason ? decodeURIComponent(reason) : `Operation failed: ${error}`);
       params.delete("error");
@@ -534,8 +552,8 @@ function SettingsContent() {
         return;
       }
       setGithubChallengeData(json);
-      setGithubStep("challenge");
-      toast.success("Verification challenge issued. Add the code to your GitHub bio or gists.");
+      setGithubStep("gist_confirm");
+      toast.success("Verification token generated. Create a public Gist with this code.");
     } catch {
       toast.error("Network error while communicating with GitHub API");
     } finally {
@@ -557,17 +575,17 @@ function SettingsContent() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error?.message || "Verification code not found on GitHub");
+        toast.error(json.error?.message || "Verification code not found in public gists");
         return;
       }
       toast.success(json.message || "GitHub developer profile verified successfully!");
       setGithubModalOpen(false);
-      setGithubStep("input");
+      setGithubStep("select");
       setGithubChallengeData(null);
       setInputGithub("");
       await loadProfile();
     } catch {
-      toast.error("Network error while validating GitHub profile");
+      toast.error("Network error while validating public Gist");
     } finally {
       setVerifyingGithub(false);
     }
@@ -969,31 +987,21 @@ function SettingsContent() {
                               No GitHub Account Connected
                             </div>
                             <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                              Authorize your GitHub profile in 1 click or use the manual bio verification challenge to demonstrate developer credentials.
+                              Verify your GitHub developer profile via authorized 1-click OAuth or a public Gist token.
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Button
                               type="button"
                               size="sm"
-                              onClick={handleConnectGithubOAuth}
-                              disabled={connectingGithubOAuth}
+                              onClick={() => {
+                                setGithubStep("select");
+                                setGithubModalOpen(true);
+                              }}
                               className="text-xs font-semibold"
                             >
                               <Github className="h-3.5 w-3.5 mr-1.5" />
-                              {connectingGithubOAuth ? "Connecting..." : "Authorize with GitHub"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setGithubStep("input");
-                                setGithubModalOpen(true);
-                              }}
-                              className="text-xs"
-                            >
-                              Bio Challenge
+                              Verify Developer Profile
                             </Button>
                           </div>
                         </div>
@@ -1681,31 +1689,45 @@ function SettingsContent() {
         </div>
       </div>
 
-      {/* Dialog for Step 2: GitHub Developer Verification */}
-      <Dialog open={githubModalOpen} onOpenChange={setGithubModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          {githubStep === "input" ? (
-            <form onSubmit={handleRequestGithubChallenge}>
+      {/* Dialog for Developer Profile Verification (GitHub) */}
+      <Dialog
+        open={githubModalOpen}
+        onOpenChange={(open) => {
+          setGithubModalOpen(open);
+          if (!open) {
+            setGithubStep("select");
+            setGithubChallengeData(null);
+            setInputGithub("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {githubStep === "select" && (
+            <div>
               <DialogHeader>
                 <div className="flex items-center gap-2 mb-1">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
                     <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
                   </div>
-                  <DialogTitle className="text-base font-semibold">Verify GitHub Developer Profile</DialogTitle>
+                  <DialogTitle className="text-base font-semibold">Verify Developer Profile</DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                  Authenticate your GitHub account via 1-click authorized access or generate a manual bio challenge.
+                  Choose your preferred verification method to confirm ownership of your GitHub developer account.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="pt-3 pb-1 space-y-3">
-                <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 space-y-2">
-                  <div className="font-semibold text-xs text-[var(--wp-text-primary)] flex items-center justify-between">
-                    <span>Authorized GitHub Login (Recommended)</span>
-                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">1-Click Fast</Badge>
+              <div className="py-4 space-y-3">
+                {/* Option 1: Authorized OAuth Handshake */}
+                <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 hover:border-emerald-500/40 transition-all space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-semibold text-xs text-[var(--wp-text-primary)]">
+                      <Zap className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Authorized GitHub Handshake (Recommended)</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">Instant 1-Click</Badge>
                   </div>
-                  <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                    Log in with GitHub to securely verify ownership without modifying your profile bio or creating gists.
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                    Authorize directly with GitHub OAuth in 1 click. Instant verification without creating manual files or tokens.
                   </p>
                   <Button
                     type="button"
@@ -1715,19 +1737,62 @@ function SettingsContent() {
                     className="w-full text-xs font-semibold mt-1"
                   >
                     <Github className="h-3.5 w-3.5 mr-1.5" />
-                    {connectingGithubOAuth ? "Connecting to GitHub..." : "Authorize with GitHub (1-Click)"}
+                    {connectingGithubOAuth ? "Connecting to GitHub..." : "Authorize with GitHub"}
                   </Button>
                 </div>
 
-                <div className="relative my-3">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-[var(--wp-border)]" />
+                {/* Option 2: Public Gist Verification */}
+                <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 hover:border-blue-500/40 transition-all space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-semibold text-xs text-[var(--wp-text-primary)]">
+                      <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
+                      <span>Public Gist Verification</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-500/30">Zero OAuth Scopes</Badge>
                   </div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-semibold text-[var(--wp-text-secondary)]">
-                    <span className="bg-background px-2">Or verify manually via bio challenge</span>
-                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                    Prove ownership by publishing a quick public Gist containing a unique token. Ideal if you prefer not to grant OAuth permissions.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGithubStep("gist_input")}
+                    className="w-full text-xs font-semibold mt-1"
+                  >
+                    <FileCode2 className="h-3.5 w-3.5 mr-1.5" />
+                    Verify via Public Gist
+                  </Button>
                 </div>
               </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setGithubModalOpen(false)}
+                  className="text-xs"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {githubStep === "gist_input" && (
+            <form onSubmit={handleRequestGithubChallenge}>
+              <DialogHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
+                    <FileCode2 className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <DialogTitle className="text-base font-semibold">Public Gist Verification</DialogTitle>
+                </div>
+                <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
+                  Enter your GitHub username to generate a public Gist verification token.
+                </DialogDescription>
+              </DialogHeader>
 
               <div className="py-4 space-y-3">
                 <div className="space-y-1.5">
@@ -1754,11 +1819,11 @@ function SettingsContent() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setGithubModalOpen(false)}
+                  onClick={() => setGithubStep("select")}
                   disabled={requestingChallenge}
                   className="text-xs"
                 >
-                  Cancel
+                  Back
                 </Button>
                 <Button
                   type="submit"
@@ -1766,21 +1831,23 @@ function SettingsContent() {
                   disabled={requestingChallenge}
                   className="text-xs font-semibold"
                 >
-                  {requestingChallenge ? "Locating GitHub Profile..." : "Generate Verification Challenge"}
+                  {requestingChallenge ? "Locating GitHub Profile..." : "Generate Gist Token"}
                 </Button>
               </DialogFooter>
             </form>
-          ) : (
+          )}
+
+          {githubStep === "gist_confirm" && (
             <div>
               <DialogHeader>
                 <div className="flex items-center gap-2 mb-1">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
-                    <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
+                    <FileCode2 className="h-4 w-4 text-blue-500" />
                   </div>
-                  <DialogTitle className="text-base font-semibold">Prove GitHub Account Ownership</DialogTitle>
+                  <DialogTitle className="text-base font-semibold">Confirm Public Gist</DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                  To prevent unauthorized impersonation, please prove ownership of @{githubChallengeData?.githubUsername}.
+                  Publish a public Gist containing your verification token to complete verification for @{githubChallengeData?.githubUsername}.
                 </DialogDescription>
               </DialogHeader>
 
@@ -1809,7 +1876,7 @@ function SettingsContent() {
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold">Your Verification Challenge Code</Label>
+                    <Label className="text-xs font-semibold">Your Verification Token</Label>
                     <Button
                       type="button"
                       variant="ghost"
@@ -1818,11 +1885,11 @@ function SettingsContent() {
                       onClick={() => {
                         if (githubChallengeData?.challenge) {
                           navigator.clipboard.writeText(githubChallengeData.challenge);
-                          toast.success("Challenge code copied to clipboard");
+                          toast.success("Verification token copied to clipboard");
                         }
                       }}
                     >
-                      Copy Code
+                      Copy Token
                     </Button>
                   </div>
                   <div className="font-mono text-center p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 font-bold select-all text-sm tracking-wide">
@@ -1830,11 +1897,11 @@ function SettingsContent() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1.5 leading-relaxed">
-                  <strong className="text-[var(--wp-text-primary)] font-semibold block">Instructions to Complete:</strong>
-                  <p>1. Copy the verification code above.</p>
-                  <p>2. Add it temporarily to your public GitHub profile bio, or create a public Gist named <code>workpay-verify.md</code> containing this code.</p>
-                  <p>3. Click "Confirm &amp; Complete Verification" below. The server will contact GitHub directly to verify the challenge.</p>
+                <div className="p-3.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1.5 leading-relaxed">
+                  <strong className="text-[var(--wp-text-primary)] font-semibold block">Instructions:</strong>
+                  <p>1. Open <a href="https://gist.github.com" target="_blank" rel="noreferrer" className="text-[var(--wp-accent)] font-semibold hover:underline inline-flex items-center gap-0.5">gist.github.com <ExternalLink className="h-2.5 w-2.5" /></a> in your browser.</p>
+                  <p>2. Create a <strong>public</strong> gist. You can name the file <code>workpay-verify.txt</code> and paste the token as the content, or put the token in the gist description.</p>
+                  <p>3. Click "Verify Public Gist" below. The server will verify the gist and unlock your developer badge immediately.</p>
                 </div>
               </div>
 
@@ -1843,7 +1910,7 @@ function SettingsContent() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setGithubStep("input")}
+                  onClick={() => setGithubStep("gist_input")}
                   disabled={verifyingGithub}
                   className="text-xs"
                 >
@@ -1856,7 +1923,7 @@ function SettingsContent() {
                   disabled={verifyingGithub}
                   className="text-xs font-semibold"
                 >
-                  {verifyingGithub ? "Verifying with GitHub..." : "Confirm & Complete Verification"}
+                  {verifyingGithub ? "Verifying with GitHub..." : "Verify Public Gist"}
                 </Button>
               </DialogFooter>
             </div>

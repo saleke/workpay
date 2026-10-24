@@ -50,14 +50,17 @@ export async function GET(req: Request) {
       return jsonError({ code: "NOT_FOUND", message: "User account not found" }, 404);
     }
 
+    const userPayload = {
+      ...user,
+      displayName: user.displayName || user.name,
+      idVerificationStatus: user.idVerificationStatus || "UNVERIFIED",
+      paypalVerified: Boolean(user.paypalVerified),
+      paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
+    };
+
     return jsonOk({
-      user: {
-        ...user,
-        displayName: user.displayName || user.name,
-        idVerificationStatus: user.idVerificationStatus || "UNVERIFIED",
-        paypalVerified: Boolean(user.paypalVerified),
-        paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
-      },
+      data: { user: userPayload },
+      user: userPayload,
     });
   } catch (err) {
     return jsonError(err);
@@ -157,7 +160,10 @@ export async function PUT(req: Request) {
       .where(eq(users.id, actorId))
       .limit(1);
 
-    return jsonOk({ user: updatedUser });
+    return jsonOk({
+      data: { user: updatedUser },
+      user: updatedUser,
+    });
   } catch (err) {
     return jsonError(err);
   }

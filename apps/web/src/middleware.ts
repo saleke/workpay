@@ -1,7 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/tasks", "/provider", "/review", "/payments"];
-const AUTH_ROUTES = ["/login", "/register"];
+const PROTECTED_PREFIXES = [
+  "/tasks",
+  "/provider",
+  "/review",
+  "/payments",
+  "/activity",
+  "/settings",
+];
+const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -16,21 +23,10 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Check if the app is in Production Mode
-  const envDemo = process.env.NEXT_PUBLIC_DEMO_MODE !== "false" && process.env.WORKPAY_MODE !== "production";
-  const override = req.cookies.get("workpay_mode_override")?.value;
-  const isProduction = !envDemo || override === "production";
-
-  // In Demo Mode (default), allow unrestricted evaluator access
-  if (!isProduction) {
-    return NextResponse.next();
-  }
-
-  // 3. In Production Mode: check for session cookie
   const sessionToken = req.cookies.get("workpay_session")?.value;
   const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
-  // If unauthenticated and visiting a protected route, redirect to login
+  // Protected sections require authentication. Unauthenticated visitors are sent to login.
   if (!sessionToken && isProtectedRoute) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
