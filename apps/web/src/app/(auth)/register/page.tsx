@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AtSign, Check, CheckCircle2, Github, KeyRound, Lock, Mail, ShieldCheck, Sparkles, User } from "lucide-react";
+import { AtSign, Github, KeyRound, Lock, Mail, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,6 @@ export default function RegisterPage() {
   // Email verification state on signup
   const [registeredUser, setRegisteredUser] = useState<any>(null);
   const [otpInput, setOtpInput] = useState("");
-  const [issuedOtp, setIssuedOtp] = useState<string | null>(null);
-  const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const handleNameChange = (val: string) => {
@@ -50,7 +48,7 @@ export default function RegisterPage() {
     setError(null);
 
     if (username.length < 3) {
-      setError("Username handle must be at least 3 characters.");
+      setError("Username must be at least 3 characters.");
       return;
     }
 
@@ -65,7 +63,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, email, password }),
+        body: JSON.stringify({ name, username, email: email.trim().toLowerCase(), password }),
       });
 
       const json = await res.json();
@@ -78,8 +76,6 @@ export default function RegisterPage() {
       const user = json.data?.user;
       if (user) {
         setRegisteredUser(user);
-        setIssuedOtp(json.data?.otpCode || null);
-        setVerificationUrl(json.data?.verificationUrl || null);
         setStep("verify");
       }
     } catch {
@@ -91,9 +87,9 @@ export default function RegisterPage() {
 
   const handleCompleteAuth = (user: any) => {
     window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
-    window.localStorage.setItem("workpay_persona", "buyer");
+    window.localStorage.removeItem("workpay_persona");
     window.localStorage.removeItem("workpay_signed_out");
-    document.cookie = "workpay_persona=buyer; path=/; max-age=31536000";
+    document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
     window.dispatchEvent(new Event("workpay_auth_change"));
     router.push("/tasks");
     router.refresh();
@@ -119,7 +115,7 @@ export default function RegisterPage() {
 
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error?.message || "Invalid or expired verification code.");
+        setError(json.error?.message || "Invalid or expired confirmation code.");
         setVerifyingOtp(false);
         return;
       }
@@ -139,12 +135,12 @@ export default function RegisterPage() {
     <Card className="border-border/80 shadow-lg bg-card">
       <CardHeader className="space-y-1 pb-4">
         <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-          {step === "form" ? "Create Your Account" : "Verify Your Email Address"}
+          {step === "form" ? "Create an Account" : "Verify Email"}
         </CardTitle>
         <CardDescription className="text-xs">
           {step === "form"
-            ? "Join the economic runtime for verifiable agentic delegation."
-            : `We dispatched a 6-digit verification code to ${email}. Enter the code to activate your account.`}
+            ? "Sign up to start commissioning and delivering work."
+            : `Enter the 6-digit code sent to ${email} to complete verification.`}
         </CardDescription>
       </CardHeader>
 
@@ -188,13 +184,12 @@ export default function RegisterPage() {
               </Button>
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/70" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-semibold">
-                <span className="bg-card px-2 text-muted-foreground">Or register with email</span>
-              </div>
+            <div className="flex items-center gap-3 my-1">
+              <div className="h-px flex-1 bg-border/70" />
+              <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+                Or register with email
+              </span>
+              <div className="h-px flex-1 bg-border/70" />
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
@@ -204,7 +199,7 @@ export default function RegisterPage() {
                   <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="name"
-                    placeholder="Elena Rostova"
+                    placeholder="Alex Morgan"
                     value={name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     required
@@ -214,19 +209,16 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="username" className="text-xs">Username Handle</Label>
-                  <span className="text-[10px] text-muted-foreground">Permanent platform handle</span>
-                </div>
+                <Label htmlFor="username" className="text-xs">Username</Label>
                 <div className="relative">
                   <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="username"
-                    placeholder="elena_r"
+                    placeholder="alexmorgan"
                     value={username}
                     onChange={(e) => handleUsernameChange(e.target.value)}
                     required
-                    className="pl-9 text-xs font-mono lowercase"
+                    className="pl-9 font-mono text-xs"
                   />
                 </div>
               </div>
@@ -238,7 +230,7 @@ export default function RegisterPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="elena@company.com"
+                    placeholder="alex@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -264,31 +256,14 @@ export default function RegisterPage() {
               </div>
 
               <Button type="submit" className="w-full text-xs font-semibold" disabled={loading}>
-                {loading ? "Creating Account..." : "Create Account & Verify Email"}
+                {loading ? "Creating..." : "Create Account"}
               </Button>
             </form>
           </>
         ) : (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div className="p-3 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-1">
-              <div className="font-semibold text-xs text-foreground flex items-center justify-between">
-                <span>Account Created: @{username}</span>
-                <span className="text-[11px] text-muted-foreground">{email}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Enter the 6-digit confirmation code below to verify your email address.
-              </p>
-            </div>
-
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="otpInput" className="text-xs font-semibold">6-Digit Code</Label>
-                {issuedOtp && (
-                  <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    Code: {issuedOtp}
-                  </span>
-                )}
-              </div>
+              <Label htmlFor="otpInput" className="text-xs font-semibold">6-Digit Code</Label>
               <div className="relative">
                 <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -305,29 +280,8 @@ export default function RegisterPage() {
             </div>
 
             <Button type="submit" className="w-full text-xs font-semibold" disabled={verifyingOtp || otpInput.length < 6}>
-              {verifyingOtp ? "Verifying..." : "Verify Email & Enter WorkPay"}
+              {verifyingOtp ? "Verifying..." : "Confirm Code"}
             </Button>
-
-            {verificationUrl && (
-              <div className="pt-1 text-center">
-                <a
-                  href={verificationUrl}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Or click here to verify automatically via direct link
-                </a>
-              </div>
-            )}
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => handleCompleteAuth(registeredUser)}
-                className="text-[11px] text-muted-foreground hover:text-foreground underline"
-              >
-                Skip verification for now and proceed
-              </button>
-            </div>
           </form>
         )}
       </CardContent>

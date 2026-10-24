@@ -6,6 +6,7 @@ import { getDb, jsonError } from "@/lib/server/api";
 import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
 import { hashPassword, newId, logger } from "@workpay/shared/platform";
+import { sendVerificationEmail } from "@workpay/shared/integrations";
 import { createSession, setSessionCookie } from "@/lib/server/session";
 import { validateEmailForRegistration, validateUsername } from "@/lib/server/disposable-emails";
 
@@ -130,7 +131,16 @@ export async function POST(req: Request) {
     const appUrl = envUrl.replace(/\/$/, "");
     const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${verifyToken}`;
 
-    logger.info({ email: parsed.email, verifyToken, otpCode }, "issued email verification token and otp for new user");
+    try {
+      await sendVerificationEmail({
+        email: parsed.email,
+        name: parsed.name,
+        otpCode,
+        verificationUrl,
+      });
+    } catch (sendErr) {
+      logger.error({ err: String(sendErr), email: parsed.email }, "failed to dispatch verification email");
+    }
 
     const sessionToken = await createSession(userId);
     const res = NextResponse.json({
@@ -146,8 +156,6 @@ export async function POST(req: Request) {
           paypalVerified: false,
         },
         requiresEmailVerification: true,
-        otpCode,
-        verificationUrl,
       },
     });
 

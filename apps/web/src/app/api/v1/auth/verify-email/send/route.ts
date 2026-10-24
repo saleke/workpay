@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, jsonError, resolveActorAsync } from "@/lib/server/api";
 import { getEnv, logger } from "@workpay/shared/platform";
+import { sendVerificationEmail } from "@workpay/shared/integrations";
 import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 
 export async function POST(req: NextRequest) {
@@ -58,18 +59,19 @@ export async function POST(req: NextRequest) {
     const appUrl = env.APP_URL.replace(/\/$/, "");
     const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${linkToken}`;
 
-    logger.info(
-      { userId: actorId, email: identifier, otpCode, verificationUrl },
-      "generated hybrid email verification link and 6-digit otp code",
-    );
+    try {
+      await sendVerificationEmail({
+        email: identifier,
+        otpCode,
+        verificationUrl,
+      });
+    } catch (sendErr) {
+      logger.error({ err: String(sendErr), email: identifier }, "failed to dispatch verification email");
+    }
 
     return NextResponse.json({
       success: true,
-      email: identifier,
-      otpCode,
-      verificationUrl,
-      expiresAt: expires.toISOString(),
-      message: `A verification link and 6-digit code have been dispatched for ${identifier}.`,
+      message: `A verification link and 6-digit confirmation code have been sent to ${identifier}.`,
     });
   } catch (error) {
     logger.error({ err: String(error) }, "failed to generate email verification link and code");

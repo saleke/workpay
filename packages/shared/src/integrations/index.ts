@@ -6,8 +6,17 @@
  * interfaces here, never on a concrete SDK.
  */
 export * as ai from "./ai/index.js";
+export * as email from "./email/index.js";
 export * as payments from "./payments/index.js";
 export * as storage from "./storage/index.js";
+
+export {
+  getEmailClient,
+  setEmailClient,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "./email/index.js";
+export type { EmailClient, SendEmailInput, SendEmailResult } from "./email/index.js";
 
 export { getAIClient, setAIClient, FakeAI, OpenAIAI } from "./ai/index.js";
 export type {

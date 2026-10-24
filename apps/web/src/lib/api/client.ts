@@ -24,14 +24,7 @@ function getActivePersonaHeaders(): Record<string, string> {
       }
     }
 
-    const p = window.localStorage.getItem("workpay_persona") || "buyer";
-    if (p === "provider") {
-      return { "x-user-id": "usr_provider_bob", "x-role": "provider" };
-    }
-    if (p === "admin_reviewer") {
-      return { "x-user-id": "usr_admin_carol", "x-role": "admin_reviewer" };
-    }
-    return { "x-user-id": "usr_buyer_alice", "x-role": "buyer" };
+    return {};
   } catch {
     return {};
   }

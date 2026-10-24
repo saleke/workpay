@@ -1,11 +1,11 @@
 import { desc } from "drizzle-orm";
-import { getDb, jsonError, jsonOk, resolveActor } from "@/lib/server/api";
+import { getDb, jsonError, jsonOk, resolveActorAsync } from "@/lib/server/api";
 import { payments, paymentDecisions } from "@workpay/shared/db/schema/payments";
 import type { PaymentDto } from "@/lib/api/types";
 
 export async function GET(req: Request) {
   try {
-    const actor = resolveActor(req, "buyer");
+    const actor = await resolveActorAsync(req, "buyer");
     const db = getDb();
 
     const rows = await db

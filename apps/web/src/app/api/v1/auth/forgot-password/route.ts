@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, jsonError } from "@/lib/server/api";
 import { getEnv, logger } from "@workpay/shared/platform";
+import { sendPasswordResetEmail } from "@workpay/shared/integrations";
 import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 
 export async function POST(req: NextRequest) {
@@ -52,14 +53,15 @@ export async function POST(req: NextRequest) {
     const appUrl = env.APP_URL.replace(/\/$/, "");
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
 
-    logger.info({ email, otpCode, resetUrl }, "generated password reset token and code");
+    try {
+      await sendPasswordResetEmail({ email, otpCode, resetUrl });
+    } catch (sendErr) {
+      logger.error({ err: String(sendErr), email }, "failed to dispatch password reset email");
+    }
 
     return NextResponse.json({
       success: true,
-      email,
-      otpCode,
-      resetUrl,
-      message: "A password reset link and 6-digit confirmation code have been issued.",
+      message: "If an account matches this email, a 6-digit confirmation code has been dispatched.",
     });
   } catch (error) {
     logger.error({ err: String(error) }, "error initiating password reset");

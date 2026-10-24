@@ -6,7 +6,7 @@ import {
   getDb,
   jsonError,
   jsonOk,
-  resolveActor,
+  resolveActorAsync,
   withTransaction,
   withIdempotency,
 } from "@/lib/server/api";
@@ -21,7 +21,7 @@ const createTaskSchema = z.object({
 
 export async function GET(req: Request) {
   try {
-    const actor = resolveActor(req, "buyer");
+    const actor = await resolveActorAsync(req, "buyer");
     const db = getDb();
     const rows = await listTasksForUser(db, actor.id as string);
 
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const actor = resolveActor(req, "buyer");
+    const actor = await resolveActorAsync(req, "buyer");
     const correlationId = getCorrelationId(req);
     const body = await req.json();
     const parsed = createTaskSchema.parse(body);

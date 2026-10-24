@@ -903,7 +903,7 @@ function SettingsContent() {
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Github className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Step 1: Developer Quality Verification
+                          Developer Profile (GitHub)
                         </CardTitle>
                         {userProfile?.githubUsername ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
@@ -1007,7 +1007,7 @@ function SettingsContent() {
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                           <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Step 2: Legal Identity Verification
+                          Identity Verification
                         </CardTitle>
                         {userProfile?.idVerificationStatus === "VERIFIED" ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">

@@ -3,16 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Briefcase, Github, Lock, Mail, Scale, Sparkles, User } from "lucide-react";
+import { Github, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSystemMode } from "@/lib/mode";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isDemo } = useSystemMode();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +25,7 @@ export default function LoginPage() {
       const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
 
       const json = await res.json();
@@ -40,7 +38,7 @@ export default function LoginPage() {
       const user = json.data?.user;
       if (user) {
         window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
-        window.localStorage.setItem("workpay_persona", user.role);
+        window.localStorage.removeItem("workpay_persona");
         window.localStorage.removeItem("workpay_signed_out");
         document.cookie = `workpay_persona=${user.role}; path=/; max-age=31536000`;
         document.cookie = "workpay_signed_out=; path=/; max-age=0";
@@ -60,30 +58,6 @@ export default function LoginPage() {
     }
   };
 
-  const DEMO_PROFILES: Record<string, { id: string; name: string; email: string; role: "buyer" | "provider" | "admin_reviewer" }> = {
-    buyer: { id: "usr_buyer_alice", name: "Alice", email: "alice@workpay.local", role: "buyer" },
-    provider: { id: "usr_provider_bob", name: "Bob", email: "bob@workpay.local", role: "provider" },
-    admin_reviewer: { id: "usr_admin_carol", name: "Carol", email: "carol@workpay.local", role: "admin_reviewer" },
-  };
-
-  const handleDemoLogin = (role: "buyer" | "provider" | "admin_reviewer", homeUrl: string) => {
-    const profile = DEMO_PROFILES[role];
-    if (profile) {
-      window.localStorage.setItem("workpay_auth_user", JSON.stringify(profile));
-    }
-    window.localStorage.setItem("workpay_persona", role);
-    window.localStorage.removeItem("workpay_signed_out");
-    document.cookie = `workpay_persona=${role}; path=/; max-age=31536000`;
-    document.cookie = "workpay_signed_out=; path=/; max-age=0";
-    window.dispatchEvent(new Event("workpay_auth_change"));
-
-    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    const from = searchParams?.get("from");
-    const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : homeUrl;
-    router.push(targetUrl);
-    router.refresh();
-  };
-
   return (
     <Card className="border-border/80 shadow-lg bg-card">
       <CardHeader className="space-y-1 pb-4">
@@ -91,7 +65,7 @@ export default function LoginPage() {
           Sign In to WorkPay
         </CardTitle>
         <CardDescription className="text-xs">
-          Enter your email and password to access your tasks and deliverables.
+          Enter your email and password to access your account.
         </CardDescription>
       </CardHeader>
 
@@ -133,13 +107,12 @@ export default function LoginPage() {
           </Button>
         </div>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border/70" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase font-semibold">
-            <span className="bg-card px-2 text-muted-foreground">Or sign in with email</span>
-          </div>
+        <div className="flex items-center gap-3 my-1">
+          <div className="h-px flex-1 bg-border/70" />
+          <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+            Or sign in with email
+          </span>
+          <div className="h-px flex-1 bg-border/70" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -150,7 +123,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="alice@example.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -187,66 +160,12 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
-
-        {isDemo && (
-          <>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/70" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-2 text-muted-foreground font-semibold">
-                  Sandbox Test Perspectives
-                </span>
-              </div>
-            </div>
-
-            {/* Sandbox Fast Login Pills */}
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("buyer", "/tasks")}
-                className="flex flex-col h-auto py-2 text-[11px] gap-1 hover:border-blue-500/50 hover:bg-blue-500/5"
-              >
-                <User className="h-3.5 w-3.5 text-blue-500" />
-                <span className="font-semibold text-foreground">Alice</span>
-                <span className="text-[9px] text-muted-foreground">Client View</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("provider", "/provider")}
-                className="flex flex-col h-auto py-2 text-[11px] gap-1 hover:border-emerald-500/50 hover:bg-emerald-500/5"
-              >
-                <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="font-semibold text-foreground">Bob</span>
-                <span className="text-[9px] text-muted-foreground">Specialist View</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin("admin_reviewer", "/review")}
-                className="flex flex-col h-auto py-2 text-[11px] gap-1 hover:border-purple-500/50 hover:bg-purple-500/5"
-              >
-                <Scale className="h-3.5 w-3.5 text-purple-500" />
-                <span className="font-semibold text-foreground">Carol</span>
-                <span className="text-[9px] text-muted-foreground">Arbitrator View</span>
-              </Button>
-            </div>
-          </>
-        )}
       </CardContent>
 
       <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
-        <span>Don't have an account? </span>
+        <span>Don&apos;t have an account? </span>
         <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
-          Create an account
+          Sign Up
         </Link>
       </CardFooter>
     </Card>

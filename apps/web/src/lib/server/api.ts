@@ -76,6 +76,25 @@ export async function resolveActorAsync(
   req: Request,
   defaultRole: "buyer" | "provider" | "admin_reviewer" = "buyer",
 ): Promise<Actor> {
+  // 1. Database session is highest priority: authentic logged-in user
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
+  const sessionToken = sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
+
+  if (sessionToken) {
+    const authUser = await getSessionUser(sessionToken);
+    if (authUser) {
+      if (authUser.role === "provider") {
+        return { kind: "PROVIDER", id: authUser.id };
+      }
+      if (authUser.role === "admin_reviewer") {
+        return { kind: "REVIEWER", id: authUser.id, role: "admin_reviewer" };
+      }
+      return { kind: "USER", id: authUser.id, role: authUser.role };
+    }
+  }
+
+  // 2. Explicit API header (for CLI, curl, automated testing)
   const userIdHeader = req.headers.get("x-user-id");
   const roleHeader = (req.headers.get("x-role") as Actor["role"]) ?? defaultRole;
 
@@ -89,20 +108,7 @@ export async function resolveActorAsync(
     return { kind: "USER", id: userIdHeader, role: roleHeader ?? "buyer" };
   }
 
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  const sessionToken = sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
-
-  if (sessionToken) {
-    const authUser = await getSessionUser(sessionToken);
-    if (authUser) {
-      if (authUser.role === "admin_reviewer") {
-        return { kind: "REVIEWER", id: authUser.id, role: "admin_reviewer" };
-      }
-      return { kind: "USER", id: authUser.id, role: authUser.role };
-    }
-  }
-
+  // 3. Fall back to demo persona only when not authenticated
   return resolveActor(req, defaultRole);
 }
 

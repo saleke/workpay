@@ -19,8 +19,6 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [issuedCode, setIssuedCode] = useState<string | null>(null);
-  const [resetUrl, setResetUrl] = useState<string | null>(null);
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +29,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch("/api/v1/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
 
       const json = await res.json();
@@ -41,10 +39,8 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      setIssuedCode(json.otpCode || null);
-      setResetUrl(json.resetUrl || null);
       setStep("reset");
-      setSuccess("A 6-digit reset code and confirmation link have been issued.");
+      setSuccess("If an account matches this email, a 6-digit code was sent to your inbox.");
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -73,7 +69,7 @@ export default function ForgotPasswordPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          email: email.trim().toLowerCase(),
           tokenOrCode: code.trim(),
           newPassword,
         }),
@@ -81,12 +77,12 @@ export default function ForgotPasswordPage() {
 
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error?.message || "Failed to reset password. Please check your code.");
+        setError(json.error?.message || "Invalid or expired confirmation code.");
         setLoading(false);
         return;
       }
 
-      setSuccess("Your password has been successfully reset! Redirecting to sign in...");
+      setSuccess("Your password has been updated. Redirecting to sign in...");
       setTimeout(() => {
         router.push("/login?reset=success");
       }, 1500);
@@ -109,12 +105,12 @@ export default function ForgotPasswordPage() {
           </Link>
         </div>
         <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-          {step === "request" ? "Reset Your Password" : "Set New Password"}
+          {step === "request" ? "Reset Password" : "Set New Password"}
         </CardTitle>
         <CardDescription className="text-xs">
           {step === "request"
-            ? "Enter your account email to receive a 6-digit confirmation code and recovery link."
-            : `Enter the 6-digit code dispatched to ${email} and choose a new password.`}
+            ? "Enter your email address to receive a verification code."
+            : `Enter the 6-digit code sent to ${email} and choose a new password.`}
         </CardDescription>
       </CardHeader>
 
@@ -135,13 +131,13 @@ export default function ForgotPasswordPage() {
         {step === "request" ? (
           <form onSubmit={handleRequestCode} className="space-y-3.5">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Registered Email Address</Label>
+              <Label htmlFor="email" className="text-xs">Email Address</Label>
               <div className="relative">
                 <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="alice@example.com"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -151,20 +147,13 @@ export default function ForgotPasswordPage() {
             </div>
 
             <Button type="submit" className="w-full text-xs font-semibold" disabled={loading}>
-              {loading ? "Issuing Reset Code..." : "Send Reset Code & Link"}
+              {loading ? "Sending..." : "Send Verification Code"}
             </Button>
           </form>
         ) : (
           <form onSubmit={handleResetPassword} className="space-y-3.5">
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="code" className="text-xs">6-Digit Confirmation Code</Label>
-                {issuedCode && (
-                  <span className="text-[10px] font-mono font-semibold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    Code: {issuedCode}
-                  </span>
-                )}
-              </div>
+              <Label htmlFor="code" className="text-xs">6-Digit Code</Label>
               <div className="relative">
                 <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -213,19 +202,8 @@ export default function ForgotPasswordPage() {
             </div>
 
             <Button type="submit" className="w-full text-xs font-semibold" disabled={loading}>
-              {loading ? "Updating Password..." : "Update Password"}
+              {loading ? "Updating..." : "Update Password"}
             </Button>
-
-            {resetUrl && (
-              <div className="pt-2 text-center">
-                <a
-                  href={resetUrl}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Or click here to open the one-click reset link
-                </a>
-              </div>
-            )}
           </form>
         )}
       </CardContent>
