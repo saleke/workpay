@@ -59,3 +59,6 @@ export * from "./agent/orchestrator.js";
 
 // Activity projection
 export * from "./activity/project.js";
+
+// Consultative Scoping & Information Threshold Model
+export * from "./scoping/index.js";

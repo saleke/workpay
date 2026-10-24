@@ -85,7 +85,7 @@ export class PersonaClient {
         });
 
         if (res.ok) {
-          const json = await res.json();
+          const json = (await res.json()) as any;
           const inquiryId = json.data?.id || `inq_${randomBytes(8).toString("hex")}`;
           const sessionToken = json.data?.attributes?.sessionToken || json.data?.attributes?.["session-token"];
           const status = json.data?.attributes?.status || "created";
