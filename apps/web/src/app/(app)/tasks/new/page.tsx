@@ -8,6 +8,7 @@ import {
   Clock,
   Sparkles,
   AlertCircle,
+  AlertTriangle,
   Compass,
   Layers,
   ShieldCheck,
@@ -18,6 +19,11 @@ import {
   DollarSign,
   PackageCheck,
   Sliders,
+  Paperclip,
+  ChevronDown,
+  ChevronUp,
+  Code2,
+  Terminal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +55,14 @@ export default function NewTaskPage() {
   const [finalizing, setFinalizing] = useState(false);
   const [sessionState, setSessionState] = useState<ScopingSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Contextual resource ingestion state
+  const [showResourceDrawer, setShowResourceDrawer] = useState(false);
+  const [activeResourceTab, setActiveResourceTab] = useState<"repo" | "schema" | "logs">("repo");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [repoTechSummary, setRepoTechSummary] = useState("");
+  const [schemaSpec, setSchemaSpec] = useState("");
+  const [errorLogs, setErrorLogs] = useState("");
 
   // Manual fallback state
   const [manualDescription, setManualDescription] = useState("");
@@ -82,11 +96,26 @@ export default function NewTaskPage() {
     setError(null);
     setLoadingDiagnostic(true);
 
+    const hasResources = Boolean(
+      repoUrl.trim() || repoTechSummary.trim() || schemaSpec.trim() || errorLogs.trim(),
+    );
+    const resources = hasResources
+      ? {
+          repoUrl: repoUrl.trim() || undefined,
+          repoTechSummary: repoTechSummary.trim() || undefined,
+          schemaSpec: schemaSpec.trim() || undefined,
+          errorLogs: errorLogs.trim() || undefined,
+        }
+      : undefined;
+
     try {
       const res = await fetch("/api/v1/scoping/dialogue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: targetGoal }),
+        body: JSON.stringify({
+          message: targetGoal,
+          resources,
+        }),
       });
 
       const json = await res.json();
@@ -246,6 +275,10 @@ export default function NewTaskPage() {
   const handleResetConsultation = () => {
     setSessionState(null);
     setRawGoal("");
+    setRepoUrl("");
+    setRepoTechSummary("");
+    setSchemaSpec("");
+    setErrorLogs("");
     setError(null);
   };
 
@@ -369,6 +402,28 @@ export default function NewTaskPage() {
                   <div>
                     <CardTitle className="text-sm font-semibold">Information Threshold Model</CardTitle>
                     <p className="text-[11px] text-[var(--wp-text-secondary)]">The Understanding Gauge evaluates 4 core baseline dimensions before drafting terms.</p>
+                    {sessionState?.detectedResources && (
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        {sessionState.detectedResources.repo && (
+                          <Badge variant="outline" className="text-[9px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
+                            <Code2 className="h-3 w-3 mr-1" />
+                            Git Repo Ingested
+                          </Badge>
+                        )}
+                        {sessionState.detectedResources.schema && (
+                          <Badge variant="outline" className="text-[9px] font-mono bg-purple-500/10 text-purple-600 border-purple-500/20">
+                            <FileCode2 className="h-3 w-3 mr-1" />
+                            API Schema Ingested
+                          </Badge>
+                        )}
+                        {sessionState.detectedResources.logs && (
+                          <Badge variant="outline" className="text-[9px] font-mono bg-rose-500/10 text-rose-600 border-rose-500/20">
+                            <Terminal className="h-3 w-3 mr-1" />
+                            Diagnostic Logs Ingested
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -489,16 +544,144 @@ export default function NewTaskPage() {
                     </p>
                   </div>
 
-                  <div className="pt-2 flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={loadingDiagnostic || !rawGoal.trim()}
-                      className="text-xs font-semibold"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                      {loadingDiagnostic ? "Diagnosing Requirements..." : "Analyze Objective & Scope"}
-                    </Button>
-                  </div>
+                    {/* Technical Context & Resources Ingestion Drawer */}
+                    <div className="pt-2 border-t border-[var(--wp-border)]/60">
+                      <div className="flex items-center justify-between">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowResourceDrawer(!showResourceDrawer)}
+                          className="text-xs h-8 text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] px-2"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 mr-1.5 text-[var(--wp-accent)]" />
+                          <span>Attach Technical Context (Git Repo, OpenAPI, Diagnostic Logs)</span>
+                          {(repoUrl || repoTechSummary || schemaSpec || errorLogs) && (
+                            <Badge variant="secondary" className="ml-2 text-[10px] h-4 px-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              Attached
+                            </Badge>
+                          )}
+                          {showResourceDrawer ? (
+                            <ChevronUp className="h-3.5 w-3.5 ml-1.5 opacity-60" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" />
+                          )}
+                        </Button>
+                      </div>
+
+                      {showResourceDrawer && (
+                        <div className="mt-3 p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] space-y-3">
+                          {/* Sub-Tabs */}
+                          <div className="flex items-center gap-1.5 border-b border-[var(--wp-border)] pb-2 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setActiveResourceTab("repo")}
+                              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                activeResourceTab === "repo"
+                                  ? "bg-[var(--wp-accent)] text-white"
+                                  : "text-[var(--wp-text-secondary)] hover:bg-[var(--wp-surface-hover)]"
+                              }`}
+                            >
+                              Git Repo / Stack
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveResourceTab("schema")}
+                              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                activeResourceTab === "schema"
+                                  ? "bg-[var(--wp-accent)] text-white"
+                                  : "text-[var(--wp-text-secondary)] hover:bg-[var(--wp-surface-hover)]"
+                              }`}
+                            >
+                              API / Schema Spec
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveResourceTab("logs")}
+                              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                activeResourceTab === "logs"
+                                  ? "bg-[var(--wp-accent)] text-white"
+                                  : "text-[var(--wp-text-secondary)] hover:bg-[var(--wp-surface-hover)]"
+                              }`}
+                            >
+                              Logs / Stack Trace
+                            </button>
+                          </div>
+
+                          {activeResourceTab === "repo" && (
+                            <div className="space-y-2 text-xs">
+                              <div>
+                                <Label htmlFor="scoping-repo-url" className="text-[11px] font-medium text-[var(--wp-text-secondary)]">
+                                  GitHub or Source Repository URL
+                                </Label>
+                                <Input
+                                  id="scoping-repo-url"
+                                  value={repoUrl}
+                                  onChange={(e) => setRepoUrl(e.target.value)}
+                                  placeholder="https://github.com/organization/project"
+                                  className="text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="scoping-repo-summary" className="text-[11px] font-medium text-[var(--wp-text-secondary)]">
+                                  Known Tech Stack or Key Dependencies
+                                </Label>
+                                <Input
+                                  id="scoping-repo-summary"
+                                  value={repoTechSummary}
+                                  onChange={(e) => setRepoTechSummary(e.target.value)}
+                                  placeholder="e.g. Next.js 15, FastAPI, PostgreSQL, Tailwind, Jest"
+                                  className="text-xs mt-1"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {activeResourceTab === "schema" && (
+                            <div className="space-y-1.5 text-xs">
+                              <Label htmlFor="scoping-schema-spec" className="text-[11px] font-medium text-[var(--wp-text-secondary)]">
+                                Paste OpenAPI (YAML/JSON), GraphQL, or SQL Schema
+                              </Label>
+                              <textarea
+                                id="scoping-schema-spec"
+                                rows={4}
+                                value={schemaSpec}
+                                onChange={(e) => setSchemaSpec(e.target.value)}
+                                placeholder="openapi: 3.0.0 / CREATE TABLE users (...) / type Query { ... }"
+                                className="w-full rounded-lg border border-[var(--wp-border)] bg-background p-2.5 text-xs font-mono placeholder:text-[var(--wp-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--wp-accent)]"
+                              />
+                            </div>
+                          )}
+
+                          {activeResourceTab === "logs" && (
+                            <div className="space-y-1.5 text-xs">
+                              <Label htmlFor="scoping-error-logs" className="text-[11px] font-medium text-[var(--wp-text-secondary)]">
+                                Paste Diagnostic Terminal Output or Error Stack Trace
+                              </Label>
+                              <textarea
+                                id="scoping-error-logs"
+                                rows={4}
+                                value={errorLogs}
+                                onChange={(e) => setErrorLogs(e.target.value)}
+                                placeholder="Paste runtime exception, stack trace, or failing test output..."
+                                className="w-full rounded-lg border border-[var(--wp-border)] bg-background p-2.5 text-xs font-mono placeholder:text-[var(--wp-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--wp-accent)]"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <Button
+                        type="submit"
+                        disabled={loadingDiagnostic || !rawGoal.trim()}
+                        className="text-xs font-semibold"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                        {loadingDiagnostic ? "Diagnosing Requirements..." : "Analyze Objective & Scope"}
+                      </Button>
+                    </div>
                 </form>
               </CardContent>
             </Card>
@@ -534,6 +717,40 @@ export default function NewTaskPage() {
                 ))}
               </div>
 
+              {/* Consultative Advisory Notice */}
+              {sessionState.advisoryNotice && (
+                <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    <Sparkles className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>Consultative Product Manager Guidance</span>
+                  </div>
+                  <p className="text-xs text-[var(--wp-text-secondary)] leading-relaxed whitespace-pre-line">
+                    {sessionState.advisoryNotice}
+                  </p>
+                  {sessionState.recommendedOptionId && sessionState.currentOptions && (
+                    (() => {
+                      const recOpt = sessionState.currentOptions.find(
+                        (o) => o.id === sessionState.recommendedOptionId,
+                      );
+                      if (!recOpt) return null;
+                      return (
+                        <div className="pt-1.5 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => handleSelectOption(recOpt)}
+                            className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white h-8"
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1.5" />
+                            Accept Recommended Strategy: {recOpt.title}
+                          </Button>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
+
               {/* Layer 3: Interactive Option Selection Group */}
               {sessionState.currentOptions && sessionState.currentOptions.length > 0 && (
                 <div className="space-y-3 pt-2">
@@ -556,18 +773,29 @@ export default function NewTaskPage() {
                         type="button"
                         disabled={loadingDiagnostic}
                         onClick={() => handleSelectOption(opt)}
-                        className="p-4 rounded-xl border border-[var(--wp-border)] bg-background hover:border-[var(--wp-accent)] hover:shadow-sm text-left transition-all space-y-2.5 flex flex-col justify-between group relative disabled:opacity-60"
+                        className={`p-4 rounded-xl border text-left transition-all space-y-2.5 flex flex-col justify-between group relative disabled:opacity-60 ${
+                          opt.id === sessionState.recommendedOptionId
+                            ? "border-amber-500 ring-1 ring-amber-500/50 bg-amber-500/5"
+                            : "border-[var(--wp-border)] bg-background hover:border-[var(--wp-accent)] hover:shadow-sm"
+                        }`}
                       >
                         <div>
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <span className="font-semibold text-xs text-[var(--wp-text-primary)] group-hover:text-[var(--wp-accent)]">
                               {opt.title}
                             </span>
-                            {opt.badge && (
-                              <Badge variant="outline" className="text-[9px] font-mono border-[var(--wp-border)] shrink-0">
-                                {opt.badge}
-                              </Badge>
-                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {opt.id === sessionState.recommendedOptionId && (
+                                <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[9px] font-mono">
+                                  Recommended
+                                </Badge>
+                              )}
+                              {opt.badge && (
+                                <Badge variant="outline" className="text-[9px] font-mono border-[var(--wp-border)]">
+                                  {opt.badge}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
 
                           <div className="space-y-1.5 text-[11px] text-[var(--wp-text-secondary)] mt-2">
@@ -669,6 +897,19 @@ export default function NewTaskPage() {
                       {sessionState.reversePitchCanvas.domain}
                     </Badge>
                   </div>
+
+                  {/* Budget Feasibility & Scope-Trimming Advisory */}
+                  {sessionState.reversePitchCanvas.scopeTrimmingAdvisory && (
+                    <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2.5">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                      <div className="space-y-0.5">
+                        <strong className="font-semibold block">Budget Feasibility Notice:</strong>
+                        <p className="leading-relaxed text-[11px] text-[var(--wp-text-secondary)]">
+                          {sessionState.reversePitchCanvas.scopeTrimmingAdvisory}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 4 Pillars of the Cognitive Scope Canvas */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">

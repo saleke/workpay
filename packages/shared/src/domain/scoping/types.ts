@@ -47,6 +47,8 @@ export interface CognitiveScopeCanvas {
   estimatedBudgetMinor: number;
   currency: string;
   targetTimelineDays: number;
+  feasibilityRating?: "healthy" | "tight" | "underfunded";
+  scopeTrimmingAdvisory?: string;
   deliverables: string[];
   acceptanceCriteria: Array<{
     key: string;
@@ -79,10 +81,23 @@ export interface ScopingSessionState {
   currentSlotKey?: string | null;
   currentHelperContext?: string;
   currentOptions: ScopingOption[];
+  recommendedOptionId?: string | null;
+  advisoryNotice?: string | null;
+  feasibilityRating?: "healthy" | "tight" | "underfunded";
+  scopeTrimmingAdvisory?: string | null;
+  detectedResources?: { repo?: boolean; schema?: boolean; logs?: boolean };
   allowCustomInput: boolean;
   reversePitchCanvas: CognitiveScopeCanvas | null;
   baselineFrozenAt?: string;
 }
+
+export const scopingResourceInputSchema = z.object({
+  repoUrl: z.string().optional(),
+  repoTechSummary: z.string().optional(),
+  schemaSpec: z.string().optional(),
+  errorLogs: z.string().optional(),
+});
+export type ScopingResourceInput = z.infer<typeof scopingResourceInputSchema>;
 
 export const scopingRequestSchema = z.object({
   sessionId: z.string().optional(),
@@ -90,6 +105,7 @@ export const scopingRequestSchema = z.object({
   selectedOptionId: z.string().optional(),
   activeSlotKey: z.string().optional(),
   customBudgetMinor: z.number().int().positive().optional(),
+  resources: scopingResourceInputSchema.optional(),
   slots: z.record(z.string()).optional(),
   history: z
     .array(

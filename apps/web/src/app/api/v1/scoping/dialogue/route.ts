@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       selectedOptionId: parsed.selectedOptionId,
       activeSlotKey: parsed.activeSlotKey,
       customBudgetMinor: parsed.customBudgetMinor,
+      resources: parsed.resources,
       slots: parsed.slots,
       history: parsed.history,
       literacyLevel: parsed.literacyLevel,

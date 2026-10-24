@@ -334,5 +334,60 @@ describe("Consultative Scoping & Information Threshold Model", () => {
       expect(secTurn.reversePitchCanvas?.estimatedBudgetMinor).toBeGreaterThanOrEqual(65000);
       expect(secTurn.reversePitchCanvas?.estimatedBudgetMinor).not.toBe(20000);
     });
+
+    it("ingests technical resources (repo, schema, error logs) to pre-populate slots upfront", async () => {
+      const turnWithResources = await processScopingTurn({
+        message: "Fix our failing production API endpoints",
+        resources: {
+          repoUrl: "https://github.com/acme/backend-service",
+          repoTechSummary: "FastAPI Python backend with PostgreSQL and Pytest suite",
+          errorLogs: "FastAPI Error: sqlalchemy.exc.OperationalError: server closed the connection unexpectedly at /app/routes/orders.py:42",
+        },
+      });
+
+      expect(turnWithResources.detectedResources?.repo).toBe(true);
+      expect(turnWithResources.detectedResources?.logs).toBe(true);
+      expect(turnWithResources.rawGoal).toContain("FastAPI Python backend");
+      expect(turnWithResources.rawGoal).toContain("OperationalError");
+      expect(turnWithResources.filledSlots.databaseAndState || turnWithResources.filledSlots.validationProof).toBeDefined();
+    });
+
+    it("detects user clarification queries and provides consultative guidance with recommended option instead of saving query as answer", async () => {
+      const consultativeTurn = await processScopingTurn({
+        message: "What do you recommend and which is cheaper?",
+        activeSlotKey: "authAndAccess",
+        slots: {},
+        history: [
+          { role: "user", content: "Build a client portal for our design agency" },
+          { role: "assistant", content: "How should users sign in to their accounts?" },
+        ],
+      });
+
+      // Crucial: The question itself must NOT be saved as the slot answer!
+      expect(consultativeTurn.filledSlots.authAndAccess).toBeUndefined();
+      // An advisory recommendation must be generated
+      expect(consultativeTurn.advisoryNotice).toBeDefined();
+      expect(consultativeTurn.recommendedOptionId).toBeDefined();
+      // The assistant dialogue response must advise the user rather than blindly asking the next question
+      const lastReply = consultativeTurn.dialogue[consultativeTurn.dialogue.length - 1]!;
+      expect(lastReply.role).toBe("assistant");
+      expect(lastReply.content).toContain("recommend");
+    });
+
+    it("evaluates project feasibility and provides scope-trimming advisory for lean budgets", async () => {
+      const underfundedTurn = await processScopingTurn({
+        message: "Build a cross-platform mobile ride sharing application with real-time GPS tracking. My budget is $150.",
+        slots: {
+          platformTarget: "React Native / Expo Cross-Platform",
+          validationProof: "Interactive TestFlight preview build",
+        },
+      });
+
+      expect(underfundedTurn.thresholdMet).toBe(true);
+      expect(underfundedTurn.feasibilityRating).toBe("underfunded");
+      expect(underfundedTurn.scopeTrimmingAdvisory).toContain("Scope-Trimming Advisory");
+      expect(underfundedTurn.scopeTrimmingAdvisory).toContain("Phase 1");
+    });
   });
 });
+

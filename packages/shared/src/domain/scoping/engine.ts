@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { DOMAIN_DEFINITIONS, matchDomain, type DomainDefinition } from "./capability-tree.js";
+import { synthesizeInitialIntake } from "./intake.js";
+import {
+  classifyUserTurnIntent,
+  generateConsultativeAdvisory,
+  extractMultiSlotAnswers,
+  evaluateFeasibility,
+} from "./consultation.js";
 import type {
   CognitiveScopeCanvas,
   DimensionStatus,
@@ -507,26 +514,45 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   const incomingSlots: Record<string, string> = { ...(request.slots || {}) };
 
   // Identify root user objective across dialogue turns
-  const rootGoal = history.find((h) => h.role === "user")?.content || request.message;
+  let rootGoal = history.find((h) => h.role === "user")?.content || request.message;
+
+  const detectedResources = {
+    repo: Boolean(request.resources?.repoUrl || request.resources?.repoTechSummary),
+    schema: Boolean(request.resources?.schemaSpec),
+    logs: Boolean(request.resources?.errorLogs),
+  };
+
+  // Ingest technical resources if provided (repo, schema, error logs)
+  if (request.resources) {
+    const intake = synthesizeInitialIntake(rootGoal, request.resources);
+    rootGoal = intake.enrichedGoal;
+    Object.assign(incomingSlots, intake.extractedSlots);
+  }
 
   // Combine conversation context to understand the user's ongoing intent
   const fullTextContext = [
     request.message,
     ...history.map((h) => h.content),
+    request.resources?.repoTechSummary || "",
+    request.resources?.schemaSpec || "",
+    request.resources?.errorLogs || "",
   ].join(" ");
 
   const domain = matchDomain(fullTextContext);
   const literacyLevel = request.literacyLevel || detectTechnicalLiteracy(fullTextContext);
 
   // Check if an explicit budget was declared
-  if (request.customBudgetMinor) {
-    incomingSlots.userBudget = String(request.customBudgetMinor);
-  } else {
-    const detectedBudget = extractUserBudget(fullTextContext);
-    if (detectedBudget) {
-      incomingSlots.userBudget = String(detectedBudget);
-    }
+  let declaredBudget: number | undefined = request.customBudgetMinor;
+  if (!declaredBudget) {
+    declaredBudget = extractUserBudget(fullTextContext) || undefined;
   }
+  if (declaredBudget) {
+    incomingSlots.userBudget = String(declaredBudget);
+  }
+
+  let advisoryNotice: string | null = null;
+  let recommendedOptionId: string | null = null;
+  let isClarificationQuery = false;
 
   // 1. If user selected an option from the previous turn, map it to the corresponding slot
   if (request.selectedOptionId) {
@@ -541,27 +567,57 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       }
     }
   } else if (history.length > 0) {
-    // 2. Custom reply submitted by the user in response to the active question!
+    // 2. Custom reply submitted by the user in response to the active question
     const targetSlotKey =
       request.activeSlotKey ||
       domain.slots.find((s) => !incomingSlots[s.slotKey])?.slotKey ||
       "customScopeNotes";
+    const targetSlotDef = domain.slots.find((s) => s.slotKey === targetSlotKey);
 
-    if (targetSlotKey) {
-      incomingSlots[targetSlotKey] = request.message.trim();
-      if (
-        targetSlotKey === "validationProof" ||
-        request.message.toLowerCase().includes("test") ||
-        request.message.toLowerCase().includes("verify") ||
-        request.message.toLowerCase().includes("benchmark") ||
-        request.message.toLowerCase().includes("proof") ||
-        request.message.toLowerCase().includes("iperf")
-      ) {
-        incomingSlots.validationProof = request.message.trim();
+    // Classify user turn intent (clarification query vs answer)
+    const turnIntent = classifyUserTurnIntent(request.message, targetSlotDef);
+
+    if (turnIntent.type === "CLARIFICATION_QUERY") {
+      isClarificationQuery = true;
+      const activeSlotForAdvisory =
+        targetSlotDef ||
+        domain.slots.find((s) => !incomingSlots[s.slotKey]) ||
+        domain.slots[0];
+
+      if (activeSlotForAdvisory) {
+        const advisory = generateConsultativeAdvisory(
+          activeSlotForAdvisory,
+          request.message,
+          declaredBudget,
+        );
+        advisoryNotice = advisory.explanation;
+        recommendedOptionId = advisory.recommendedOptionId || null;
       }
+    } else {
+      // User provided an answer
+      if (targetSlotKey) {
+        incomingSlots[targetSlotKey] = request.message.trim();
+        if (
+          targetSlotKey === "validationProof" ||
+          request.message.toLowerCase().includes("test") ||
+          request.message.toLowerCase().includes("verify") ||
+          request.message.toLowerCase().includes("benchmark") ||
+          request.message.toLowerCase().includes("proof") ||
+          request.message.toLowerCase().includes("iperf")
+        ) {
+          incomingSlots.validationProof = request.message.trim();
+        }
+      }
+
+      // Multi-slot semantic extraction across the user's message
+      const multiExtracted = extractMultiSlotAnswers(request.message, domain, incomingSlots);
+      Object.assign(incomingSlots, multiExtracted);
     }
   } else {
-    // 3. Initial turn: scan message to pre-populate any obvious slot answers provided upfront
+    // 3. Initial turn: extract multiple slots and pre-populate from initial message
+    const multiExtracted = extractMultiSlotAnswers(request.message, domain, incomingSlots);
+    Object.assign(incomingSlots, multiExtracted);
+
     const lowerMessage = request.message.toLowerCase();
     for (const slotDef of domain.slots) {
       if (!incomingSlots[slotDef.slotKey]) {
@@ -573,6 +629,15 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
           }
         }
       }
+    }
+
+    if (
+      lowerMessage.includes("test suite") ||
+      lowerMessage.includes("integration test") ||
+      lowerMessage.includes("e2e test") ||
+      lowerMessage.includes("coverage")
+    ) {
+      incomingSlots.validationProof = "Automated test suite passing with code 0";
     }
   }
 
@@ -604,8 +669,34 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   let currentHelperContext: string | undefined = undefined;
   let currentOptions: ScopingOption[] = [];
   let reversePitchCanvas: CognitiveScopeCanvas | null = null;
+  let feasibilityRating: "healthy" | "tight" | "underfunded" | undefined;
+  let scopeTrimmingAdvisory: string | null = null;
 
-  if (evaluation.thresholdMet) {
+  if (isClarificationQuery) {
+    // When the user asks for advice or explanation, respond with consultative guidance
+    const targetSlotKey =
+      request.activeSlotKey || domain.slots.find((s) => !incomingSlots[s.slotKey])?.slotKey;
+    const targetSlotDef =
+      domain.slots.find((s) => s.slotKey === targetSlotKey) ||
+      domain.slots.find((s) => !incomingSlots[s.slotKey]) ||
+      domain.slots[0];
+
+    if (targetSlotDef) {
+      currentSlotKey = targetSlotDef.slotKey;
+      currentQuestion =
+        literacyLevel <= 2 ? targetSlotDef.questionLayman : targetSlotDef.questionTechnical;
+      currentHelperContext = targetSlotDef.helperContextLayman;
+      currentOptions = targetSlotDef.options;
+
+      const advisory = generateConsultativeAdvisory(targetSlotDef, request.message, declaredBudget);
+      updatedDialogue.push({
+        id: `turn_ai_${randomUUID()}`,
+        role: "assistant",
+        content: advisory.recommendation,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } else if (evaluation.thresholdMet) {
     // Generate the Reverse Pitch Canvas using the root user objective and full context
     reversePitchCanvas = buildCognitiveScopeCanvas(
       rootGoal,
@@ -614,6 +705,17 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       literacyLevel,
       fullTextContext,
     );
+
+    // Run Feasibility & Scope-Trimming Advisory
+    const feasibility = evaluateFeasibility(
+      domain,
+      reversePitchCanvas.estimatedBudgetMinor,
+      reversePitchCanvas.targetTimelineDays,
+    );
+    reversePitchCanvas.feasibilityRating = feasibility.rating;
+    reversePitchCanvas.scopeTrimmingAdvisory = feasibility.advisoryMessage;
+    feasibilityRating = feasibility.rating;
+    scopeTrimmingAdvisory = feasibility.advisoryMessage || null;
 
     const pitchMessage =
       literacyLevel <= 2
@@ -702,7 +804,13 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
     currentSlotKey,
     currentHelperContext,
     currentOptions,
+    recommendedOptionId,
+    advisoryNotice,
+    feasibilityRating,
+    scopeTrimmingAdvisory,
+    detectedResources,
     allowCustomInput: true,
     reversePitchCanvas,
   };
 }
+
