@@ -60,10 +60,11 @@ export async function GET(req: Request) {
       legalNameMasked: user.legalName
         ? user.legalName.replace(/(?<=^.).+(?=\s)/, "***").replace(/(?<=\s.).+/, "***")
         : null,
+      provider: "Persona (withpersona.com)",
       threshold: {
         milestoneMinor: 100000, // $1,000 threshold
         currency: "USD",
-        rule: "Required for individual tasks or cumulative milestone disbursements exceeding $1,000 USD.",
+        rule: "Required for individual tasks or cumulative milestone disbursements exceeding $1,000 USD (Verified via Persona Identity).",
       },
     });
   } catch (err) {

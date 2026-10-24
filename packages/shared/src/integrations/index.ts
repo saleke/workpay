@@ -8,7 +8,24 @@
 export * as ai from "./ai/index.js";
 export * as email from "./email/index.js";
 export * as payments from "./payments/index.js";
+export * as persona from "./persona/index.js";
 export * as storage from "./storage/index.js";
+
+export {
+  getPersonaClient,
+  setPersonaClient,
+  PersonaClient,
+} from "./persona/index.js";
+export type {
+  PersonaDocumentType,
+  PersonaInquiryStatus,
+  CreateInquiryOptions,
+  PersonaInquiryResult,
+  PersonaVerificationChecks,
+  VerifyInquiryOptions,
+  PersonaVerificationResult,
+  PersonaWebhookPayload,
+} from "./persona/index.js";
 
 export {
   getEmailClient,

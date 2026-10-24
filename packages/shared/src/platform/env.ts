@@ -87,6 +87,12 @@ export const envSchema = z
     // Google OAuth (Sign-Up and Login)
     GOOGLE_CLIENT_ID: optionalString,
     GOOGLE_CLIENT_SECRET: optionalString,
+
+    // Persona Identity Verification (withpersona.com)
+    PERSONA_API_KEY: optionalString,
+    PERSONA_TEMPLATE_ID: optionalString,
+    PERSONA_ENVIRONMENT_ID: optionalString,
+    PERSONA_WEBHOOK_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.AI_PROVIDER === "openai" && !env.OPENAI_API_KEY) {
