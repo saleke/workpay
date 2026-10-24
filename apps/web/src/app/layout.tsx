@@ -19,6 +19,11 @@ const fontMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "WorkPay",
   description: "Money follows proof. Bounded economic execution.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

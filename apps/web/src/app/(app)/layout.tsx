@@ -8,6 +8,7 @@ import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
 import { UserNav } from "@/components/nav/user-nav";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
+import { WorkPayLogoMark } from "@/components/brand/logo";
 import { useSystemMode } from "@/lib/mode";
 import { cn } from "@/lib/utils";
 
@@ -41,8 +42,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3 lg:gap-6 min-w-0">
             <Link
               href="/"
-              className="flex items-center gap-2 text-lg font-bold tracking-tight text-[var(--wp-text-primary)] hover:opacity-90 active:scale-[0.98] transition-all shrink-0"
+              className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-[var(--wp-text-primary)] hover:opacity-90 active:scale-[0.98] transition-all shrink-0"
             >
+              <WorkPayLogoMark size={26} />
               <span>WorkPay</span>
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)] shadow-[0_0_8px_rgba(183,121,45,0.5)]" />
             </Link>
