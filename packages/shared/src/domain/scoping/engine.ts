@@ -186,6 +186,126 @@ export function evaluateInformationThreshold(
 }
 
 /**
+ * Scans user conversational input for explicit monetary budget amounts.
+ * Matches patterns like $500, $1,200, 500 usd, budget of 800, etc.
+ */
+export function extractUserBudget(text: string): number | null {
+  // 1. Matches $500, $1,200, $450.00, etc.
+  const dollarRegex = /\$([0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(?:\.([0-9]{2}))?/g;
+  let match: RegExpExecArray | null;
+  const found: number[] = [];
+
+  while ((match = dollarRegex.exec(text)) !== null) {
+    const whole = match[1]!.replace(/,/g, "");
+    const cents = match[2] || "00";
+    const minor = parseInt(whole, 10) * 100 + parseInt(cents, 10);
+    if (minor >= 1000 && minor <= 10000000) {
+      found.push(minor);
+    }
+  }
+
+  // 2. Matches "500 usd", "1000 dollars", "budget: 800", "budget of 1200", "spend 600"
+  if (found.length === 0) {
+    const textRegex = /(?:budget\s*(?:is|of|around|:)?\s*|paying\s*(?:up to|around)?\s*|spend\s*(?:around|up to)?\s*|\b)([0-9]{2,6})\s*(?:usd|dollars|\$)/gi;
+    while ((match = textRegex.exec(text)) !== null) {
+      const val = parseInt(match[1]!, 10);
+      if (val >= 10 && val <= 100000) {
+        found.push(val * 100);
+      }
+    }
+  }
+
+  return found.length > 0 ? found[0]! : null;
+}
+
+/**
+ * Calculates a dynamic, realistic budget estimate based on domain complexity,
+ * custom user requirements, and any explicitly declared client budget.
+ */
+export function calculateDynamicEstimatedBudget(
+  domain: DomainDefinition,
+  rawGoal: string,
+  filledSlots: Record<string, string>,
+  fullContext: string,
+): { estimatedBudgetMinor: number; targetTimelineDays: number } {
+  // Check if explicit budget was captured or parsed
+  const explicitBudget =
+    (filledSlots.userBudget ? parseInt(filledSlots.userBudget, 10) : null) ||
+    extractUserBudget(fullContext);
+
+  if (explicitBudget && explicitBudget >= 1000) {
+    const timeline = explicitBudget >= 100000 ? 14 : explicitBudget >= 50000 ? 10 : explicitBudget >= 25000 ? 5 : 3;
+    return {
+      estimatedBudgetMinor: explicitBudget,
+      targetTimelineDays: timeline,
+    };
+  }
+
+  // Domain baseline engineering rates (realistic market rates, not flat $200)
+  const domainBaselines: Record<string, { baseMinor: number; days: number }> = {
+    network_infrastructure: { baseMinor: 35000, days: 4 }, // $350
+    cloud_devops: { baseMinor: 48000, days: 5 },           // $480
+    cybersecurity: { baseMinor: 65000, days: 7 },          // $650
+    api_integration: { baseMinor: 38000, days: 5 },        // $380
+    data_pipeline: { baseMinor: 28000, days: 4 },          // $280
+    automation_scripts: { baseMinor: 32000, days: 4 },     // $320
+    custom_software: { baseMinor: 55000, days: 8 },        // $550
+    mobile_app: { baseMinor: 85000, days: 14 },            // $850
+    ecommerce: { baseMinor: 42000, days: 7 },              // $420
+    web_platform: { baseMinor: 45000, days: 10 },          // $450
+    general_project: { baseMinor: 30000, days: 5 },        // $300
+  };
+
+  const base = domainBaselines[domain.domainId] || { baseMinor: 30000, days: 5 };
+  let calculatedMinor = base.baseMinor;
+  let days = base.days;
+
+  const lower = fullContext.toLowerCase();
+
+  // Multiplier for enterprise / high scale signals
+  if (
+    lower.includes("enterprise") ||
+    lower.includes("multi-region") ||
+    lower.includes("high volume") ||
+    lower.includes("soc2") ||
+    lower.includes("production ready") ||
+    lower.includes("thousands of")
+  ) {
+    calculatedMinor = Math.round(calculatedMinor * 1.5);
+    days = Math.round(days * 1.4);
+  } else if (
+    lower.includes("quick") ||
+    lower.includes("simple") ||
+    lower.includes("small fix") ||
+    lower.includes("minor")
+  ) {
+    calculatedMinor = Math.round(calculatedMinor * 0.75);
+    days = Math.max(2, Math.round(days * 0.7));
+  }
+
+  // Feature add-ons
+  if (filledSlots.fulfillmentModel?.includes("Shipping")) {
+    calculatedMinor += 10000; // Carrier integration and live rates (+$100)
+  }
+  if (filledSlots.cloudEnvironment?.includes("AWS")) {
+    calculatedMinor += 15000; // VPC and Terraform IaC automation (+$150)
+  }
+  if (filledSlots.securityTarget?.includes("Cloud")) {
+    calculatedMinor += 15000; // Multi-cloud IAM posture audit (+$150)
+  }
+  if (filledSlots.cleaningRules?.includes("Fuzzy")) {
+    calculatedMinor += 8000;  // Levenshtein fuzzy match clustering (+$80)
+  }
+
+  calculatedMinor = Math.round(calculatedMinor / 1000) * 1000;
+
+  return {
+    estimatedBudgetMinor: calculatedMinor,
+    targetTimelineDays: days,
+  };
+}
+
+/**
  * Reverse Pitch Protocol (Executive Project Intent Canvas).
  * Translates completed parameters into an executive summary pitched back to the client.
  */
@@ -194,15 +314,23 @@ export function buildCognitiveScopeCanvas(
   domain: DomainDefinition,
   filledSlots: Record<string, string>,
   literacyLevel: number,
+  fullTextContext?: string,
 ): CognitiveScopeCanvas {
   const title = deriveProjectTitle(rawGoal, domain);
+
+  const budgetEstimate = calculateDynamicEstimatedBudget(
+    domain,
+    rawGoal,
+    filledSlots,
+    fullTextContext || rawGoal,
+  );
+  const estimatedBudgetMinor = budgetEstimate.estimatedBudgetMinor;
+  const targetTimelineDays = budgetEstimate.targetTimelineDays;
 
   let whatWeAreBuilding = "";
   let howItDelivers = "";
   let howSuccessIsProven = "";
   let boundariesAndLimits = "";
-  let estimatedBudgetMinor = 15000; // $150 default
-  let targetTimelineDays = 5;
 
   if (domain.domainId === "network_infrastructure") {
     whatWeAreBuilding = `Comprehensive network infrastructure diagnostics, hardware optimization, and latency resolution for "${rawGoal.trim()}".`;
@@ -213,8 +341,6 @@ export function buildCognitiveScopeCanvas(
       "Automated iperf3 benchmark proving sustained throughput >= 300 Mbps, jitter < 3ms, and zero packet drops under full load.";
     boundariesAndLimits =
       "Scope covers internal office/home network topology, routers, access points, and connected endpoints. Excludes replacing physical underground ISP fiber outside property boundary.";
-    estimatedBudgetMinor = 25000;
-    targetTimelineDays = 4;
   } else if (domain.domainId === "cloud_devops") {
     whatWeAreBuilding = `Cloud infrastructure architecture, automated deployment pipelines, and environment hardening for "${rawGoal.trim()}".`;
     const envChoice = filledSlots.cloudEnvironment || "Cloudflare Serverless Edge or Docker VPS";
@@ -224,8 +350,6 @@ export function buildCognitiveScopeCanvas(
       "Automated GitHub Actions CI/CD pipeline deploying live with passing HTTP 200 health check and zero downtime.";
     boundariesAndLimits =
       "Scope includes Infrastructure-as-Code templates and deployment configs. Cloud hosting resource usage fees are paid directly to cloud provider by client.";
-    estimatedBudgetMinor = 35000;
-    targetTimelineDays = 5;
   } else if (domain.domainId === "cybersecurity") {
     whatWeAreBuilding = `Cybersecurity audit, vulnerability assessment, and remediation patching for "${rawGoal.trim()}".`;
     const secTarget = filledSlots.securityTarget || "Web Application and Cloud Infrastructure";
@@ -235,8 +359,6 @@ export function buildCognitiveScopeCanvas(
       "Executive vulnerability assessment report with proof-of-concept evidence and verified clean re-test pass with zero high or critical findings.";
     boundariesAndLimits =
       "Testing strictly restricted to authorized staging/production domains and IP ranges. Excludes destructive denial-of-service testing or social engineering of staff.";
-    estimatedBudgetMinor = 45000;
-    targetTimelineDays = 6;
   } else if (domain.domainId === "api_integration") {
     whatWeAreBuilding = `An automated, bidirectional API integration and data synchronization pipeline for "${rawGoal.trim()}".`;
     const frequency = filledSlots.syncFrequency || "Hourly Scheduled Batch";
@@ -247,8 +369,6 @@ export function buildCognitiveScopeCanvas(
       "A 10-item synthetic mutation test proving 100% field parity between source and destination systems with zero data loss and automated test coverage passing clean.";
     boundariesAndLimits =
       "Strictly bounded to specified API endpoints and documented rate limits. Scope excludes refactoring unrelated legacy databases. Access credentials provided in staging environment.";
-    estimatedBudgetMinor = 25000;
-    targetTimelineDays = 5;
   } else if (domain.domainId === "data_pipeline") {
     whatWeAreBuilding = `An automated data cleaning, deduplication, and schema normalization pipeline for "${rawGoal.trim()}".`;
     const rules = filledSlots.cleaningRules || "Strict Deduplication with Format Normalization";
@@ -258,8 +378,6 @@ export function buildCognitiveScopeCanvas(
       "An automated integrity validation report confirming duplicate rates below 0.5%, zero corrupt rows, and delivering an exportable normalized dataset.";
     boundariesAndLimits =
       "Input data volume capped at agreed row count. Scope excludes manual data entry for missing original fields. Deliverable provided in CSV / JSON.";
-    estimatedBudgetMinor = 15000;
-    targetTimelineDays = 3;
   } else if (domain.domainId === "automation_scripts") {
     whatWeAreBuilding = `An automated workflow script and scheduled data extraction runner for "${rawGoal.trim()}".`;
     const arch = filledSlots.automationArchitecture || "Headless Browser Automation with Playwright";
@@ -269,8 +387,6 @@ export function buildCognitiveScopeCanvas(
       "Live sample execution run producing valid output artifact with exit code 0 and zero unhandled exceptions.";
     boundariesAndLimits =
       "Bounded to agreed target sites and output schemas. Excludes third-party paid proxy subscriptions or captcha solver account fees.";
-    estimatedBudgetMinor = 20000;
-    targetTimelineDays = 4;
   } else if (domain.domainId === "custom_software") {
     whatWeAreBuilding = `Custom software engineering implementation, modular service, or CLI tool delivering "${rawGoal.trim()}".`;
     const softArch = filledSlots.softwareArchitecture || "Modular Backend Service";
@@ -280,8 +396,6 @@ export function buildCognitiveScopeCanvas(
       "Automated test suite passing with exit code 0 and code coverage >= 85% across all core functional pathways.";
     boundariesAndLimits =
       "Bounded to agreed functional specification and interface contracts. Excludes building custom proprietary UI unless specified.";
-    estimatedBudgetMinor = 40000;
-    targetTimelineDays = 8;
   } else if (domain.domainId === "mobile_app") {
     whatWeAreBuilding = `A polished cross-platform mobile application dedicated to "${rawGoal.trim()}".`;
     const platform = filledSlots.platformTarget || "React Native / Expo Cross-Platform";
@@ -291,8 +405,6 @@ export function buildCognitiveScopeCanvas(
       "An interactive preview build installable directly on test mobile devices via TestFlight or Expo, confirming smooth navigation and functional transactions.";
     boundariesAndLimits =
       "Scope includes design screens, state management, and API wiring. Excludes third-party app store developer account registration fees ($99 Apple fee).";
-    estimatedBudgetMinor = 50000;
-    targetTimelineDays = 14;
   } else if (domain.domainId === "ecommerce") {
     whatWeAreBuilding = `A functional e-commerce storefront dedicated to "${rawGoal.trim()}". Customers can browse curated items, view images, add items to a responsive shopping cart, and complete purchase checkout.`;
     const inventory = filledSlots.inventorySource || "Shopify Storefront API";
@@ -303,8 +415,6 @@ export function buildCognitiveScopeCanvas(
       "A complete test order in sandbox processing a test payment, issuing an automated digital receipt, and registering in the order queue with zero unhandled runtime errors.";
     boundariesAndLimits =
       "Budget capped at approved milestone amount. Scope excludes unapproved third-party paid plugins or unsupported multi-currency accounting. Product photography and item copy are provided by client.";
-    estimatedBudgetMinor = filledSlots.fulfillmentModel?.includes("Shipping") ? 35000 : 20000;
-    targetTimelineDays = 7;
   } else if (domain.domainId === "web_platform") {
     whatWeAreBuilding = `A modern, responsive web application and client portal delivering "${rawGoal.trim()}".`;
     const auth = filledSlots.authAndAccess || "Social 1-Click OAuth and Magic Links";
@@ -314,8 +424,6 @@ export function buildCognitiveScopeCanvas(
       "A live staging deployment verifying successful user authentication, core workflow data persistence, and Google Lighthouse performance score >= 85.";
     boundariesAndLimits =
       "Scope capped to agreed core user journeys. Excludes custom enterprise single sign-on (SAML/Okta) unless specified. Copy and logo assets provided by client.";
-    estimatedBudgetMinor = 30000;
-    targetTimelineDays = 10;
   } else {
     // Universal general project fallback
     whatWeAreBuilding = `Professional technical execution and turnkey deliverables fulfilling: "${rawGoal.trim()}".`;
@@ -326,8 +434,6 @@ export function buildCognitiveScopeCanvas(
       "Live demonstration walkthrough and client acceptance inspection verifying 100% of agreed criteria checklist items.";
     boundariesAndLimits =
       "Scope strictly bounded to approved milestones and deliverables. Out-of-scope additions require formal mutual contract amendment before execution.";
-    estimatedBudgetMinor = 25000;
-    targetTimelineDays = 5;
   }
 
   const milestones = domain.defaultMilestones.map((m) => ({
@@ -400,6 +506,9 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   const history = request.history || [];
   const incomingSlots: Record<string, string> = { ...(request.slots || {}) };
 
+  // Identify root user objective across dialogue turns
+  const rootGoal = history.find((h) => h.role === "user")?.content || request.message;
+
   // Combine conversation context to understand the user's ongoing intent
   const fullTextContext = [
     request.message,
@@ -409,7 +518,17 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   const domain = matchDomain(fullTextContext);
   const literacyLevel = request.literacyLevel || detectTechnicalLiteracy(fullTextContext);
 
-  // If user selected an option from the previous turn, map it to the corresponding slot
+  // Check if an explicit budget was declared
+  if (request.customBudgetMinor) {
+    incomingSlots.userBudget = String(request.customBudgetMinor);
+  } else {
+    const detectedBudget = extractUserBudget(fullTextContext);
+    if (detectedBudget) {
+      incomingSlots.userBudget = String(detectedBudget);
+    }
+  }
+
+  // 1. If user selected an option from the previous turn, map it to the corresponding slot
   if (request.selectedOptionId) {
     for (const slotDef of domain.slots) {
       const match = slotDef.options.find((opt) => opt.id === request.selectedOptionId);
@@ -421,10 +540,44 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
         break;
       }
     }
+  } else if (history.length > 0) {
+    // 2. Custom reply submitted by the user in response to the active question!
+    const targetSlotKey =
+      request.activeSlotKey ||
+      domain.slots.find((s) => !incomingSlots[s.slotKey])?.slotKey ||
+      "customScopeNotes";
+
+    if (targetSlotKey) {
+      incomingSlots[targetSlotKey] = request.message.trim();
+      if (
+        targetSlotKey === "validationProof" ||
+        request.message.toLowerCase().includes("test") ||
+        request.message.toLowerCase().includes("verify") ||
+        request.message.toLowerCase().includes("benchmark") ||
+        request.message.toLowerCase().includes("proof") ||
+        request.message.toLowerCase().includes("iperf")
+      ) {
+        incomingSlots.validationProof = request.message.trim();
+      }
+    }
+  } else {
+    // 3. Initial turn: scan message to pre-populate any obvious slot answers provided upfront
+    const lowerMessage = request.message.toLowerCase();
+    for (const slotDef of domain.slots) {
+      if (!incomingSlots[slotDef.slotKey]) {
+        for (const opt of slotDef.options) {
+          const optLower = opt.title.toLowerCase();
+          if (lowerMessage.includes(optLower.slice(0, 15))) {
+            incomingSlots[slotDef.slotKey] = opt.value;
+            break;
+          }
+        }
+      }
+    }
   }
 
-  // Evaluate the 4 baseline dimensions
-  const evaluation = evaluateInformationThreshold(request.message, domain, incomingSlots);
+  // Evaluate the 4 baseline dimensions using root goal
+  const evaluation = evaluateInformationThreshold(rootGoal, domain, incomingSlots);
 
   // Determine dialogue history
   const dialogueTurn: ScopingDialogueTurn = {
@@ -447,18 +600,19 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
   ];
 
   let currentQuestion: string | null = null;
+  let currentSlotKey: string | null = null;
   let currentHelperContext: string | undefined = undefined;
   let currentOptions: ScopingOption[] = [];
   let reversePitchCanvas: CognitiveScopeCanvas | null = null;
 
   if (evaluation.thresholdMet) {
-    // Generate the Reverse Pitch Canvas using the root user objective
-    const rootGoal = history.find((h) => h.role === "user")?.content || request.message;
+    // Generate the Reverse Pitch Canvas using the root user objective and full context
     reversePitchCanvas = buildCognitiveScopeCanvas(
       rootGoal,
       domain,
       incomingSlots,
       literacyLevel,
+      fullTextContext,
     );
 
     const pitchMessage =
@@ -477,6 +631,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
     const unfilledSlot = domain.slots.find((s) => !incomingSlots[s.slotKey]);
 
     if (unfilledSlot) {
+      currentSlotKey = unfilledSlot.slotKey;
       currentQuestion =
         literacyLevel <= 2 ? unfilledSlot.questionLayman : unfilledSlot.questionTechnical;
       currentHelperContext =
@@ -486,6 +641,8 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       let introLead = "Got it! ";
       if (history.length === 0) {
         introLead = `Great objective. To structure the exact blueprints for your specialist, I need to understand a few key decisions. `;
+      } else if (!request.selectedOptionId) {
+        introLead = "Noted your specification. ";
       }
 
       updatedDialogue.push({
@@ -496,6 +653,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
       });
     } else {
       // Fallback: missing proof method
+      currentSlotKey = "validationProof";
       currentQuestion = "How would you like your specialist to prove completion before payment settlement?";
       currentHelperContext = "An objective third-party check protects both you and your freelancer.";
       currentOptions = [
@@ -530,7 +688,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
 
   return {
     sessionId,
-    rawGoal: history.find((h) => h.role === "user")?.content || request.message,
+    rawGoal: rootGoal,
     detectedDomain: domain.domainId,
     domainLabel: domain.label,
     technicalLiteracyLevel: literacyLevel,
@@ -541,6 +699,7 @@ export async function processScopingTurn(request: ScopingRequest): Promise<Scopi
     filledSlots: incomingSlots,
     dialogue: updatedDialogue,
     currentQuestion,
+    currentSlotKey,
     currentHelperContext,
     currentOptions,
     allowCustomInput: true,

@@ -76,6 +76,7 @@ export interface ScopingSessionState {
   filledSlots: Record<string, string>;
   dialogue: ScopingDialogueTurn[];
   currentQuestion: string | null;
+  currentSlotKey?: string | null;
   currentHelperContext?: string;
   currentOptions: ScopingOption[];
   allowCustomInput: boolean;
@@ -87,6 +88,8 @@ export const scopingRequestSchema = z.object({
   sessionId: z.string().optional(),
   message: z.string().trim().min(1, "Please enter a message or objective"),
   selectedOptionId: z.string().optional(),
+  activeSlotKey: z.string().optional(),
+  customBudgetMinor: z.number().int().positive().optional(),
   slots: z.record(z.string()).optional(),
   history: z
     .array(

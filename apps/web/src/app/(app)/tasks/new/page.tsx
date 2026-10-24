@@ -37,49 +37,6 @@ function newIdempotencyKey(): string {
   return `key-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const CONSULTATIVE_PRESETS = [
-  {
-    title: "Network Diagnostics & Speed Tuning",
-    goal: "My computer network is slow and drops connection during video calls.",
-    category: "IT & Networking",
-  },
-  {
-    title: "Inventory API Synchronization",
-    goal: "I need an API built to sync my store inventory and stock quantities with eBay automatically.",
-    category: "API Integration",
-  },
-  {
-    title: "Cloud Deployment & CI/CD Pipeline",
-    goal: "Deploy our containerized Docker application to AWS with an automated CI/CD pipeline and SSL.",
-    category: "Cloud & DevOps",
-  },
-  {
-    title: "Customer Records Deduplication",
-    goal: "Clean, deduplicate, and normalize 5,000 customer records in our CSV file without losing IDs.",
-    category: "Data Engineering",
-  },
-  {
-    title: "Web App & API Security Pentest",
-    goal: "Conduct a web application and API vulnerability penetration test with remediation proof.",
-    category: "Cybersecurity",
-  },
-  {
-    title: "Automated Data Scraping Script",
-    goal: "Build a Python Playwright script to automate weekly market index scraping and export clean JSON.",
-    category: "Automation",
-  },
-  {
-    title: "Cross-Platform Mobile App",
-    goal: "A sleek mobile application on iPhone and Android for our members to book studio sessions.",
-    category: "Mobile",
-  },
-  {
-    title: "Pastry & Bakery Storefront",
-    goal: "I want an online store to sell my homemade pastries locally with pickup times.",
-    category: "Storefront",
-  },
-];
-
 export default function NewTaskPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,6 +44,7 @@ export default function NewTaskPage() {
   const [mode, setMode] = useState<"consultative" | "manual">("consultative");
   const [rawGoal, setRawGoal] = useState("");
   const [customAnswer, setCustomAnswer] = useState("");
+  const [customBudgetDollars, setCustomBudgetDollars] = useState("");
   const [loadingDiagnostic, setLoadingDiagnostic] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [sessionState, setSessionState] = useState<ScopingSessionState | null>(null);
@@ -200,6 +158,7 @@ export default function NewTaskPage() {
         body: JSON.stringify({
           sessionId: sessionState.sessionId,
           message: answerText,
+          activeSlotKey: sessionState.currentSlotKey,
           slots: sessionState.filledSlots,
           history: sessionState.dialogue.map((d) => ({
             role: d.role,
@@ -221,6 +180,34 @@ export default function NewTaskPage() {
       setError("Network error submitting response.");
     } finally {
       setLoadingDiagnostic(false);
+    }
+  };
+
+  useEffect(() => {
+    if (sessionState?.reversePitchCanvas?.estimatedBudgetMinor) {
+      setCustomBudgetDollars(
+        (sessionState.reversePitchCanvas.estimatedBudgetMinor / 100).toFixed(0),
+      );
+    }
+  }, [sessionState?.reversePitchCanvas?.estimatedBudgetMinor]);
+
+  const handleUpdateBudget = (valStr: string) => {
+    setCustomBudgetDollars(valStr);
+    const parsed = parseFloat(valStr);
+    if (!isNaN(parsed) && parsed > 0 && sessionState?.reversePitchCanvas) {
+      const newMinor = Math.round(parsed * 100);
+      const updatedMilestones = sessionState.reversePitchCanvas.suggestedMilestones.map((m) => ({
+        ...m,
+        amountMinor: Math.round((newMinor * m.percentage) / 100),
+      }));
+      setSessionState({
+        ...sessionState,
+        reversePitchCanvas: {
+          ...sessionState.reversePitchCanvas,
+          estimatedBudgetMinor: newMinor,
+          suggestedMilestones: updatedMilestones,
+        },
+      });
     }
   };
 
@@ -491,44 +478,15 @@ export default function NewTaskPage() {
                     </Label>
                     <textarea
                       id="scoping-raw-goal"
-                      rows={4}
+                      rows={5}
                       value={rawGoal}
                       onChange={(e) => setRawGoal(e.target.value)}
-                      placeholder="e.g. I want a mobile app to sell my homemade pastries locally, or I need an API built to sync my inventory with eBay..."
+                      placeholder="Describe what you want to achieve (e.g. My computer network is slow and drops connection during video calls, or I need an automated data sync between our PostgreSQL database and Shopify, or we need our web app tested for vulnerabilities with remediation proof)..."
                       className="w-full rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 text-sm placeholder:text-[var(--wp-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--wp-accent)] focus:bg-background transition-all resize-y"
                     />
-                  </div>
-
-                  {/* Starter Presets */}
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold text-[var(--wp-text-secondary)] block">
-                      Or select a starter scenario to explore:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {CONSULTATIVE_PRESETS.map((p) => (
-                        <button
-                          key={p.title}
-                          type="button"
-                          onClick={() => {
-                            setRawGoal(p.goal);
-                            handleStartConsultation(undefined, p.goal);
-                          }}
-                          className="p-3 text-left rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-accent)]/30 transition-all text-xs space-y-1 group"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-[var(--wp-text-primary)] group-hover:text-[var(--wp-accent)]">
-                              {p.title}
-                            </span>
-                            <Badge variant="outline" className="text-[9px] font-mono border-[var(--wp-border)]">
-                              {p.category}
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)] line-clamp-2">
-                            "{p.goal}"
-                          </p>
-                        </button>
-                      ))}
-                    </div>
+                    <p className="text-[11px] text-[var(--wp-text-secondary)] italic mt-1.5">
+                      Pro-tip: Feel free to mention your current tools, environment, or any preferred turnaround timeline or budget ceiling. Our diagnostician will structure the technical blueprints and verification proof.
+                    </p>
                   </div>
 
                   <div className="pt-2 flex justify-end">
@@ -804,13 +762,34 @@ export default function NewTaskPage() {
 
                   {/* Valuation & Non-Custodial Guarantee */}
                   <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-[var(--wp-text-secondary)]">Recommended Project Spend Ceiling:</div>
-                      <div className="text-2xl font-bold font-mono text-[var(--wp-text-primary)]">
-                        ${(sessionState.reversePitchCanvas.estimatedBudgetMinor / 100).toFixed(2)} USD
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="custom-budget-input" className="text-xs font-semibold text-[var(--wp-text-secondary)]">
+                          Project Spend Ceiling (Editable):
+                        </Label>
+                        <Badge variant="outline" className="text-[9px] font-mono border-[var(--wp-border)] text-emerald-600 dark:text-emerald-400">
+                          Live recalculation
+                        </Badge>
                       </div>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                        Non-custodial PayPal payment hold rule: Funds are never deducted upfront. A conditional two-party hold is placed, and funds are captured only upon your explicit milestone verification.
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="relative flex items-center">
+                          <span className="absolute left-3 text-lg font-bold font-mono text-[var(--wp-text-secondary)]">$</span>
+                          <Input
+                            id="custom-budget-input"
+                            type="number"
+                            min={10}
+                            max={100000}
+                            step={10}
+                            value={customBudgetDollars}
+                            onChange={(e) => handleUpdateBudget(e.target.value)}
+                            className="pl-7 pr-3 h-10 w-36 text-lg font-bold font-mono bg-background border-[var(--wp-border)] rounded-xl"
+                            aria-label="Edit project spend ceiling"
+                          />
+                        </div>
+                        <span className="text-sm font-semibold text-[var(--wp-text-secondary)]">USD</span>
+                      </div>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl">
+                        Non-custodial PayPal payment hold rule: Funds are never deducted upfront. A conditional two-party hold is placed for your approved ceiling, and funds are captured only upon your explicit milestone verification.
                       </p>
                     </div>
 

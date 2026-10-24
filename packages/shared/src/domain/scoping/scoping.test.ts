@@ -275,5 +275,64 @@ describe("Consultative Scoping & Information Threshold Model", () => {
       expect(canvas.whatWeAreBuilding).not.toContain("web application and client portal");
       expect(canvas.whatWeAreBuilding).not.toContain("e-commerce");
     });
+
+    it("accepts custom user replies and advances without repeating the same question", async () => {
+      // Turn 1: user initiates slow network diagnosis
+      const turn1 = await processScopingTurn({
+        message: "My computer network is slow",
+      });
+      expect(turn1.currentSlotKey).toBe("networkScope");
+      expect(turn1.currentQuestion).toContain("Where is the slowdown or connection issue occurring?");
+
+      // Turn 2: user types custom reply instead of clicking an option
+      const turn2 = await processScopingTurn({
+        sessionId: turn1.sessionId,
+        message: "We have 15 workstations on a Netgear switch and Wi-Fi drops on the second floor during calls",
+        activeSlotKey: turn1.currentSlotKey || undefined,
+        slots: turn1.filledSlots,
+        history: turn1.dialogue.map((d) => ({
+          role: d.role,
+          content: d.content,
+        })),
+      });
+
+      // The slot must now be filled with the custom reply
+      expect(turn2.filledSlots.networkScope).toContain("Netgear switch");
+      // The gauge must advance
+      expect(turn2.understandingGauge).toBeGreaterThan(turn1.understandingGauge);
+      // The system must NOT repeat the first question; it must advance to validationProof!
+      expect(turn2.currentSlotKey).toBe("validationProof");
+      expect(turn2.currentQuestion).toContain("How should we verify");
+      expect(turn2.currentQuestion).not.toContain("Where is the slowdown");
+    });
+
+    it("respects user-declared budgets and uses dynamic domain market pricing instead of settling for $200", async () => {
+      // 1. Explicit user budget
+      const explicitBudgetTurn = await processScopingTurn({
+        message: "I need an API built to sync inventory with eBay. My budget is $850.",
+        slots: {
+          syncFrequency: "Instant Webhook-Driven Synchronization",
+          errorHandling: "Exponential Backoff Retries with Failure Alerts",
+          validationProof: "10-item synthetic mutation test verifying zero field discrepancies",
+        },
+      });
+
+      expect(explicitBudgetTurn.thresholdMet).toBe(true);
+      expect(explicitBudgetTurn.reversePitchCanvas?.estimatedBudgetMinor).toBe(85000); // $850.00, not $200!
+
+      // 2. Dynamic market pricing for Cybersecurity Pentest without hardcoded $200
+      const secTurn = await processScopingTurn({
+        message: "Conduct an enterprise web application penetration test",
+        slots: {
+          securityTarget: "Web Application & API Penetration Audit",
+          validationProof: "Formal vulnerability report with zero unresolved critical findings",
+        },
+      });
+
+      expect(secTurn.thresholdMet).toBe(true);
+      // Enterprise security audit should be estimated realistically ($650 to $975), never flat $200
+      expect(secTurn.reversePitchCanvas?.estimatedBudgetMinor).toBeGreaterThanOrEqual(65000);
+      expect(secTurn.reversePitchCanvas?.estimatedBudgetMinor).not.toBe(20000);
+    });
   });
 });
