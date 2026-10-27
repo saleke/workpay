@@ -3,6 +3,7 @@ import {
   intentInterpretationOutputSchema,
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
+import { normalizeCloudflareIntentFamiliarity } from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
 
 describe("intake output JSON schemas", () => {
@@ -48,6 +49,42 @@ describe("intake output JSON schemas", () => {
         },
         criticalUnknowns: { type: "array" },
       },
+    });
+  });
+
+  it("removes familiarity evidence when the model reports an unknown level", () => {
+    const result = normalizeCloudflareIntentFamiliarity({
+      summary: "Build a website.",
+      facts: [],
+      taskFamiliarity: {
+        level: "unknown",
+        confidence: "medium",
+        evidence: [{ sourceId: "source_original", quote: "Build a website." }],
+      },
+    });
+
+    expect(intentInterpretationOutputSchema.parse(result).taskFamiliarity).toEqual({
+      level: "unknown",
+      confidence: "low",
+      evidence: [],
+    });
+  });
+
+  it("defaults familiarity to unknown when a level has no supporting evidence", () => {
+    const result = normalizeCloudflareIntentFamiliarity({
+      summary: "Build a website.",
+      facts: [],
+      taskFamiliarity: {
+        level: "experienced",
+        confidence: "high",
+        evidence: [],
+      },
+    });
+
+    expect(intentInterpretationOutputSchema.parse(result).taskFamiliarity).toEqual({
+      level: "unknown",
+      confidence: "low",
+      evidence: [],
     });
   });
 });
