@@ -854,7 +854,10 @@ export function IntakeWorkspace() {
                           <h2 className="mt-2 text-base font-semibold">
                             {currentQuestion.question}
                           </h2>
-                          <p className="mt-1 text-sm text-[var(--wp-text-secondary)]">
+                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
+                            Why this matters
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-[var(--wp-text-secondary)]">
                             {currentQuestion.whyItMatters}
                           </p>
                         </div>

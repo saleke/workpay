@@ -7,6 +7,7 @@ export const journeyActionSchema = z.discriminatedUnion("type", [
       type: z.literal("interpret"),
       assistantIntent: z.string().min(1),
       avoid: z.array(z.string()),
+      expectedSummaryPerspective: z.enum(["direct_or_task_focused"]).optional(),
       expectedFamiliarity: z.enum(["unknown", "new_to_task", "some_experience", "experienced"]),
       expectedStyle: z.enum(["plain_language", "balanced", "technical"]),
     })
@@ -18,6 +19,7 @@ export const journeyActionSchema = z.discriminatedUnion("type", [
       impact: unknownImpactSchema,
       userReply: z.string().min(1),
       avoid: z.array(z.string()),
+      expectedWhyItMatters: z.string().min(1).optional(),
       expectedAnswerOptions: z
         .array(
           z
@@ -141,11 +143,14 @@ export const INTAKE_SIMULATED_JOURNEYS: SimulatedIntakeJourney[] = [
       {
         type: "interpret",
         assistantIntent:
-          "Capture the hosting business goal without assuming a particular control panel, billing system, or account architecture.",
+          "Capture the hosting business goal without assuming a particular control panel, billing system, or account architecture. Summarize it directly or as a neutral task statement; do not narrate the requester in the third person or assume the work is for them personally.",
         avoid: [
           "assuming a specific hosting panel",
           "asking the user to research infrastructure terms",
+          "referring to the requester as 'the user' in the summary",
+          "assuming the requester is the task's beneficiary",
         ],
+        expectedSummaryPerspective: "direct_or_task_focused",
         expectedFamiliarity: "new_to_task",
         expectedStyle: "plain_language",
       },
@@ -153,6 +158,8 @@ export const INTAKE_SIMULATED_JOURNEYS: SimulatedIntakeJourney[] = [
         type: "clarify",
         question: "What should a customer be able to do first when they visit your site?",
         impact: "objective",
+        expectedWhyItMatters:
+          "This determines whether customers can complete a purchase themselves or need to contact you; taking payments online can require more work than a simple inquiry form.",
         userReply: "Let customers choose a plan and pay online",
         expectedAnswerOptions: [
           {
@@ -176,6 +183,8 @@ export const INTAKE_SIMULATED_JOURNEYS: SimulatedIntakeJourney[] = [
     ],
     completionCriteria: [
       "The question asks about customer outcomes, not hosting terminology.",
+      "The explanation says what this decision determines and how it can change the work, without generic filler.",
+      "The summary addresses the reader naturally or describes the task neutrally without assuming who benefits.",
       "A few plain-language options include brief explanations, while a custom answer remains possible.",
       "Only the option the user selects is recorded as their answer.",
     ],

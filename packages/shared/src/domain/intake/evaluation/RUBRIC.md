@@ -34,7 +34,10 @@ record the evidence for each judgment.
   outcome, deliverable, volume or complexity, explicit constraints, required
   access or input materials, deadline, or amount/type of work that affects
   effort or price. Questions should use language the requester can answer
-  from their own situation.
+  from their own situation. Each question's rationale should state what the
+  answer determines and how that decision could affect the result, work,
+  timing, or cost when relevant; reject generic filler such as "this affects
+  the work."
 - **Question ordering:** ask one high-value question at a time, prioritizing
   the unresolved fact with the largest likely effect on scope, scale, or
   effort. Do not require the user to choose frameworks, databases, hosting,
@@ -47,7 +50,9 @@ record the evidence for each judgment.
   input file, deadline, user permission, or external integration is available.
 - **User comprehension:** after reading the interpretation and budget state,
   a participant should be able to accurately restate the intended outcome,
-  important constraints, and budget meaning.
+  important constraints, and budget meaning. The summary should speak
+  naturally to the reader or describe the task neutrally, never narrate them
+  as "the user" or assume the task is for them when the source says otherwise.
 
 ## Frozen gates
 

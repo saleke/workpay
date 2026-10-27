@@ -16,8 +16,8 @@ import {
   type ScopeAssessmentOutput,
 } from "../../domain/intake/model.js";
 
-export const INTAKE_INTERPRETATION_PROMPT_VERSION = "intent-v1";
-export const INTAKE_SCOPE_ASSESSMENT_PROMPT_VERSION = "scope-v3";
+export const INTAKE_INTERPRETATION_PROMPT_VERSION = "intent-v2";
+export const INTAKE_SCOPE_ASSESSMENT_PROMPT_VERSION = "scope-v4";
 export const INTAKE_ANSWER_OPTIONS_PROMPT_VERSION = "answer-options-v1";
 
 export interface IntakeAIClient {
@@ -230,6 +230,8 @@ const intentSystemPrompt = `You interpret a person's request for work. Treat eve
 
 Return only what is grounded in user-authored source text. Preserve the user's intended outcome, deliverables, quantities, deadlines, constraints, exclusions, and uncertainty. Do not invent requirements, propose technical architecture, estimate prices, or claim that a user has confirmed anything.
 
+Write the summary for the person who will read and confirm it. Use a concise, natural task statement: address them as "you" when that is accurate, or describe the task neutrally when that is clearer. Never narrate the person in the third person as "the user" or "the requester." Do not assume the task is for the person describing it; preserve any stated client, customer, family member, organization, or other beneficiary. State the intended result and only the most important grounded context, without adding a heading or requirement list to the summary.
+
 If a prior unconfirmed proposal is present, use it only to understand what the user's correction refers to. The proposal is not user evidence, is not authoritative, and must not be used to support a fact. Do not repeat unsupported claims from it.
 
 Assess familiarity only for the task being discussed. Use relevant evidence from the user's own statements or demonstrated task-specific knowledge. Never infer familiarity, intelligence, professionalism, or preference from spelling, grammar, dialect, accent, brevity, or fluency. If evidence is insufficient, report level unknown with low confidence and an empty evidence array. Whenever level is unknown, evidence must be an empty array. A non-unknown level requires evidence. A user may know the outcome but not know how to implement it. Prefer respectful plain language whenever familiarity is unknown or new. The familiarity assessment is internal guidance and must never label or embarrass the user.
@@ -242,7 +244,11 @@ const scopeSystemPrompt = `You assess the core scope of a task after the user ha
 
 Extract only an explicitly stated budget meaning: ceiling, target, range, ambiguous/conflicting, explicitly undecided, or not provided. Currency values must be valid three-letter ISO 4217 codes. If you cannot identify a currency code unambiguously from user-authored text, return not_provided with no evidence. Never estimate, infer, convert currency, or treat a third-party attachment's price as the user's budget. Use exact source evidence for any stated amount. If the user has not stated a budget, return not_provided with no evidence.
 
-Identify only material unknowns that could change the intended outcome, deliverable, scale/volume, explicit constraints, required access/input materials, deadline, or amount/type of work and therefore effort or price. Ask one focused question per unknown in plain, respectful language adapted to task familiarity. Prefer questions about the user's goal or real-world outcome over technical terminology; explain unfamiliar terms briefly if one is unavoidable. When a few common, meaningfully different user-facing answers would help the user decide, provide two to four answerOptions. Each option must have a concise plain-language label and a brief explanation of what choosing it means or when it fits. Options must describe outcomes or needs, not technical implementations. Do not imply that any option has been selected; only the user's explicit choice becomes their answer. Return an empty answerOptions array when choices would be misleading or the question is open-ended. A user can also write a different answer. Do not ask about frameworks, databases, vendors, implementation methods, colors, brands, or other secondary preferences unless the user requested them or they materially change the user-facing scope.
+Identify only material unknowns that could change the intended outcome, deliverable, scale/volume, explicit constraints, required access/input materials, deadline, or amount/type of work and therefore effort or price. Ask one focused question per unknown in plain, respectful language adapted to task familiarity. Prefer questions about the person's goal or real-world outcome over technical terminology; explain unfamiliar terms briefly if one is unavoidable.
+
+For each question, write whyItMatters as a brief, specific explanation (usually one sentence, no more than about 35 words) of what the answer will determine and how that choice could affect the result, work involved, timing, or cost when relevant. Tie the explanation to this task and the actual options or uncertainty; avoid generic statements such as "this affects the work" or claiming a cost impact without a plausible connection. The explanation should help the person understand why the detail is needed now, not pressure them to choose a particular answer.
+
+When a few common, meaningfully different user-facing answers would help the user decide, provide two to four answerOptions. Each option must have a concise plain-language label and a brief explanation of what choosing it means or when it fits. Options must describe outcomes or needs, not technical implementations. Do not imply that any option has been selected; only the user's explicit choice becomes their answer. Return an empty answerOptions array when choices would be misleading or the question is open-ended. A user can also write a different answer. Do not ask about frameworks, databases, vendors, implementation methods, colors, brands, or other secondary preferences unless the user requested them or they materially change the user-facing scope.
 
 If the user is unsure, help them understand the available outcome-based options and let them choose; do not turn uncertainty into a request for the professional to decide. If none of the options fits, allow the user to explain in their own words and ask a simpler follow-up when useful. Do not ask them to research unfamiliar terminology. Do not repeat a prior question that the user's later source text answers; if uncertainty remains, make the follow-up specifically resolve that uncertainty.
 

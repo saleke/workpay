@@ -99,7 +99,7 @@ describe("general-purpose intake model", () => {
       operation: "interpret_intent" as const,
       provider: "vercel-ai-gateway",
       model: "configured-test-model",
-      promptVersion: "intent-v1",
+      promptVersion: "intent-v2",
       recordedAt: new Date().toISOString(),
     };
     const interpretation = {
@@ -146,7 +146,7 @@ describe("general-purpose intake model", () => {
     const scopeOperation = {
       ...operation,
       operation: "assess_scope" as const,
-      promptVersion: "scope-v3",
+      promptVersion: "scope-v4",
     };
     const assessed = recordScopeAssessment(confirmed, assessment, scopeOperation);
 
@@ -184,7 +184,7 @@ describe("general-purpose intake model", () => {
       operation: "assess_scope" as const,
       provider: "cloudflare-workers-ai",
       model: "test-model",
-      promptVersion: "scope-v3",
+      promptVersion: "scope-v4",
       recordedAt: new Date().toISOString(),
     };
     const version = readyVersion();
@@ -238,7 +238,7 @@ describe("general-purpose intake model", () => {
       operation: "assess_scope" as const,
       provider: "cloudflare-workers-ai",
       model: "test-model",
-      promptVersion: "scope-v3",
+      promptVersion: "scope-v4",
       recordedAt: new Date().toISOString(),
     };
     const version = readyVersion();
@@ -347,7 +347,7 @@ describe("general-purpose intake model", () => {
           operation: "interpret_intent",
           provider: "vercel-ai-gateway",
           model: "configured-test-model",
-          promptVersion: "intent-v1",
+          promptVersion: "intent-v2",
           recordedAt: new Date().toISOString(),
         },
       ),
@@ -374,7 +374,7 @@ describe("general-purpose intake model", () => {
         operation: "interpret_intent",
         provider: "vercel-ai-gateway",
         model: "configured-test-model",
-        promptVersion: "intent-v1",
+        promptVersion: "intent-v2",
         recordedAt: new Date().toISOString(),
       },
     );
@@ -411,7 +411,7 @@ describe("general-purpose intake model", () => {
         operation: "interpret_intent",
         provider: "vercel-ai-gateway",
         model: "configured-test-model",
-        promptVersion: "intent-v1",
+        promptVersion: "intent-v2",
         recordedAt: new Date().toISOString(),
       },
     );
@@ -424,7 +424,7 @@ describe("general-purpose intake model", () => {
       operation: "interpret_intent" as const,
       provider: "vercel-ai-gateway",
       model: "configured-test-model",
-      promptVersion: "intent-v1",
+      promptVersion: "intent-v2",
       recordedAt: new Date().toISOString(),
     };
     const interpreted = recordIntentInterpretation(
@@ -467,7 +467,7 @@ describe("general-purpose intake model", () => {
         {
           ...operation,
           operation: "assess_scope",
-          promptVersion: "scope-v3",
+          promptVersion: "scope-v4",
         },
       ),
     ).toThrow(/safely matched/);
@@ -531,9 +531,19 @@ describe("general-purpose intake model", () => {
     const hosting = INTAKE_SIMULATED_JOURNEYS.find(
       ({ id }) => id === "hosting-business-nontechnical-recommendation",
     );
+    const hostingInterpretation = hosting?.actions.find((action) => action.type === "interpret");
+    expect(hostingInterpretation?.type).toBe("interpret");
+    if (hostingInterpretation?.type === "interpret") {
+      expect(hostingInterpretation.expectedSummaryPerspective).toBe("direct_or_task_focused");
+      expect(hostingInterpretation.assistantIntent).toMatch(/third person/i);
+      expect(hostingInterpretation.avoid.join(" ")).toMatch(/beneficiary/i);
+    }
     const hostingQuestion = hosting?.actions.find((action) => action.type === "clarify");
     expect(hostingQuestion?.type).toBe("clarify");
     if (hostingQuestion?.type === "clarify") {
+      expect(hostingQuestion.expectedWhyItMatters).toContain("determines whether");
+      expect(hostingQuestion.expectedWhyItMatters?.split(/\s+/).length).toBeLessThanOrEqual(35);
+      expect(hostingQuestion.expectedWhyItMatters).toMatch(/more work/i);
       expect(hostingQuestion.expectedAnswerOptions).toHaveLength(3);
       expect(hostingQuestion.userReply).toBe(hostingQuestion.expectedAnswerOptions?.[1]?.label);
       expect(
