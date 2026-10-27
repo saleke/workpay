@@ -11,16 +11,27 @@ import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
-/** Load the nearest .env walking up from cwd (monorepo: apps/* -> repo root). */
+/** Load the nearest environment files walking up from cwd (monorepo: apps/* -> repo root). */
 function loadEnvFiles(): void {
+  const nodeEnv = process.env.NODE_ENV;
+  const mode =
+    nodeEnv === "production" || nodeEnv === "test" ? nodeEnv : "development";
+  const filenames = [
+    `.env.${mode}.local`,
+    ...(mode !== "test" ? [".env.local"] : []),
+    `.env.${mode}`,
+    ".env",
+  ];
   let dir = process.cwd();
   const seen = new Set<string>();
   for (let i = 0; i < 4; i++) {
-    const candidate = resolve(dir, ".env");
-    if (!seen.has(candidate) && existsSync(candidate)) {
-      loadDotenv({ path: candidate });
+    for (const filename of filenames) {
+      const candidate = resolve(dir, filename);
+      if (!seen.has(candidate) && existsSync(candidate)) {
+        loadDotenv({ path: candidate });
+      }
+      seen.add(candidate);
     }
-    seen.add(candidate);
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -53,7 +64,7 @@ export const envSchema = z
 
     // Existing planning/verification integrations remain independently configured.
     AI_PROVIDER: z.enum(["fake", "openai", "cloudflare"]).default("fake"),
-    INTAKE_AI_PROVIDER: z.enum(["disabled", "gateway"]).default("disabled"),
+    INTAKE_AI_PROVIDER: z.enum(["disabled", "gateway", "cloudflare"]).default("disabled"),
     AI_GATEWAY_API_KEY: optionalString,
     INTAKE_AI_MODEL: optionalString,
     OPENAI_API_KEY: optionalString,
@@ -128,6 +139,22 @@ export const envSchema = z
         path: ["INTAKE_AI_MODEL"],
         message: "INTAKE_AI_MODEL is required when INTAKE_AI_PROVIDER=gateway",
       });
+    }
+    if (env.INTAKE_AI_PROVIDER === "cloudflare") {
+      if (!env.CLOUDFLARE_ACCOUNT_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["CLOUDFLARE_ACCOUNT_ID"],
+          message: "CLOUDFLARE_ACCOUNT_ID is required when INTAKE_AI_PROVIDER=cloudflare",
+        });
+      }
+      if (!env.CLOUDFLARE_API_TOKEN) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["CLOUDFLARE_API_TOKEN"],
+          message: "CLOUDFLARE_API_TOKEN is required when INTAKE_AI_PROVIDER=cloudflare",
+        });
+      }
     }
     if (env.PAYMENT_GATEWAY === "paypal") {
       for (const key of [
