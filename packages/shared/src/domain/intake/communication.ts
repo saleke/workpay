@@ -1,10 +1,6 @@
 import type { CommunicationStyle, IntakeVersion, TaskFamiliarity } from "./model.js";
 
-export function resolveCommunicationStyle(
-  assessment: TaskFamiliarity,
-  userPreference?: CommunicationStyle | null,
-): CommunicationStyle {
-  if (userPreference) return userPreference;
+export function resolveCommunicationStyle(assessment: TaskFamiliarity): CommunicationStyle {
   if (
     assessment.level === "unknown" ||
     assessment.level === "new_to_task" ||
@@ -25,5 +21,5 @@ export function resolveIntakeCommunicationStyle(version: IntakeVersion): Communi
       confidence: "low",
       evidence: [],
     };
-  return resolveCommunicationStyle(familiarity, version.communicationStylePreference?.style);
+  return resolveCommunicationStyle(familiarity);
 }

@@ -17,6 +17,7 @@ import {
   recordInterpretationDecision,
   recordScopeAssessment,
   resolveCommunicationStyle,
+  resolveIntakeCommunicationStyle,
   scopeAssessmentOutputSchema,
   validateIntakeVersion,
   type IntakeVersion,
@@ -129,19 +130,21 @@ describe("general-purpose intake model", () => {
           question: "How many records should the report cover?",
           whyItMatters: "The amount of information changes the amount of work.",
           impact: "scale" as const,
+          answerOptions: [],
         },
         {
           id: "deadline",
           question: "When do you need the report?",
           whyItMatters: "A shorter deadline may affect the work plan.",
           impact: "deadline" as const,
+          answerOptions: [],
         },
       ],
     };
     const scopeOperation = {
       ...operation,
       operation: "assess_scope" as const,
-      promptVersion: "scope-v1",
+      promptVersion: "scope-v2",
     };
     const assessed = recordScopeAssessment(confirmed, assessment, scopeOperation);
 
@@ -172,6 +175,52 @@ describe("general-purpose intake model", () => {
     expect(approved.approvalSourceId).not.toBeNull();
     expect(approved.clarificationAnswers).toEqual(answeredDeadline.clarificationAnswers);
     expect(() => approveIntakeBrief(approved)).toThrow(/frozen/);
+  });
+
+  it("preserves a request for professional guidance as the user's answer", () => {
+    const operation = {
+      operation: "assess_scope" as const,
+      provider: "cloudflare-workers-ai",
+      model: "test-model",
+      promptVersion: "scope-v2",
+      recordedAt: new Date().toISOString(),
+    };
+    const version = readyVersion();
+    const question = {
+      id: "hosting-start",
+      question: "What should customers be able to do first?",
+      whyItMatters: "The main customer action affects the work.",
+      impact: "objective" as const,
+      answerOptions: ["Compare plans", "Choose and pay for a plan"],
+    };
+    const assessed = recordScopeAssessment(
+      {
+        ...version,
+        scopeAssessment: null,
+        unresolvedCriticalUnknownIds: [],
+        clarificationAnswers: [],
+      },
+      {
+        budget: { meaning: { state: "not_provided" }, evidence: [] },
+        criticalUnknowns: [question],
+      },
+      operation,
+    );
+    const recommendationRequest =
+      "I’m not sure. Please have the professional recommend an option that fits my goal.";
+    const answered = answerCriticalUnknown(assessed, {
+      unknownId: question.id,
+      answer: recommendationRequest,
+    });
+
+    expect(answered.clarificationAnswers[0]?.answer).toBe(recommendationRequest);
+    expect(
+      answered.sources.some(
+        ({ content }) => content === `Answer to "${question.question}": ${recommendationRequest}`,
+      ),
+    ).toBe(true);
+    expect(answered.unresolvedCriticalUnknownIds).toEqual([]);
+    expect(answered.clarificationAnswers[0]?.answer).not.toContain("Compare plans");
   });
 
   it("validates clarification provenance independently of fact confirmations", () => {
@@ -351,7 +400,7 @@ describe("general-purpose intake model", () => {
         {
           ...operation,
           operation: "assess_scope",
-          promptVersion: "scope-v1",
+          promptVersion: "scope-v2",
         },
       ),
     ).toThrow(/safely matched/);
@@ -411,6 +460,17 @@ describe("general-purpose intake model", () => {
           action.avoid.some((detail) => /framework|database|hosting/i.test(detail)),
       ),
     ).toBe(true);
+
+    const hosting = INTAKE_SIMULATED_JOURNEYS.find(
+      ({ id }) => id === "hosting-business-nontechnical-recommendation",
+    );
+    const hostingQuestion = hosting?.actions.find((action) => action.type === "clarify");
+    expect(hostingQuestion?.type).toBe("clarify");
+    if (hostingQuestion?.type === "clarify") {
+      expect(hostingQuestion.expectedAnswerOptions).toHaveLength(3);
+      expect(hostingQuestion.userReply).toContain("professional recommend");
+      expect(hostingQuestion.avoid.join(" ")).toMatch(/control panel/i);
+    }
 
     const coveredImpacts = new Set(
       INTAKE_SIMULATED_JOURNEYS.flatMap(({ actions }) =>
@@ -569,26 +629,11 @@ describe("general-purpose intake model", () => {
         evidence: [{ sourceId: "request", quote: "I'm a front-end engineer" }],
       }),
     ).toBe("technical");
-    expect(
-      resolveCommunicationStyle(
-        {
-          level: "experienced",
-          confidence: "high",
-          evidence: [{ sourceId: "request", quote: "I'm a front-end engineer" }],
-        },
-        "plain_language",
-      ),
-    ).toBe("plain_language");
     const preference = recordCommunicationStylePreference(
       createInitialIntakeVersion("Help me with a project."),
       "technical",
     );
-    expect(
-      resolveCommunicationStyle(
-        { level: "unknown", confidence: "low", evidence: [] },
-        preference.communicationStylePreference?.style,
-      ),
-    ).toBe("technical");
+    expect(resolveIntakeCommunicationStyle(preference)).toBe("plain_language");
   });
 
   it("requires each clarification to state the material impact it resolves", () => {
@@ -607,6 +652,20 @@ describe("general-purpose intake model", () => {
       ],
     };
     expect(scopeAssessmentOutputSchema.safeParse(output).success).toBe(true);
+    expect(scopeAssessmentOutputSchema.parse(output).criticalUnknowns[0]?.answerOptions).toEqual(
+      [],
+    );
+    expect(
+      scopeAssessmentOutputSchema.safeParse({
+        ...output,
+        criticalUnknowns: [
+          {
+            ...output.criticalUnknowns[0],
+            answerOptions: ["A small amount", "A large amount"],
+          },
+        ],
+      }).success,
+    ).toBe(true);
     expect(
       scopeAssessmentOutputSchema.safeParse({
         ...output,

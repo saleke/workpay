@@ -6,10 +6,8 @@ import { ArrowRight, Check, CircleHelp, LoaderCircle, RotateCcw, Sparkles } from
 import Link from "next/link";
 import {
   budgetMeaningSchema,
-  communicationStyleSchema,
   intakeVersionSchema,
   type BudgetMeaning,
-  type CommunicationStyle,
   type IntakeVersion,
 } from "@workpay/shared/domain/intake/model";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +30,6 @@ const intakeResponseSchema = z.object({
       ready: z.boolean(),
       blockers: z.array(z.string()),
     }),
-    communicationStyle: communicationStyleSchema,
   }),
 });
 
@@ -44,16 +41,7 @@ type IntakeError = {
 };
 type BudgetOption = "proposal" | "undecided" | "ceiling" | "target" | "range";
 type BusyAction =
-  | "restore"
-  | "create"
-  | "interpret"
-  | "confirm"
-  | "scope"
-  | "answer"
-  | "budget"
-  | "style"
-  | "approve"
-  | null;
+  "restore" | "create" | "interpret" | "confirm" | "scope" | "answer" | "budget" | "approve" | null;
 
 const stages = ["Your request", "Understanding", "Core details", "Budget", "Review and approve"];
 
@@ -437,14 +425,6 @@ export function IntakeWorkspace() {
     if (updated) setEditingBudget(false);
   };
 
-  const handleStyleChange = (style: CommunicationStyle) => {
-    if (!session) return;
-    void updateSession("style", "/communication-style", {
-      expectedVersion: session.version,
-      style,
-    });
-  };
-
   const handleApprove = () => {
     if (!session) return;
     void updateSession("approve", "/approve", { expectedVersion: session.version });
@@ -633,51 +613,6 @@ export function IntakeWorkspace() {
               </div>
             </CardContent>
           </Card>
-
-          {session.status !== "APPROVED" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">How should WorkPay speak with you?</CardTitle>
-                <CardDescription>
-                  We use the task details you share to keep explanations useful. You can change this
-                  at any time; it does not change your requirements.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Communication style">
-                  {(
-                    [
-                      ["plain_language", "Plain language"],
-                      ["balanced", "Balanced"],
-                      ["technical", "Technical"],
-                    ] as const
-                  ).map(([style, label]) => {
-                    const selected =
-                      session.intake.communicationStylePreference?.style === style ||
-                      (!session.intake.communicationStylePreference &&
-                        session.communicationStyle === style);
-                    return (
-                      <Button
-                        key={style}
-                        type="button"
-                        size="sm"
-                        variant={selected ? "default" : "outline"}
-                        aria-pressed={selected}
-                        disabled={busy !== null}
-                        onClick={() => handleStyleChange(style)}
-                      >
-                        {label}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-[var(--wp-text-secondary)]">
-                  Current style: {session.communicationStyle.replace("_", " ")}. Spelling and
-                  writing style are never used to judge your experience.
-                </p>
-              </CardContent>
-            </Card>
-          )}
 
           {session.status === "APPROVED" ? (
             <Card>
@@ -882,7 +817,7 @@ export function IntakeWorkspace() {
                       <form className="space-y-3" onSubmit={handleAnswer}>
                         <div className="rounded-lg border border-[var(--wp-border)] p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
-                            {currentQuestion.impact.replace("_", " ")} may affect the work
+                            One detail that could affect the work
                           </p>
                           <h2 className="mt-2 text-base font-semibold">
                             {currentQuestion.question}
@@ -891,8 +826,34 @@ export function IntakeWorkspace() {
                             {currentQuestion.whyItMatters}
                           </p>
                         </div>
+                        {currentQuestion.answerOptions.length > 0 && (
+                          <fieldset className="space-y-2">
+                            <legend className="text-sm font-medium">
+                              Choose an answer, or write your own
+                            </legend>
+                            <div className="flex flex-wrap gap-2">
+                              {currentQuestion.answerOptions.map((option) => (
+                                <Button
+                                  key={option}
+                                  type="button"
+                                  size="sm"
+                                  variant={answer === option ? "default" : "outline"}
+                                  aria-pressed={answer === option}
+                                  disabled={busy !== null}
+                                  onClick={() => setAnswer(option)}
+                                >
+                                  {option}
+                                </Button>
+                              ))}
+                            </div>
+                          </fieldset>
+                        )}
                         <div className="space-y-2">
-                          <Label htmlFor="scope-answer">Your answer</Label>
+                          <Label htmlFor="scope-answer">
+                            {currentQuestion.answerOptions.length > 0
+                              ? "Or tell us in your own words"
+                              : "Your answer"}
+                          </Label>
                           <Textarea
                             id="scope-answer"
                             value={answer}
@@ -901,6 +862,30 @@ export function IntakeWorkspace() {
                             maxLength={5_000}
                             required
                           />
+                        </div>
+                        <div className="rounded-lg bg-[var(--wp-surface-subtle)] p-3">
+                          <p className="text-sm text-[var(--wp-text-secondary)]">
+                            Not sure? You can ask the professional to recommend an option that fits
+                            your goal. This records a request for advice, not a decision.
+                          </p>
+                          <Button
+                            className="mt-2"
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy !== null}
+                            aria-pressed={
+                              answer ===
+                              "I’m not sure. Please have the professional recommend an option that fits my goal."
+                            }
+                            onClick={() =>
+                              setAnswer(
+                                "I’m not sure. Please have the professional recommend an option that fits my goal.",
+                              )
+                            }
+                          >
+                            I’m not sure; ask for a recommendation
+                          </Button>
                         </div>
                         <Button type="submit" disabled={busy !== null || !answer.trim()}>
                           {busy === "answer" || busy === "scope" ? (

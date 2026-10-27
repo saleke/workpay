@@ -562,6 +562,9 @@ The intake implementation is complete only when:
 - Users across representative domains can express a task and correct its interpretation.
 - Original text, confirmed facts, AI proposals, unknowns, and provenance remain distinguishable.
 - Only material, task-critical clarifications are asked; unsupported details are not invented.
+- Clarification wording adapts to task-specific evidence, never grammar or writing fluency; use plain language when familiarity is unknown.
+- Offer a small set of outcome-focused answer choices when they help, while always allowing a user's own answer.
+- Let users explicitly request a professional recommendation instead of researching an unfamiliar choice; preserve that as a request for advice, not a selected requirement.
 - Budget meaning is explicit, and undecided remains valid without inferred price or funding.
 - The final brief is versioned, owner-bound, and approved as an exact server-side version.
 - Stale versions, unauthorized access, persistence errors, and AI failures cannot create false readiness or approval.

@@ -168,6 +168,7 @@ export const criticalUnknownSchema = z
     question: z.string().min(1).max(500),
     whyItMatters: z.string().min(1).max(1_000),
     impact: unknownImpactSchema,
+    answerOptions: z.array(z.string().min(1).max(200)).max(4).default([]),
   })
   .strict();
 

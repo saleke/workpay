@@ -18,6 +18,7 @@ export const journeyActionSchema = z.discriminatedUnion("type", [
       impact: unknownImpactSchema,
       userReply: z.string().min(1),
       avoid: z.array(z.string()),
+      expectedAnswerOptions: z.array(z.string().min(1)).max(4).optional(),
     })
     .strict(),
   z
@@ -118,6 +119,47 @@ export const INTAKE_SIMULATED_JOURNEYS: SimulatedIntakeJourney[] = [
       "Clarifications establish the user-facing function, approximate catalog scale, fulfillment, and payment timing.",
       "The user is not asked to select technical architecture or optional visual details.",
       "No price is estimated or presented as the user's budget.",
+    ],
+  },
+  {
+    id: "hosting-business-nontechnical-recommendation",
+    profile:
+      "A business owner who has hosting hardware but does not know which customer-facing platform features to choose.",
+    request:
+      "I am starting a web hosting business. I have the hardware, but I need a website customers can use to get hosting.",
+    actions: [
+      {
+        type: "interpret",
+        assistantIntent:
+          "Capture the hosting business goal without assuming a particular control panel, billing system, or account architecture.",
+        avoid: [
+          "assuming a specific hosting panel",
+          "asking the user to research infrastructure terms",
+        ],
+        expectedFamiliarity: "new_to_task",
+        expectedStyle: "plain_language",
+      },
+      {
+        type: "clarify",
+        question: "What should a customer be able to do first when they visit your site?",
+        impact: "objective",
+        userReply:
+          "I’m not sure. Please have the professional recommend an option that fits my goal.",
+        expectedAnswerOptions: [
+          "Compare plans and ask you a question",
+          "Choose a plan and pay online",
+          "Sign up and manage a hosting service",
+        ],
+        avoid: [
+          "asking about a control panel",
+          "treating an AI suggestion as a selected requirement",
+        ],
+      },
+    ],
+    completionCriteria: [
+      "The question asks about customer outcomes, not hosting terminology.",
+      "A few plain-language options are offered, while a custom answer remains possible.",
+      "The recommendation request is preserved as a request for professional guidance, not a user decision.",
     ],
   },
   {
