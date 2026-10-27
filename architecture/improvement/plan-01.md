@@ -1,5 +1,7 @@
 # WorkPay — Architecture & Product Improvement Review
 
+> **Status: historical product-direction review.** This review was written for an autonomous, economically bounded work-execution thesis. The approved current phase is general-purpose, AI-assisted task intake with user-confirmed intent and budget. Use `architecture/ENGINEERING_PLAN.md` §§1-2 and 7 for current scope. Recommendations about provider selection, autonomous purchasing, execution, verification, and settlement are deferred design input, not current implementation instructions.
+
 ## 1. Purpose
 
 The existing WorkPay architecture is technically coherent and covers the major concerns required to build the system. However, before implementation begins, the architecture should be challenged from a product, economic, agentic, verification, and technical perspective.

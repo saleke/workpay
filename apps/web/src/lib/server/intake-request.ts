@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { conflict, validationError } from "@workpay/shared/platform";
-import { evaluateIntakeReadiness, resolveCommunicationStyle } from "@workpay/shared/domain/intake";
+import {
+  evaluateIntakeReadiness,
+  resolveIntakeCommunicationStyle,
+} from "@workpay/shared/domain/intake";
 import type { OwnedIntakeSession } from "@workpay/shared/domain/intake";
 
 export async function parseIntakeRequest<Schema extends z.ZodType>(
@@ -40,14 +43,6 @@ export function assertExpectedIntakeVersion(
 
 export function toIntakeResponse(result: OwnedIntakeSession) {
   const readiness = evaluateIntakeReadiness(result.version);
-  const communicationStyle = resolveCommunicationStyle(
-    result.version.interpretation?.taskFamiliarity ?? {
-      level: "unknown",
-      confidence: "low",
-      evidence: [],
-    },
-    result.version.communicationStylePreference?.style,
-  );
   return {
     sessionId: result.session.id,
     version: result.version.version,
@@ -55,6 +50,6 @@ export function toIntakeResponse(result: OwnedIntakeSession) {
     originalRequest: result.session.originalRequest,
     intake: result.version,
     readiness,
-    communicationStyle,
+    communicationStyle: resolveIntakeCommunicationStyle(result.version),
   };
 }

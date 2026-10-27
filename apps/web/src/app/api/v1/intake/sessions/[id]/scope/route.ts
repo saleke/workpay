@@ -3,6 +3,7 @@ import {
   assessIntakeScopeRequestSchema,
   getIntakeSession,
   recordScopeAssessment,
+  resolveIntakeCommunicationStyle,
 } from "@workpay/shared/domain/intake";
 import { conflict } from "@workpay/shared/platform";
 import {
@@ -52,6 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       sources: current.version.sources,
       confirmedIntent: current.version.interpretation,
       previousQuestions,
+      communicationStyle: resolveIntakeCommunicationStyle(current.version),
     });
     const nextVersion = recordScopeAssessment(current.version, proposal, {
       operation: "assess_scope",

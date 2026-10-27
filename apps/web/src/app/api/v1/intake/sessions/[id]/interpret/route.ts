@@ -7,6 +7,7 @@ import {
   getIntakeSession,
   interpretIntakeRequestSchema,
   recordIntentInterpretation,
+  resolveIntakeCommunicationStyle,
 } from "@workpay/shared/domain/intake";
 import { conflict } from "@workpay/shared/platform";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
@@ -33,6 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const proposal = await client.interpretIntent({
       sources: current.version.sources,
       priorProposal: current.version.correctionContext,
+      communicationStyle: resolveIntakeCommunicationStyle(current.version),
     });
     const nextVersion = recordIntentInterpretation(current.version, proposal, {
       operation: "interpret_intent",

@@ -1425,53 +1425,39 @@ state change + outbox event
 
 # 35. What We Are Actually Building
 
-Despite the large architecture, the MVP is intentionally small.
+This component document contains the original dataset-cleaning demonstration flow. That flow is superseded as the current product direction by `architecture/ENGINEERING_PLAN.md` §§1-2 and 7. Its provider-selection, negotiation, and payment steps remain historical design context only; they are not the current intake MVP.
 
-The first implementation can focus on one complete workflow:
+The current product phase is a general-purpose, AI-assisted task-intake workflow:
 
-> **A buyer asks WorkPay to clean a dataset.**
+> **A person explains work they need done; WorkPay helps them confirm what they mean, establish the core requirements and budget state, and approve an exact brief before any professional is approached.**
 
-The system then:
+The intake should:
 
-1. creates the task
-2. compiles requirements
-3. creates the contract
-4. shows the contract
-5. gets user approval
-6. selects a seeded provider
-7. negotiates a price
-8. authorizes a PayPal payment
-9. provider submits a file
-10. deterministic verification checks the file
-11. first submission fails
-12. provider submits a corrected version
-13. verification passes
-14. payment policy allows capture
-15. PayPal captures the payment
-16. task becomes completed
+1. preserve the user's original request
+2. produce a provisional, source-grounded interpretation without inventing binding requirements or a price
+3. let the user correct and explicitly confirm that interpretation
+4. identify only material, task-critical unknowns and ask focused clarifying questions
+5. distinguish a budget ceiling, target, range, unclear/conflicting budget, and explicitly undecided budget
+6. compose a versioned brief from confirmed information and approved proposals
+7. let the user review and approve the exact brief version before it is finalized
 
-Everything else exists to make this loop safe and extensible.
+AI output is advisory until the user confirms it. Server-owned state, provenance, authorization, version checks, idempotency, and fail-closed error handling remain authoritative. Invalid or unavailable model output must leave a recoverable draft and must not silently advance readiness or approval.
+
+Only after intake is complete does a separately designed phase present reliable professional candidates for the user to choose. Contact requires explicit user approval of the selected professional and the specific contact request. The current intake phase does not search for, select, or contact candidates and does not negotiate, accept terms, or authorize payment.
 
 ---
 
-# 36. Recommended MVP Scope
+# 36. Recommended Product Phasing
 
-The MVP should therefore deliberately exclude or simplify:
+The current intake phase includes:
 
-- open public marketplace
-- complex provider onboarding
-- multi-currency settlement
-- recurring work
-- complex milestone trees
-- multiple payment providers
-- sophisticated reputation algorithms
-- large-scale analytics
-- microservices
-- distributed event streaming
-- autonomous unrestricted spending
-- arbitrary task types with no deterministic verification
+- general-purpose task intake across occupations and task types, rather than a single seeded demonstration task
+- user-confirmed intent, visible uncertainty, and easy correction
+- essential primary requirements and explicit, non-inferred budget meaning
+- persisted, owner-bound versions with provenance and approval of an exact final brief
+- human-reviewed evaluations across representative tasks, users, languages, and budget expressions
 
-The demo needs one excellent proof, not twenty unfinished features.
+Candidate discovery and profile comparison, user-selected and explicitly approved outreach, post-match communications, scope or price changes, payment, work execution, and completion review are later phases. Each needs its own product and technical design, acceptance criteria, and safety review. The system must not infer permission for these actions from task intake or brief approval.
 
 ---
 

@@ -58,6 +58,7 @@ export function recordIntentInterpretation(
       interpretation: proposal,
       correctionContext: null,
       scopeAssessment: null,
+      clarificationAnswers: [],
       factConfirmations: [],
       interpretationConfirmationSourceId: null,
       budget: {
@@ -90,6 +91,7 @@ export function recordInterpretationDecision(
       interpretation: null,
       correctionContext: version.interpretation,
       scopeAssessment: null,
+      clarificationAnswers: [],
       factConfirmations: [],
       interpretationConfirmationSourceId: null,
       budget: {
@@ -170,7 +172,7 @@ export function answerCriticalUnknown(
     throw conflict("Answer the current highest-priority scope question first.");
   }
 
-  const { sources } = appendUserSource(
+  const { source, sources } = appendUserSource(
     version,
     "user_message",
     `Answer to "${currentQuestion.question}": ${input.answer}`,
@@ -179,6 +181,15 @@ export function answerCriticalUnknown(
     ...version,
     version: version.version + 1,
     sources,
+    clarificationAnswers: [
+      ...version.clarificationAnswers,
+      {
+        unknownId: currentQuestion.id,
+        question: currentQuestion.question,
+        answer: input.answer,
+        sourceId: source.id,
+      },
+    ],
     unresolvedCriticalUnknownIds: version.unresolvedCriticalUnknownIds.filter(
       (id) => id !== currentQuestion.id,
     ),

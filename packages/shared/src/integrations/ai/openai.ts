@@ -275,8 +275,8 @@ export class OpenAIAI implements AIClient {
 /**
  * Minimal Zod to JSON Schema conversion for the object shapes used here. This
  * avoids adding a dependency for a handful of structured outputs. It supports
- * the subset the schemas above use: objects, arrays, strings with enums,
- * numbers, booleans, optional and default, and passthrough records.
+ * the subset the schemas above use: objects, arrays, unions, refined schemas,
+ * strings with enums, numbers, booleans, optional and default, and records.
  */
 export function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   const def: any = (schema as { _def: unknown })._def;
@@ -331,6 +331,15 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
     case "ZodDefault": {
       const inner = (def as { innerType: z.ZodTypeAny }).innerType;
       return zodToJsonSchema(inner);
+    }
+    case "ZodEffects": {
+      const inner = (def as { schema: z.ZodTypeAny }).schema;
+      return zodToJsonSchema(inner);
+    }
+    case "ZodUnion":
+    case "ZodDiscriminatedUnion": {
+      const options = (def as { options: z.ZodTypeAny[] }).options;
+      return { anyOf: options.map(zodToJsonSchema) };
     }
     case "ZodNullable": {
       const inner = (def as { innerType: z.ZodTypeAny }).innerType;

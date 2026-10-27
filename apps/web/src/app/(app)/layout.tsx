@@ -57,6 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     ? pathname === "/"
                     : item.href === "/tasks"
                       ? pathname === "/tasks" ||
+                        pathname === "/intake" ||
                         (pathname.startsWith("/tasks/") && pathname !== "/tasks/new")
                       : pathname.startsWith(item.href);
 
@@ -105,6 +106,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ? pathname === "/"
                   : item.href === "/tasks"
                     ? pathname === "/tasks" ||
+                      pathname === "/intake" ||
                       (pathname.startsWith("/tasks/") && pathname !== "/tasks/new")
                     : pathname.startsWith(item.href);
 
@@ -121,9 +123,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <span>{item.label}</span>
-                  {isActive && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)]" />
-                  )}
+                  {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)]" />}
                 </Link>
               );
             })}
@@ -132,9 +132,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {children}
-      </main>
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">{children}</main>
     </div>
   );
 }

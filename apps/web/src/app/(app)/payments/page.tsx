@@ -45,7 +45,11 @@ export default function PaymentsPage() {
     for (const p of payments) {
       if (p.status === "CAPTURED") {
         capturedMinor += p.amountMinor;
-      } else if (p.status === "AUTHORIZED" || p.status === "PENDING" || p.status === "AUTHORIZATION_REQUESTED") {
+      } else if (
+        p.status === "AUTHORIZED" ||
+        p.status === "PENDING" ||
+        p.status === "AUTHORIZATION_REQUESTED"
+      ) {
         heldMinor += p.amountMinor;
       }
     }
@@ -60,7 +64,10 @@ export default function PaymentsPage() {
   const filteredPayments = useMemo(() => {
     if (filter === "HELD") {
       return payments.filter(
-        (p) => p.status === "AUTHORIZED" || p.status === "PENDING" || p.status === "AUTHORIZATION_REQUESTED",
+        (p) =>
+          p.status === "AUTHORIZED" ||
+          p.status === "PENDING" ||
+          p.status === "AUTHORIZATION_REQUESTED",
       );
     }
     if (filter === "CAPTURED") {
@@ -86,13 +93,15 @@ export default function PaymentsPage() {
             PayPal Settlement Ledger
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-            Immutable record of PayPal authorization holds and cryptographically verified captures. WorkPay does not operate a wallet; funds remain held externally on PayPal until deliverables pass verifiable checks.
+            Immutable record of PayPal authorization holds and cryptographically verified captures.
+            WorkPay does not operate a wallet; funds remain held externally on PayPal until
+            deliverables pass verifiable checks.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Link
-            href="/tasks/new"
+            href="/intake"
             className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium bg-[var(--charcoal)] text-white hover:bg-black px-3.5 py-2 rounded-lg transition-colors"
           >
             <span>+ New task</span>
@@ -232,7 +241,9 @@ export default function PaymentsPage() {
                     <span className="text-xs font-mono text-[var(--text-muted)]">
                       REF-{p.id.slice(0, 8).toUpperCase()}
                     </span>
-                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${badgeBg}`}>
+                    <span
+                      className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${badgeBg}`}
+                    >
                       {badgeText}
                     </span>
                   </div>
@@ -294,7 +305,9 @@ export default function PaymentsPage() {
                     <div className="p-2.5 rounded-lg bg-[var(--surface-subtle)] border border-[var(--border-subtle)] text-xs">
                       <div className="flex items-center gap-1.5 font-medium text-[var(--charcoal)]">
                         <FileCheck2 className="h-3.5 w-3.5 text-[var(--green)]" />
-                        <span>Policy Check: {p.latestDecision.action} ({p.latestDecision.result})</span>
+                        <span>
+                          Policy Check: {p.latestDecision.action} ({p.latestDecision.result})
+                        </span>
                       </div>
                       <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                         {p.latestDecision.reason}

@@ -23,7 +23,9 @@ export default function TasksPage() {
   const tasks = data ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterTab, setFilterTab] = useState<"ALL" | "ATTENTION" | "IN_PROGRESS" | "COMPLETED">("ALL");
+  const [filterTab, setFilterTab] = useState<"ALL" | "ATTENTION" | "IN_PROGRESS" | "COMPLETED">(
+    "ALL",
+  );
 
   const filteredTasks = useMemo(() => {
     let list = tasks;
@@ -88,14 +90,16 @@ export default function TasksPage() {
       <div className="py-20 text-center max-w-md mx-auto">
         <Sparkles className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
         <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
-          No tasks created yet
+          No work agreements yet
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          Describe the outcome you need accomplished. WorkPay drafts explicit acceptance criteria, matches a specialist, and reserves funds via PayPal authorization hold until proven.
+          Start by describing the outcome you need. WorkPay will confirm your intent, ask only
+          essential questions, and help you set a budget before you approve a brief. No professional
+          is selected or contacted during intake.
         </p>
         <div className="mt-6">
           <Link
-            href="/tasks/new"
+            href="/intake"
             className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -120,7 +124,7 @@ export default function TasksPage() {
         </div>
 
         <Link
-          href="/tasks/new"
+          href="/intake"
           className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors self-start sm:self-auto shadow-xs"
         >
           <Plus className="h-4 w-4" />
@@ -295,7 +299,9 @@ export default function TasksPage() {
               >
                 <div className="space-y-1.5 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}>
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}
+                    >
                       {statusLabel}
                     </span>
                   </div>

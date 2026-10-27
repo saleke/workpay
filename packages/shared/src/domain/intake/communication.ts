@@ -1,4 +1,4 @@
-import type { CommunicationStyle, TaskFamiliarity } from "./model.js";
+import type { CommunicationStyle, IntakeVersion, TaskFamiliarity } from "./model.js";
 
 export function resolveCommunicationStyle(
   assessment: TaskFamiliarity,
@@ -16,4 +16,14 @@ export function resolveCommunicationStyle(
     return "technical";
   }
   return "balanced";
+}
+
+export function resolveIntakeCommunicationStyle(version: IntakeVersion): CommunicationStyle {
+  const familiarity = version.interpretation?.taskFamiliarity ??
+    version.correctionContext?.taskFamiliarity ?? {
+      level: "unknown",
+      confidence: "low",
+      evidence: [],
+    };
+  return resolveCommunicationStyle(familiarity, version.communicationStylePreference?.style);
 }

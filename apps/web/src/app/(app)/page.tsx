@@ -2,50 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
   Clock,
   ShieldCheck,
-  Sparkles,
-  Paperclip,
   ChevronRight,
 } from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
-import { listTasks, listActivity, listPayments, createTask, requestPlanning } from "@/lib/api/endpoints";
+import { listTasks, listActivity, listPayments } from "@/lib/api/endpoints";
 import type { TaskDto, ActivityEntryDto, PaymentDto } from "@/lib/api/types";
 
-function newIdempotencyKey(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `key-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-const SAMPLE_PROMPTS = [
-  {
-    title: "Clean 5,000 customer records",
-    desc: "Clean, deduplicate, and normalize 5,000 customer records in the attached CSV. Preserve customer IDs, validate emails, and reduce duplicate entries below 1%.",
-    budget: "150",
-    deadline: "Tomorrow, 6:00 PM",
-  },
-  {
-    title: "Translate onboarding guide to Spanish",
-    desc: "Translate our 14-page onboarding guide into neutral Latin American Spanish. Must strictly adhere to the approved product terminology list and preserve markdown syntax.",
-    budget: "80",
-    deadline: "In 2 days",
-  },
-  {
-    title: "Audit PostgreSQL schema and indices",
-    desc: "Audit database schema for missing composite indices, slow foreign key cascades, and duplicate index bloat across user and payment tables.",
-    budget: "300",
-    deadline: "In 3 days",
-  },
-];
-
 export default function HomeDashboardPage() {
-  const router = useRouter();
   const [userName, setUserName] = useState("Alice");
 
   useEffect(() => {
@@ -76,90 +46,6 @@ export default function HomeDashboardPage() {
   const activities: ActivityEntryDto[] = activityData ?? [];
   const payments: PaymentDto[] = paymentsData ?? [];
 
-  // Intake state
-  const [requestText, setRequestText] = useState("");
-  const [spendUpTo, setSpendUpTo] = useState("150");
-  const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [intakeError, setIntakeError] = useState<string | null>(null);
-
-  const handleSelectSample = (sample: (typeof SAMPLE_PROMPTS)[number]) => {
-    setRequestText(sample.desc);
-    setSpendUpTo(sample.budget);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAttachedFileName(file.name);
-    }
-  };
-
-  const handleDraftTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIntakeError(null);
-
-    const trimmed = requestText.trim();
-    if (!trimmed) {
-      setIntakeError("Please describe what outcome you need accomplished.");
-      return;
-    }
-
-    const amountMinor = Math.round(Number(spendUpTo) * 100);
-    if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
-      setIntakeError("Please specify a valid dollar amount.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Automatic title generation: do not suffer the user to enter a title separately
-      const firstLine = trimmed.split("\n")[0]?.trim() || "";
-      const derivedTitle =
-        firstLine.length > 5 && firstLine.length < 80
-          ? firstLine
-          : trimmed.length > 60
-            ? `${trimmed.slice(0, 57)}...`
-            : trimmed;
-
-      const fullRequest = attachedFileName
-        ? `${trimmed}\n\nAttached reference: ${attachedFileName}`
-        : trimmed;
-
-      const created = await createTask(
-        {
-          title: derivedTitle || "New work agreement",
-          rawRequest: fullRequest,
-          budgetMinor: amountMinor,
-          currency: "USD",
-          desiredDeadline: null,
-        },
-        newIdempotencyKey(),
-      );
-
-      if (created.error || !created.data) {
-        const msg =
-          typeof created.error === "string"
-            ? created.error
-            : created.error?.message ?? "Could not draft contract. Please try again.";
-        setIntakeError(msg);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Kick off autonomous contract planning
-      await requestPlanning(created.data.id);
-
-      // Navigate to canonical task workspace
-      router.push(`/tasks/${created.data.id}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
-      setIntakeError(msg);
-      setIsSubmitting(false);
-    }
-  };
-
   // Derive Attention Queue: tasks requiring immediate action
   const attentionTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -175,7 +61,9 @@ export default function HomeDashboardPage() {
 
   // Derive Active Tasks (excluding completed/settled/cancelled)
   const activeTasks = useMemo(() => {
-    return tasks.filter((t) => t.status !== "COMPLETED" && t.status !== "PAYMENT_RELEASE" && t.status !== "CANCELLED");
+    return tasks.filter(
+      (t) => t.status !== "COMPLETED" && t.status !== "PAYMENT_RELEASE" && t.status !== "CANCELLED",
+    );
   }, [tasks]);
 
   // Commitment Summary (real data, PayPal escrow semantics, never a wallet balance)
@@ -186,7 +74,11 @@ export default function HomeDashboardPage() {
     for (const p of payments) {
       if (p.status === "CAPTURED") {
         settledMinor += p.amountMinor;
-      } else if (p.status === "AUTHORIZED" || p.status === "PENDING" || p.status === "AUTHORIZATION_REQUESTED") {
+      } else if (
+        p.status === "AUTHORIZED" ||
+        p.status === "PENDING" ||
+        p.status === "AUTHORIZATION_REQUESTED"
+      ) {
         heldMinor += p.amountMinor;
       }
     }
@@ -239,7 +131,8 @@ export default function HomeDashboardPage() {
             {commitments.held}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Secured externally via PayPal authorization hold. Captured only after proof verification passes.
+            Secured externally via PayPal authorization hold. Captured only after proof verification
+            passes.
           </p>
         </div>
 
@@ -270,93 +163,33 @@ export default function HomeDashboardPage() {
         </div>
       </div>
 
-      {/* 3. Primary Create-Task Input (Natural Language Prompt - Section 5 & 6) */}
+      {/* 3. Primary task-intake entry point */}
       <section className="workpay-card p-6 sm:p-7 border-[var(--border-strong)] relative overflow-hidden bg-white">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--amber)] mb-2">
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Intent to Contract Intake</span>
+          <span>Task intake</span>
         </div>
 
         <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-[var(--charcoal)]">
-          What do you need done?
+          Start with the outcome you need
         </h2>
         <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-          Describe the outcome, requirements, and constraints. WorkPay interprets your request, automatically generates a task title, recommends acceptance criteria, and reserves funds via PayPal authorization hold only upon your explicit approval.
+          Tell WorkPay what you want to accomplish in your own words. You will confirm the
+          understanding, answer only important scope questions, and set a budget before approving a
+          brief.
         </p>
 
-        {intakeError && (
-          <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-            {intakeError}
-          </div>
-        )}
-
-        <form onSubmit={handleDraftTask} className="mt-5 space-y-4">
-          <div className="relative">
-            <textarea
-              rows={3}
-              value={requestText}
-              onChange={(e) => setRequestText(e.target.value)}
-              placeholder="e.g. Clean 5,000 customer records in the attached CSV. Remove duplicates, validate emails, and preserve primary keys..."
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] p-4 text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--charcoal)] focus:bg-white transition-all resize-y"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Spend ceiling input */}
-              <div className="flex items-center gap-2 bg-[var(--surface-subtle)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-lg text-xs">
-                <span className="text-[var(--text-muted)] font-medium">Spend up to:</span>
-                <span className="font-semibold text-[var(--charcoal)]">$</span>
-                <input
-                  type="number"
-                  value={spendUpTo}
-                  onChange={(e) => setSpendUpTo(e.target.value)}
-                  min="5"
-                  className="w-16 bg-transparent font-semibold text-[var(--charcoal)] focus:outline-none"
-                />
-                <span className="text-[var(--text-muted)]">USD</span>
-              </div>
-
-              {/* Supporting file upload */}
-              <label className="flex items-center gap-1.5 bg-[var(--surface-subtle)] hover:bg-gray-100 border border-[var(--border-subtle)] px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-soft)] cursor-pointer transition-colors">
-                <Paperclip className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                <span>{attachedFileName ? attachedFileName : "Attach reference file"}</span>
-                <input
-                  type="file"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !requestText.trim()}
-              className="flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black disabled:opacity-50 px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm"
-            >
-              <span>{isSubmitting ? "Synthesizing requirements..." : "Draft specification"}</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
-
-        {/* Sample prompt chips */}
-        <div className="mt-5 pt-4 border-t border-[var(--border-subtle)]">
-          <div className="text-xs font-medium text-[var(--text-muted)] mb-2">
-            Or test with a sample objective:
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {SAMPLE_PROMPTS.map((sample) => (
-              <button
-                key={sample.title}
-                type="button"
-                onClick={() => handleSelectSample(sample)}
-                className="text-xs text-[var(--charcoal)] bg-[var(--surface-subtle)] hover:bg-amber-50 hover:border-amber-200 border border-[var(--border-subtle)] px-3 py-1.5 rounded-lg transition-colors text-left font-medium"
-              >
-                {sample.title} (${sample.budget})
-              </button>
-            ))}
-          </div>
+        <div className="mt-5 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="max-w-xl text-xs leading-5 text-[var(--text-muted)]">
+            Your request stays a draft until you review and approve it. This intake will not select
+            or contact a professional.
+          </p>
+          <Link
+            href="/intake"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-black"
+          >
+            Start task intake
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
 
@@ -372,7 +205,8 @@ export default function HomeDashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {attentionTasks.map((task) => {
-              const isContractReview = task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY";
+              const isContractReview =
+                task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY";
               const isHumanReview = task.status === "HUMAN_REVIEW";
               const isRevision = task.status === "REVISION_REQUIRED";
 
@@ -416,7 +250,10 @@ export default function HomeDashboardPage() {
                   <div className="flex items-center justify-between pt-3 border-t border-amber-100">
                     <div className="text-xs text-[var(--text-soft)]">
                       <span className="font-semibold text-[var(--charcoal)]">
-                        {formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency })}
+                        {formatMinorMoney({
+                          amountMinor: task.budgetMinor,
+                          currency: task.currency,
+                        })}
                       </span>{" "}
                       authorized on PayPal
                     </div>
@@ -489,7 +326,9 @@ export default function HomeDashboardPage() {
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusBg}`}>
+                      <span
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusBg}`}
+                      >
                         {statusLabel}
                       </span>
                       <span className="text-xs font-semibold text-[var(--charcoal)]">
@@ -544,7 +383,10 @@ export default function HomeDashboardPage() {
               });
 
               return (
-                <div key={act.id} className="p-4 flex items-baseline justify-between gap-4 text-xs sm:text-sm">
+                <div
+                  key={act.id}
+                  className="p-4 flex items-baseline justify-between gap-4 text-xs sm:text-sm"
+                >
                   <div className="flex items-baseline gap-3">
                     <span className="h-2 w-2 rounded-full bg-[var(--amber)] shrink-0 self-center" />
                     <div>

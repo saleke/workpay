@@ -1,18 +1,18 @@
-# WorkPay: Product UI/UX and Frontend Implementation Brief
+# WorkPay: Task-Intake UI/UX and Frontend Implementation Brief
 
 ## 1. Your Mission
 
-Act as a world-class product designer, senior frontend engineer, and product-minded software architect.
+Act as a world-class product designer, senior frontend engineer, and product-minded software architect for the current task-intake phase.
 
-Your task is to transform WorkPay into a polished, trustworthy, production-quality AI-powered economic execution system. Do not treat this as a generic SaaS dashboard, freelance marketplace, chatbot, or payment application.
+Your task is to make WorkPay's current task-intake experience trustworthy, accessible, and production-quality. Do not treat it as a generic SaaS dashboard or chatbot.
 
-**The core product promise is: Commit → Execute → Prove → Settle. Money follows proof.**
+**The current product promise is: Explain → Confirm → Clarify → Approve a brief.**
 
-Users describe an outcome. WorkPay helps clarify the requirements, produce a structured specification and agreement, coordinate execution, evaluate deliverables against acceptance criteria, and facilitate settlement when the applicable policies and confirmed payment state permit it.
+Users describe an outcome. WorkPay helps them confirm what they mean, establish only the core requirements and budget state, and approve an exact brief before any professional is approached. Candidate discovery and user-approved contact come later. Execution, agreements, payment, and completion review are separate future phases.
 
-The interface must make this entire process understandable, transparent, and recoverable when something goes wrong.
+The interface must make this intake process understandable, transparent, and recoverable when something goes wrong.
 
-You are responsible for designing and implementing the complete user experience, including information architecture, visual design, interaction behavior, responsive layouts, frontend architecture, accessibility, error handling, and integration with the existing backend.
+You are responsible for designing and implementing the intake experience, including information architecture, visual design, interaction behavior, responsive layouts, frontend architecture, accessibility, error handling, and integration with the existing backend.
 
 Do not simply produce attractive screens. Build a coherent, working product.
 
@@ -30,7 +30,7 @@ Before modifying code, inspect the existing repository and read the relevant doc
 
 Use the actual repository structure to determine which files and components are relevant.
 
-Do not assume that this brief replaces the existing architecture or engineering constitution. The existing architecture is authoritative for technical capabilities and business rules. Where a conflict exists, document it and explain the recommended resolution before making a foundational change.
+The current product scope and phase gates in `ENGINEERING_PLAN.md` §§1-2 and 7 are authoritative. Older architecture and journey specifications remain useful technical references only where they do not conflict with the approved direction. Do not implement candidate outreach, negotiation, payment, execution, or completion review as part of intake.
 
 Before implementation, produce a concise audit covering:
 
@@ -176,6 +176,8 @@ Status colors must always be accompanied by understandable text labels.
 
 Use the existing routes where appropriate. Do not create duplicate navigation structures if the application already has a suitable architecture.
 
+For the current phase, prioritize task intake, recoverable drafts, interpretation correction, essential clarification, budget confirmation, and approved briefs. A task list or activity view must not imply that candidate discovery, contact, negotiation, execution, or payment is available during intake; show only authoritative states and real events.
+
 The recommended structure is:
 
 **Workspace**
@@ -225,9 +227,11 @@ Distinguish user actions, provider actions, AI proposals, AI-executed actions, v
 
 Do not fabricate activity.
 
-## 6. Build the Task Workspace First
+## 6. Future Task Workspace Reference
 
-The task workspace is the most important product screen.
+The full task workspace described below belongs to later phases. Do not implement provider, agreement, execution, verification, or payment surfaces as part of the current intake phase. Revisit these patterns only after their scope and workflows receive separate approval.
+
+The task workspace will be an important product screen in those later phases.
 
 It must give users a clear understanding of the task's current state, agreement, execution, deliverables, evidence, payment status, and next action.
 
@@ -276,137 +280,35 @@ For example:
 
 Only expose actions supported by the backend and permitted for the current user.
 
-## 7. Implement the Complete Task Journey
+## 7. Implement the Intake Journey
 
-Use the architecture's actual state machine. The following describes the intended user experience, not a replacement backend state machine.
+Use the following stages as the current product scope. They describe the intended user experience, not a replacement backend state machine.
 
-### Stage A: Task creation
+### Stage A: Capture the request
 
-Allow users to describe their desired outcome in natural language.
+Let the user describe the work and desired outcome in natural language. Preserve the original wording and make draft recovery clear. Do not front-load technical configuration or secondary preferences.
 
-Provide:
-- A focused input.
-- Supported file attachments.
-- Relevant contextual fields.
-- Validation.
-- Clear next steps.
-- Draft preservation where feasible.
+### Stage B: Interpret and confirm intent
 
-Avoid overwhelming new users with technical configuration before it is needed.
+Show a concise, editable, source-grounded interpretation, including what is known, what is uncertain, and what the system may have misunderstood. AI-generated statements are proposals, not binding requirements. The user must be able to correct the interpretation and confirm it; material edits must be re-evaluated and confirmed in context.
 
-### Stage B: AI clarification
+### Stage C: Clarify only essential requirements
 
-The AI should ask specific questions when missing information materially affects scope, deliverables, acceptance criteria, cost, permissions, or execution.
+Ask at most the highest-value task-critical question at a time, and explain why it matters. Do not ask for secondary details such as color, brand, or implementation choices by default. Keep unanswered or conflicting material questions visible without pretending the task is ready.
 
-Keep the user's original intent and clarification history understandable.
+### Stage D: Establish budget meaning
 
-Distinguish drafts and recommendations from binding commitments.
+Let the user state or confirm a ceiling, target, range, unclear/conflicting state, or explicitly undecided state. An undecided budget is valid and carries no estimated price or funding assumption. Never imply that an AI estimate is the user's budget, a quote, or an agreement. Preserve the user's currency; do not silently convert it.
 
-### Stage C: Structured specification
+### Stage E: Review and approve the brief
 
-Present the proposed specification in readable, editable sections where supported:
+Present a readable, editable summary of the outcome, confirmed requirements, constraints, unknowns, and budget state. Distinguish user-provided facts from AI proposals and confirmed decisions. The user approves an exact version; show what approval means and preserve a way to recover from errors. Only information explicitly stated, clarified, or approved may become binding.
 
-- Desired outcome.
-- Inputs.
-- Deliverables.
-- Acceptance criteria.
-- Constraints and exclusions.
-- Assumptions.
-- Unresolved questions.
+Candidate discovery, professional selection and outreach, agreements, execution, verification, settlement, and completion are outside this journey. Brief approval must not trigger any of them.
 
-Clearly identify unresolved matters and allow appropriate corrections.
+## 8. Financial Actions Are Out of Scope for Intake
 
-Do not turn an unconfirmed assumption into an agreed requirement without the required approval.
-
-### Stage D: Agreement review
-
-Provide a dedicated agreement review experience.
-
-Show:
-- Scope.
-- Deliverables.
-- Acceptance criteria.
-- Constraints.
-- Applicable revision terms, if defined.
-- Provider identity.
-- Agreed price and currency.
-- Payment arrangement.
-- Relevant authorization and funding states.
-- The consequences of the action being requested.
-
-The user must be able to understand the work agreement and financial consequences before confirming.
-
-Use precise action labels, such as “Approve agreement” or “Approve agreement and authorize payment,” only when they accurately describe the underlying operation.
-
-Preserve agreement versions and approval history as required by the architecture.
-
-### Stage E: Execution
-
-Show real execution status and meaningful activity.
-
-Communicate:
-- What has actually happened.
-- What is happening now, if known.
-- What is waiting.
-- What is blocked.
-- Whether user input is required.
-- What the next supported step is.
-
-Do not invent progress percentages or milestones.
-
-Distinguish AI activity from provider activity where the underlying events allow it.
-
-### Stage F: Submission and verification
-
-Present the actual submitted deliverables and the verification results supported by the backend.
-
-Where available, each acceptance criterion should show:
-
-- The agreed requirement.
-- The result.
-- The supporting evidence or explanation.
-- Relevant limitations or uncertainty.
-- The resulting workflow consequence.
-
-Distinguish the submitted deliverable, observed evidence, verification conclusion, and workflow decision.
-
-Do not invent criterion-level evidence if the verification system does not provide it.
-
-### Stage G: Failed verification and revision
-
-A failed verification must be understandable and actionable.
-
-Show the specific unmet requirements, the evidence supporting the result, and the next legitimate step.
-
-Preserve previous submissions, results, and relevant agreement versions.
-
-If comparison between submissions is supported, make it easy to inspect what changed.
-
-Do not silently overwrite previous evidence or present an uncertain verification as a definite failure or success.
-
-### Stage H: Settlement
-
-Settlement must only be offered when the authoritative backend policy and payment state permit it.
-
-Show:
-- Agreed amount and currency.
-- Actual payment state.
-- Relevant conditions.
-- What the next payment action will do.
-- Whether user action is required.
-- The confirmed result of the operation.
-
-Never claim payment has succeeded merely because a request was submitted.
-
-### Stage I: Completion
-
-Show completion only when the authoritative task lifecycle permits it.
-
-Summarize the actual outcome, relevant deliverables, verification result, and confirmed economic state.
-
-Do not invent guarantees about future disputes, refunds, or financial protection.
-
-## 8. Payment UX and PayPal Safety
+The intake UI must not authorize, capture, or otherwise initiate payment. It must not present a budget, estimate, or approved brief as an agreed price or payment commitment. Any future financial interaction must use authoritative backend state and a separately approved design.
 
 Treat financial operations as high-consequence interactions.
 
@@ -632,77 +534,42 @@ Do not use generic error banners when a specific explanation and recovery path a
 - Do not imply that frontend checks are security boundaries.
 - Never claim payment, verification, or execution succeeded without authoritative confirmation.
 
-## 16. Required End-to-End MVP
+## 16. Required End-to-End Intake MVP
 
-Use the architecture's supported dataset-cleaning workflow to validate the complete journey.
+Validate the intake with representative tasks from multiple occupations, sectors, task types, language styles, and budget expressions, not a single dataset-cleaning workflow.
 
 Demonstrate:
 
-1. User describes the desired outcome.
-2. AI requests necessary clarification.
-3. Structured specification is generated.
-4. User reviews the specification and agreement.
-5. Applicable authorization and payment operations are performed.
-6. Execution progresses through real supported states.
-7. A deliverable is submitted.
-8. Verification fails for a concrete, supported reason.
-9. The revision process is followed.
-10. A revised deliverable is submitted.
-11. Verification succeeds.
-12. Settlement becomes available only when the authoritative conditions permit it.
-13. The payment outcome is accurately reconciled and displayed.
-14. The task reaches completion only when the backend permits it.
+1. User describes a task and can return to a recoverable draft.
+2. AI produces a source-grounded interpretation without inventing requirements or price.
+3. User corrects or confirms the interpretation; edits are handled in context.
+4. The system asks only material, task-critical questions and explains their purpose.
+5. Budget meaning, including explicitly undecided, is represented accurately without inference or currency conversion.
+6. User reviews and approves an exact, versioned brief.
+7. Stale versions, unauthorized access, invalid model output, and service failures do not produce a false ready/approved state.
+8. Intake does not invoke candidate search, contact, negotiation, acceptance, or payment.
 
 Use real backend integration where available. Use fixtures or mocks only according to the existing testing conventions. Never hardcode fake success states into production behavior.
 
-## 17. Implementation Sequence
+## 17. Intake Implementation Sequence
 
-Implement in small, verifiable stages.
+Follow `ENGINEERING_PLAN.md` §7: define the intent/provenance/budget model and evaluation cases; implement server-owned AI intake and versioning; implement user correction, clarification, budget confirmation, and exact-version approval; then validate quality and UX before rollout. Do not build downstream professional or payment workflows as a shortcut or dependency.
 
-**Stage 1 — Audit and plan**
-Inspect the repository, document the architecture, identify missing pieces, and map the journey to existing APIs and state transitions.
+## 18. Intake Definition of Done
 
-**Stage 2 — Design system and shell**
-Reconcile design tokens, reusable components, navigation, responsive behavior, and accessible primitives.
+The intake implementation is complete only when:
 
-**Stage 3 — Task creation and specification**
-Implement the outcome input, clarification flow, draft behavior, and structured specification.
-
-**Stage 4 — Agreement and authorization**
-Implement contract review, commercial terms, explicit approval, and accurate payment-state presentation.
-
-**Stage 5 — Execution and submission**
-Implement task status, activity, deliverables, file access, and permission-aware actions.
-
-**Stage 6 — Verification and revision**
-Implement evidence presentation, failure states, revision, resubmission, and relevant history.
-
-**Stage 7 — Settlement and completion**
-Implement authoritative settlement eligibility, safe payment actions, reconciliation, and confirmed completion.
-
-**Stage 8 — Quality and resilience**
-Complete responsive behavior, accessibility, exceptional states, and end-to-end testing.
-
-Do not skip ahead to decorative polish while the primary workflow remains incomplete.
-
-## 18. Definition of Done
-
-The implementation is complete only when:
-
-- The core journey works end to end.
-- Failed verification and successful revision are both demonstrated.
-- Payment states match authoritative backend and provider outcomes.
-- No unsupported wallet, escrow, or payment behavior has been introduced.
-- Task state and permissions are not independently reimplemented in the frontend.
-- All consequential actions are explicit and recoverable.
-- Relevant loading, empty, error, pending, and uncertain states exist.
-- Agreement, submission, and verification history are preserved as required.
-- Desktop and mobile experiences are usable.
-- Keyboard and assistive-technology behavior has been tested.
-- The repository's engineering quality checks pass.
-- Relevant integration and end-to-end tests pass.
-- No important control is decorative or disconnected from actual functionality.
-- No unsupported business rule has been invented.
+- Users across representative domains can express a task and correct its interpretation.
+- Original text, confirmed facts, AI proposals, unknowns, and provenance remain distinguishable.
+- Only material, task-critical clarifications are asked; unsupported details are not invented.
+- Budget meaning is explicit, and undecided remains valid without inferred price or funding.
+- The final brief is versioned, owner-bound, and approved as an exact server-side version.
+- Stale versions, unauthorized access, persistence errors, and AI failures cannot create false readiness or approval.
+- Candidate discovery, contact, negotiation, agreement, and payment are not triggered by intake.
+- Relevant loading, empty, error, pending, and uncertain states exist and preserve user context.
+- Desktop and mobile experiences are usable; keyboard and assistive-technology behavior has been tested.
+- Repository quality checks and representative evaluation cases pass, with human review of model quality and user comprehension.
+- No important control is decorative or disconnected from actual functionality, and no unsupported business rule has been invented.
 
 ## 19. Reporting Requirements
 
@@ -729,4 +596,3 @@ Prioritize clarity, trust, evidence, user control, and reliable behavior over de
 Build the smallest complete version of WorkPay that demonstrates the entire supported economic execution journey. Make every important state understandable, every consequential action explicit, every failure recoverable, and every success truthful.
 
 **The final experience must make it easy for users to understand what is happening, why it is happening, what evidence supports it, and what happens to their work and money next.**
-
