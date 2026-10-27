@@ -25,60 +25,56 @@ When documents disagree, this order decides:
 
 ---
 
-## 1. The Mission: One Excellent Proof
+## 1. Product Direction and Delivery Sequence
 
-The MVP is **one complete vertical** (Component 19 §35) — nothing else:
+WorkPay is being reoriented as a general-purpose system that helps people express work they need done, makes sure their intent and budget are understood, and prepares a user-approved brief before any professional is approached.
 
-> **A buyer asks WorkPay to clean a dataset. The AI plans it, a human approves a bounded contract, a seeded provider is selected, a price is negotiated inside budget, PayPal authorizes the money, work is submitted, verification FAILS the first submission (money stays protected), a revision passes, payment policy allows capture, PayPal captures, task completes.**
+The first delivery phase is **user-intent intake only**:
 
-The demo script (must run end-to-end live, in this order):
+> Capture the user's request, interpret it without silently inventing requirements, let the user correct and confirm that interpretation, ask only essential primary questions, establish an explicit budget state, and freeze an approved, versioned brief.
 
-1. Buyer describes task (`Clean 5,000 customer records`) + uploads `customers.csv`
-2. AI planner produces a Work Specification (provenance-tagged requirements)
-3. Contract compiled → buyer reviews human-readable contract (scope, budget, acceptance criteria, **"The agent can / cannot"** panel) → **Approve & Let AI Hire**
-4. Seeded provider recommended **with reasons** (why selected, alternatives collapsed)
-5. Negotiation: offer within budget → mutual acceptance → hashed Commercial Agreement
-6. PayPal **authorization** (funds reserved — UI says "authorized, not yet released")
-7. Provider accepts work, starts, submits `customers-v1.csv`
-8. Deterministic verification **FAILS** it (e.g. 7.2% duplicates, required ≤ 1%) → payment **remains protected**, policy shows DENY reason
-9. Revision requested → provider submits `customers-v2.csv`
-10. Verification **PASSES** with per-requirement evidence
-11. Payment policy evaluates → `ALLOW` → **PayPal capture** confirmed via webhook
-12. Task `COMPLETED`, payment shows **"$135 paid"**, activity timeline tells the whole story, Completion Package visible
+The intake milestone is accepted only when representative users can state a goal, correct the system's interpretation, answer essential questions, explicitly confirm their budget state, and approve a versioned brief without the model turning assumptions into requirements. Evaluation must cover multiple occupations, task types, language styles, and budget expressions, with human review of model quality.
 
-"The failure is the proof." Step 8 is **not optional** — a demo without the caught failure does not count.
+The later workflow begins only after the brief is approved: candidate discovery, user selection, explicit approval of contact, and separately designed collaboration, payment, and completion review. These are not part of the intake milestone.
 
 ---
 
-## 2. Scope: Hard Cut Lines
+## 2. Scope: Phased Cut Lines
 
-### 2.1 IN scope (build exactly this)
+### 2.1 Current phase: confirmed task-intent intake
 
-- Buyer app: New Task → Task Room (Outcome / State / Evidence / Money) → contract review & approval → provider recommendation → payment state → activity timeline → human-review states
-- Provider portal (separate auth area): available work, requirements, accept, submit, revisions, payment status
-- One task type: **dataset cleaning** with a small library of reliable deterministic checks (+ exactly one semantic/LLM check)
-- Seeded providers (no marketplace, no onboarding)
-- Rule-based negotiation inside a fixed budget (hybrid strategy allowed only if the deterministic path already works)
-- PayPal sandbox: authorize → capture, webhook verification, idempotency, reconciliation job, kill switch
-- Events via **PostgreSQL transactional outbox** + worker; SSE to browser
-- Bounded workflow agent **last** (Slice 7): drives plan → search → negotiate → request authorize; human still approves the contract
-- Human review for UNCERTAIN verification + 5 case types max (verification uncertainty, verification dispute, scope change, payment exception, cancellation), single admin-reviewer role
+- Accept open-ended requests across occupations and task types without requiring a predefined domain selection.
+- Preserve the original user wording and relevant supplied context as source material.
+- Use validated AI-assisted stages for intent interpretation, user correction/confirmation, primary-scope clarification, and final brief composition. Keep each stage bounded and separately testable.
+- Track provenance for user-stated, user-confirmed, deterministically derived, and AI-proposed information. AI suggestions cannot become binding requirements without user approval.
+- Capture budget meaning explicitly, including ceiling, target/range, unclear/conflicting, and an intentionally undecided state. An undecided budget carries no estimated price or funding assumption.
+- Persist owner-bound intake state and immutable versions on the server. Finalization must use the exact approved server-side version and be idempotent.
+- Evaluate intake across varied work domains, writing styles, and user contexts. Include human review of model quality and correction UX.
+- Preserve deterministic authorization, money, privacy, audit, and persistence controls. No database transaction may span an AI network call.
 
-### 2.2 OUT — forbidden to build (Component 19 §36, plans 01/02/03, plan_advanced §44)
+### 2.2 Later direction, not part of the current intake phase
+
+- Candidate discovery with useful professional profiles and transparent, evidence-based fit information.
+- User-controlled candidate selection and explicit approval before contact.
+- Professional response, negotiation, agreement, execution, task changes, and completion review.
+- Profile onboarding and expanded human-review workflows, designed after the intake baseline is reliable.
+
+These are approved product directions but are not permission to implement them ahead of the intake phase. Each later phase requires its own design, acceptance criteria, and safety review.
+
+### 2.3 Out of scope for the current phase
 
 ```
-✗ open marketplace / provider onboarding     ✗ multi-currency, recurring work, milestones
-✗ reputation algorithms / star ratings       ✗ multiple payment providers, custom escrow
-✗ microservices, Kafka/event streaming, GraphQL, service mesh
-✗ custom IAM / enterprise auth system       ✗ MongoDB/Cassandra/event sourcing/full CQRS
-✗ analytics dashboards, ten dashboards,     ✗ elaborate messaging, dozens of settings,
-  extensive analytics                         elaborate provider profiles
-✗ email notification infrastructure (in-app only)
-✗ second task type, arbitrary task types without deterministic verification
-✗ new architecture docs, generic abstractions "for the future"
+✗ provider search, candidate ranking, or professional contact
+✗ negotiation, offer acceptance, payment authorization, or execution
+✗ post-match messaging, scope/price-change workflows, and completion review
+✗ using model estimates as user budget, contract terms, or payment amounts
+✗ treating AI-proposed requirements or browser-provided state as authoritative
+✗ new infrastructure, microservices, or architecture documents without review
 ```
 
-**"The demo needs one excellent proof, not twenty unfinished features."** Anything not in §2.1 requires a PR editing §2.1 of this file, approved by both.
+Current payment integration remains USD-only. Intake must preserve the user's stated currency and must not silently convert it. Any unsupported currency or unresolved downstream commercial requirement must be made explicit before a task can enter a money-moving workflow.
+
+The existing technical stack and safety invariants remain authoritative. This phase change supersedes the frozen product scope in Component 19 §§35-36; the related schedule, component sequence, and cut-lines require an engineering-reviewed re-baseline before implementation or merge.
 
 ---
 
@@ -120,9 +116,9 @@ These are **testable laws** (derived from Component 19 §13/§34 and Components 
 
 ---
 
-## 4. Prescribed Stack (frozen at Gate 0 — no re-litigating)
+## 4. Current Technical Baseline and Change Criteria
 
-The agreed stack, **amended where the raw list would burn us later**. Amendments are marked ⚠ — everything else is adopted verbatim. Any dependency not listed here needs a PR + owner approval (§9.2).
+This is the current technical baseline, not a claim that every choice is optimal. Keep an existing choice when it remains fit for purpose; change it when an evidence-based improvement justifies the migration, reliability, security, and operational costs. Shared contracts and high-impact infrastructure changes still require engineering review.
 
 | Layer | Decision | Note / amendment |
 |-------|----------|------------------|
@@ -134,24 +130,26 @@ The agreed stack, **amended where the raw list would burn us later**. Amendments
 | ORM/query layer | **Drizzle ORM** (+ drizzle-kit) | Generated SQL is committed as **append-only numbered migrations**; CI runs migrations from scratch; no hand-edits to applied migrations |
 | Background jobs | **pg-boss** (dedicated `pgboss` schema) | Queues per domain: `outbox, verification, reconciliation, agent, notifications`. Financial jobs: bounded retries + **error classification** (invalid/permission errors never auto-retry — P4) + dead-letter inspected daily |
 | Eventing | **PostgreSQL outbox + pg-boss** | ⚠ The outbox stays ours (`outbox_events`, `processed_events` — invariant D1). pg-boss is only the transport that says "go process this event"; it never replaces the event store |
-| AI | **OpenAI Responses API + Structured Outputs** (`strict: true`) | Behind one internal `AIProvider` interface (swappable — Component 17). Timeout ~20s, 1 retry, then **deterministic fallback** (never optimistic). File content fetched via tool call, never pasted into a system prompt (I1). Owned by Engineer B |
+| AI | **Vercel AI SDK with AI Gateway** | Keep a small internal adapter and use separate schema-validated operations for intent interpretation, clarification, and brief composition. Configure and record the selected model and prompt versions. Bound timeouts/retries. A model failure leaves a recoverable draft; no deterministic fallback may fabricate readiness or user approval. User text and attachments are untrusted data, not instructions. |
 | AI validation | **Zod** | Shared schemas live in `packages/shared` — planner, verifier, and agent all validate through the same schemas |
 | Payments | **PayPal Orders v2 (authorize → capture) + Webhooks v2** | Behind internal `PaymentGateway`. `PayPal-Request-Id` header = second idempotency layer over §6.3.6. Webhook signature verification mandatory. **Two implementations: `FakePayPal`** (unit/e2e/CI/rehearsals — deterministic, no network) **+ `SandboxPayPal`** (demo). CI never depends on PayPal uptime |
 | Files | **S3-compatible object storage** | MinIO locally; **Supabase Storage** hosted (S3-compatible endpoint, real presigned PUT/GET) so DB + files are one vendor. Cloudflare R2 is a fine swap. One `ObjectStorage` adapter (A). Bucket/keys are config, never code |
 | Realtime | **SSE** | ⚠ Serverless platforms cut long-lived streams: the events endpoint must ship with a **cursor fallback from day one** — `GET .../events?since=` + `Last-Event-ID` reconnect + client refetch-on-reconnect. Realtime never replaces authoritative API state |
-| Auth | **Auth.js** (v5, credentials) — *recommended over managed provider* | Roles (`buyer/provider/admin-reviewer`) live in **our** `users` table so authority checks stay in Postgres. Middleware gates routes for UX; **per-request `authorize()` remains authoritative** (A2). Managed auth (Clerk) only if both agree on D1 — then role sync becomes a Gate 0 task |
-| Deployment | **Fit the workload to the host — not one platform for everything.** Web + API + SSE + PayPal webhook → **Vercel** · background worker → a **long-lived-process host** · data → **Supabase** | Vercel is the *compatible* host for the Next.js app, route handlers, SSE (with reconnect), and the webhook. Its functions are request-scoped, so they **cannot** host the pg-boss worker — and Hobby cron runs once/day, so don't try to force it. Worker host (pick one at Gate 0): **Railway** (default — deploy from GitHub, start command `pnpm worker`, ~$5/mo) · **Fly.io** (Docker, scale-to-zero disabled, cheapest always-on) · **always-free VM** (Oracle Cloud / GCP e2-micro, Docker) if you want $0. Dev is always `pnpm worker` locally against Supabase. If SSE ever misbehaves on Vercel, move **that one endpoint** to the worker host — it's a compatible always-on process. The worker host is the only paid piece (~$5/mo), and a free alternative exists. **Deploy spine live by D2.** |
-| Testing | **Vitest + Playwright** | `invariants.test.ts` (Appendix D) + one Playwright e2e of the §1 loop **against `FakePayPal`** (green in CI); sandbox used only for demo/rehearsal |
+| Auth | **Auth.js** (v5, credentials) — *original recommendation; verify against the existing app* | Roles and per-request authorization must be grounded in the existing auth model. Any provider or role migration is a separate decision, not an intake prerequisite. |
+| Deployment | **Fit the workload to the host — not one platform for everything.** Web + API + SSE + PayPal webhook → **Vercel** · background worker → a **long-lived-process host** · data → **Supabase** | This is the original deployment proposal, not a verified statement of the current repository or deployment. Inspect the actual runtime and hosting constraints before any migration or deployment work; the current intake milestones do not require a platform rebuild. |
+| Testing | **Vitest + Playwright** | Deterministic state/provenance/budget invariants, model regression evaluations, human-reviewed UX cases, and end-to-end tests for the current intake phase. External payment tests are outside the intake gate. |
 | Observability | **Sentry + structured JSON logs** | Correlation ID via AsyncLocalStorage on every request/job; `audit_records` for economic actions; job failures alert through Sentry |
 | Package manager | **pnpm** (workspaces) | No Turborepo unless build time actually hurts |
 | Language | **TypeScript strict everywhere** | `strict: true`, no `any` in module interfaces |
 | Dev tooling (added) | Docker Compose (postgres + minio) · webhook tunnel (ngrok) · `make` targets (`up, migrate, seed, reset-demo, test, e2e`) | Env validated by Zod at boot: **missing critical secret = startup failure**, not a half-working app (Component 18) |
 
-**Gate 0 includes creating the PayPal sandbox developer account, app, client credentials, and a webhook tunnel** (Engineer A). PayPal sandbox friction is the #1 schedule risk — it gets done first.
+PayPal sandbox setup and webhook tunneling are not dependencies for the current intake phase. Verify the existing payment integration before any separately approved payment work.
 
 ---
 
 ## 5. Ownership Map
+
+This map describes existing module boundaries and historical ownership. It does not expand the current intake phase in §2; candidate discovery, negotiation, execution, payment, and completion review remain deferred.
 
 Two owners. Every module, table, endpoint, and event has exactly **one** owner. Ownership means: builds it, tests it, reviews it, fixes it.
 
@@ -184,14 +182,16 @@ Two owners. Every module, table, endpoint, and event has exactly **one** owner. 
 | AI adapter | 17 | `AIProvider` interface, model/timeout/retry/validation, prompt isolation (untrusted file content never concatenated into instructions), **`FakeAI` implementation returning canned structured outputs for tests/e2e** |
 | Provider discovery & selection | 4 | seeded providers, hard eligibility filter, ranking, explainable recommendation, `PROVIDER_SELECTED`, selection snapshot/expiry |
 | Execution & submission | 7 | provider portal flows, acceptance, work status, clarifications, immutable versioned submissions + checksums, revision cycle, `SUBMISSION_*`, `REVISION_REQUESTED` |
-| Verification & acceptance | 8 | deterministic check library (dataset cleaning), one semantic check via AI adapter, per-requirement evidence, aggregation → `PASS`/`FAIL`/`UNCERTAIN`, revision triggers, human-review handoff |
+| Verification & acceptance | 8 | Existing later-stage verification module; dataset-specific checks are not a constraint on general-purpose intake |
 | Cases (minimal) | 10 | 5 case types, blocking `case_impacts`, evidence bundle, single reviewer resolution API, `CASE_OPENED`/`CASE_RESOLVED` |
-| Agent orchestrator | 11 | event-wake loop, **typed** agent actions, guards, retries/loop-detection/execution budgets, agent activity feed — **built last (M7)** |
+| Agent orchestrator | 11 | Existing bounded-action module; any future automation must be redesigned against explicit user authority and the user-led candidate/contact flow before reactivation |
 | Event consumers | 12 | verification trigger, case→payment blocking, agent wake |
 | Notifications (in-app) | — | bell + links, derived from events |
 | **Entire frontend** | 16, overview, plan-02 | buyer app (shell, New Task, My Tasks, **Task Room**, contract review, provider recommendation, payments, activity, human-review states), provider portal, SSE rendering, empty/loading/error/a11y states |
 
-### 5.3 Shared Kernel — built **together** at Gate 0 (D1–2)
+### 5.3 Legacy Platform Bootstrap Checklist
+
+The checklist below belongs to the original greenfield plan. This repository already contains an implemented application, so these items are not current intake milestones or an instruction to rebuild the platform. Before reusing any item, verify it against the repository and the current product direction; the intake scope and gates are defined in §§2 and 7.
 
 Nothing else starts until this exists. Both engineers, two days, pair-session style:
 
@@ -211,7 +211,7 @@ Nothing else starts until this exists. Both engineers, two days, pair-session st
 
 ### 5.4 Capacity rebalance clause
 
-If one engineer's milestone load is chronically ahead/behind at a gate review, both engineers may reassign a **whole module** (never a partial one) by editing §5 in a PR, with a written handoff: module state, open TODOs, owning tests. Default expectation: no rebalancing before M3.
+If a milestone load is chronically ahead/behind at a gate review, the team may reassign a **whole module** (never a partial one) with a written handoff: module state, open TODOs, and owning tests. Reflect ownership changes in §5.
 
 ---
 
@@ -220,7 +220,7 @@ If one engineer's milestone load is chronically ahead/behind at a gate review, b
 ### 6.1 What may never be changed unilaterally
 - Event names/payloads (`packages/shared/events.ts`) — change requires: PR updates catalog + all producers/consumers + both approvals
 - OpenAPI paths owned by the other engineer — propose in the spec PR, owner implements
-- Shared Kernel items (§5.3) — same rule
+- Shared contracts (domain schemas, shared types, and event payloads) — same rule
 - Schema: migrations affecting another's tables require the table owner's approval
 
 ### 6.2 Communication protocol
@@ -241,81 +241,21 @@ If one engineer's milestone load is chronically ahead/behind at a gate review, b
 
 ## 7. Milestones & Gates
 
-**D = calendar day of the hackathon (D1–D25).** Counts assume both engineers **plus coding agents** (§9.2) — the coding agents buy throughput *inside* modules; they do not shrink gates or reviews. Order is binding: **domain → policy → integrations → UI → agent** (Component 19 §37–38 — never start with the agent).
+The previous D1-D25 hackathon schedule and M1-M7 provider/payment/agent sequence are retired. They do not authorize implementation of the old autonomous provider lifecycle. Re-estimate the current phase; do not reuse the old dates or gates.
 
-**Gate rule:** the next milestone's *non-overlapping* work may start while a gate is pending, but **no milestone is "done" until its gate passes live**, and M7 never starts before Gate 6. Every milestone ends with a live joint demo + a written "gate passed/waived" note.
+| Milestone | Outcome | Gate |
+|-----------|---------|------|
+| **M1: Intent and evaluation model** | Versioned intent/provenance contract, explicit budget states, readiness rules, and representative evaluation cases | Schema/state tests and the evaluation set prove raw request preservation and nonbinding AI proposals |
+| **M2: Server-owned AI intake** | Persisted sessions; separate interpretation, primary clarification, and brief-composition operations | AI failure, stale versions, unowned sessions, and unresolved critical questions cannot produce a ready/approved brief |
+| **M3: User confirmation and finalization** | Editable interpretation, minimal clarification UX, explicit budget choice, and approval of an exact brief version | API/UI tests prove browser tampering cannot change the approved version and finalization is idempotent |
+| **M4: Quality and UX validation** | Human-reviewed multi-domain evaluation and accessibility/usability pass before rollout | Agreed regression gates pass; reviewers confirm interpretation accuracy, question usefulness, and user correction success |
+| **Later phases, separately approved** | User-led candidate discovery, explicit contact approval, then separately designed collaboration and completion review | No candidate search, contact, negotiation, acceptance, or payment work starts as part of M1-M4 |
 
-| Milestone | Days | Lead | Outcome |
-|-----------|------|------|---------|
-| **Gate 0** Foundation + deploy spine | D1–2 | Both | Shared kernel complete (§5.3), deployed and reachable |
-| **M1** Core Task | D3–5 | A (backend) / B (planner + shell) | User → Task → Contract |
-| **M2** Provider & Agreement | D6–9 | B (selection, portal) / A (negotiation) | Contract → Provider → Agreement |
-| **M3** Payment Authorization | D10–12 | A / B (payment UI) | Agreement → PayPal Authorization |
-| **M4** Execution & Submission | D13–14 | B / A (files) | Authorized work → immutable Submission |
-| **M5** Verification & Failure | D15–17 | B / A (policy deny path) | Submission → FAIL → revision → PASS |
-| **M6** Settlement | D18–19 | A / B (money UI) | PASS → Policy → PayPal Capture |
-| **M7** Agent | D20–21 | B / A (authority guards) | Autonomous bounded loop |
-| **H** Harden & Demo | D22–24 | Both | e2e, invariant suite green, demo rehearsals |
-| **Buffer** | D25 | — | Only cut-lines (§10) may consume it |
+**Server-side implementation checkpoint:** the versioned intake API now exposes separate interpretation, interpretation confirmation/correction, scope assessment, single-question answers, budget decisions, communication-style preferences, and exact-version approval operations under `/api/v1/intake/sessions`. Mutations require the expected version; model calls run outside database transactions; only user-authored sources can support intent or budget evidence; and approval is rejected while readiness blockers remain. Correcting an interpretation preserves the rejected proposal only as nonbinding context for the next interpretation call. This is backend/API work, not a completed user-facing intake experience. AI Gateway remains disabled by default, and no live model quality or usability gate has been claimed.
 
-### Gate 0 — Foundation & deploy spine (D1–2) · both
-- [ ] `docker compose up` runs web+worker+postgres+minio from a clean clone
-- [ ] Full draft schema + migration runner + seeds; event catalog committed; OpenAPI generated from Zod in CI
-- [ ] Auth: login as buyer/provider/admin-reviewer; `authorize()` rejects cross-user access
-- [ ] Outbox: a test domain write + event land in the same transaction; worker publishes via pg-boss; SSE stub streams it **on deployed infra, with `?since=` reconnect proven**
-- [ ] **PayPal sandbox app created, credentials in env, `/health`+`/ready` green** (A); `FakePayPal` + `FakeAI` wired behind their interfaces
-- [ ] Zod → OpenAPI → frontend-client generation pipeline runs in CI
-- [ ] **Deploy spine live**: Vercel preview + Supabase (DB + storage) + worker deployed to a long-lived host (default Railway, §4) + webhook endpoint reachable; SSE and webhook round-trip proven on real infra
-- [ ] `invariants.test.ts` exists, red by design
+No schedule date is set until the team estimates these milestones against the existing repository. Each gate requires test evidence, UX review, and engineering review. AI failures must preserve a recoverable draft and must never silently mark the brief ready or approved.
 
-### M1 — Core Task (D3–5): *User → Task → Contract*
-**A:** `POST/GET /api/v1/tasks` (idempotent, immutable request, minor-unit money, deadline UTC) · planner job trigger · contract compiler (reject incomplete/unconfirmed-AI specs) + `POST /contracts/{id}/approve` bound to version+hash · activity endpoint v1 · tasks lifecycle transitions
-**B:** Next.js shell (nav: Tasks/Payments/Activity/Settings) · New Task composer + upload · planner (LLM structured output, provenance, ≤3 materially-important clarifications) · contract review screen (plain language, budget ceiling, **agent can/cannot** panel) · "AI planning" progress state · SSE → live status
-- [ ] Gate: create task from NL + file → spec with provenance tags → contract review → approve → `tasks.status = APPROVED`; approving an *older* contract hash is rejected; two identical creates with one Idempotency-Key create one task
-- [ ] Forbidden: provider code, payment code, agent
-
-### M2 — Provider & Agreement (D6–9): *Contract → Provider → Agreement*
-**B:** seeded providers + capabilities/availability · deterministic eligibility (fail reasons persisted) · ranking + **"why we selected them"** response · `provider-search` internal endpoint · provider portal: login → available work → accept (bound to contract version+hash) → work status
-**A:** negotiation state machine (round caps), immutable offers, authority-envelope validation (budget/deadline/currency/rounds), scope-change → amendment (not silent), `COMMERCIAL_AGREEMENT_CREATED` (both acceptances + SHA-256), negotiation UI-facing endpoints
-- [ ] Gate: approved contract → provider recommended with reasons + alternatives → offer/counteroffer within budget → agreement hashed; a counteroffer **over budget is refused deterministically** and surfaces "Needs your attention" state; provider acceptance recorded against the exact contract version
-- [ ] Forbidden: any PayPal call, any LLM-authored offer accepted without deterministic validation
-
-### M3 — Payment Authorization (D10–12): *Agreement → PayPal Authorization*
-**A:** payments created **only** from a validated agreement (amount/hash/version copied, never re-typed) · authorize policy evaluation → `ALLOW`/`DENY` + reasons · PayPal adapter (orders create + authorize, idempotency keys) · webhook verify/dedup → domain events · reconciliation job for UNKNOWN states · kill switch · `GET /tasks/{id}/payment`
-**B:** payment panel: **"$135 authorized through PayPal — released only after verification"** (never "paid") · payments list page · Needs-your-attention styling for DENY
-- [ ] Gate: agreement → policy ALLOW → sandbox authorization succeeds → `payments` row + external IDs + `payment_operations` appended; replaying authorize with the same idempotency key creates **one** payment; tampered amount from the client changes nothing (policy DENYs)
-- [ ] Forbidden: capture before M6 (feature-flagged off), refunds, milestones
-
-### M4 — Execution & Submission (D13–14): *Authorized work → Submission*
-**B:** provider portal detail view (pay, deadline, requirements checklist, input file, payment condition) → Accept → Start → **Submit Deliverable** upload flow · pre-submission validation · clarification requests (buyer-routed) · revision cycle UI · immutable submission versions (checksum, provenance) · `SUBMISSION_SUBMITTED`
-**A:** signed upload/download URLs, storage adapter, artifact metadata + SHA-256, file access control (provider sees only their task's files), task file endpoints
-- [ ] Gate: provider accepts → uploads CSV → submission v1 immutable (re-upload creates v2, never overwrites) → buyer sees Work Status + submission appear; provider A cannot fetch provider B's file URL
-- [ ] Forbidden: verification logic (only emit the submission event)
-
-### M5 — Verification & Failure (D15–17): *Submission → FAIL → PASS*
-**B:** verification engine: load **exact contract version** snapshot → deterministic checks (row count, duplicate rate ≤1%, ID preservation, required fields, email normalization schema) + one semantic check → per-requirement `PASS/FAIL` with evidence rows → aggregate via acceptance policy → `VERIFICATION_PASSED/FAILED/UNCERTAIN` · revision requested on FAIL · UNCERTAIN → case opened (blocking) + reviewer resolution endpoint · verification UI (expected vs actual, evidence, "payment protected" banner)
-**A:** payment policy consumes verification + case events: full deny-path wired (FAIL/UNCERTAIN/no-decision/blocking case → `DENY` + persisted reason) · policy check records readable in UI · escalation freeze honored
-- [ ] Gate (demo money protection): submitted v1 → **FAIL** (7.2% vs ≤1%) → capture attempt returns `PAYMENT_NOT_ELIGIBLE` with stored reason → v2 submitted → **PASS** with evidence → policy flips to `ALLOW` (capture still gated to M6); UNCERTAIN case blocks capture while open
-- [ ] Forbidden: changing acceptance criteria after contract approval (the check compares against the contract snapshot — provider cannot be failed against a requirement that didn't exist)
-
-### M6 — Settlement (D18–19): *PASS → Policy → Capture*
-**A:** capture path: full 12-check policy evaluation → immutable `PaymentDecision` + `CaptureCommand` → PayPal capture → webhook confirms → `PAYMENT_CAPTURED` → reconciliation for unknowns → task terminal transition (A's `tasks.transition()`) · crash/duplicate drills
-**B:** Task Room money states (authorized → released) with exact timing of when money moved · activity timeline full narrative (the 13:02→13:12 sequence from the overview) · payments page statuses (authorized/captured/failed/pending)
-- [ ] Gate: PASS → ALLOW → capture → PayPal confirms → task `COMPLETED` → timeline shows the full story; **drill 1:** capture retried after simulated crash → still exactly one capture; **drill 2:** webhook replayed → no double state change; **drill 3:** `SYSTEM_PAYMENT_PAUSE=true` blocks capture
-- [ ] Forbidden: any UI element implying payment before capture confirmation
-
-### M7 — Agent (D20–21): *Bounded autonomy*
-**B:** event-wake agent loop (observe → context → propose → validate → execute → record) with **typed actions only** (`CREATE_PLAN`, `SELECT_PROVIDER`, `PROPOSE_OFFER`, `REQUEST_AUTHORIZATION`, `REQUEST_VERIFICATION`, `REQUEST_REVISION`) · WAIT as a valid action · loop detection + bounded retries + execution budget · agent activity feed ("decision provenance", not chain-of-thought) · planner output drives contract proposal automatically
-**A:** agent identity + per-task authority policy (spend cap = contract budget, round caps, revocation) · guard enforcement (attempted out-of-scope action → `AGENT_AUTHORITY_DENIED` + audit record) · confirm agent **cannot** capture or bypass contract approval (human approval stays)
-- [ ] Gate: fresh task → agent drives plan → human approves contract → agent selects/negotiates/authorizes → work runs → verification gates → capture — with zero invariant violations; agent attempting `capture` or `change_budget` is denied and audited; agent gets stale context → re-reads state instead of acting (state-freshness check)
-- [ ] Forbidden: new agent tools not in the typed list; agent writing to any table directly
-
-### H — Harden & Demo (D22–24): *both*
-- [ ] Playwright e2e runs the §1 16-step loop green (against `FakePayPal` in CI **and** once against sandbox PayPal from a clean clone)
-- [ ] `invariants.test.ts` fully green (Appendix D)
-- [ ] UX polish pass: empty/loading/error states, keyboard nav, the four Task Room layers (Outcome/State/Evidence/Money) legible at a glance
-- [ ] Demo recorded twice, timed ≤ 6 minutes, failure step included; judge Q&A prepared (§8.4)
-- [ ] `/ready`, logs with correlation IDs, seed-reset script (`make reset-demo`) verified
+The initial versioned corpus, annotation rubric, and pass thresholds live in `packages/shared/src/domain/intake/evaluation/`. They are a seed for M1 contract and regression work, not statistical evidence of broad performance. Before model selection or implementation, preserve these gates: zero invented binding requirements, lost explicit constraints, budget misclassification, inferred spend ceilings, silent currency conversion, and false-ready outcomes on curated critical-unknown cases. Human-rated question usefulness and user comprehension thresholds are also specified there; do not rely on an LLM judge alone or tune thresholds after seeing model results. Expand and stratify the set before rollout.
 
 ---
 
@@ -339,21 +279,21 @@ A feature is done when **all** hold:
 - Main green daily; no schema change merged without B's approval
 
 ### 8.3 Engineer B's personal DoD
-- Every LLM call: schema-validated output, provenance tagged, timeout+retry, malformed output → retried → then deterministic fallback (never optimistic)
+- Every LLM call: schema-validated output, provenance tagged, timeout+retry. Failure preserves a recoverable draft and cannot mark intent ready or approved; deterministic fallback must not invent a complete brief.
 - Verification compares against the **contract snapshot**; evidence persisted per requirement; FAIL produces a user-readable expected-vs-actual explanation
 - Frontend computes zero authoritative values (amounts, permissions, verdicts) — reads API only; provider user cannot reach buyer-only routes (tested)
 - Main green daily; event catalog changes proposed with payloads + both approvals
 
-### 8.4 System DoD (demo checklist mapped to judging questions)
-| Judge asks | System must show | Gate |
+### 8.4 Current phase DoD
+| User need | System must show | Gate |
 |---|---|---|
-| "What is the agent allowed to do?" | Contract + authority panel, agent-can/cannot list, `AGENT_AUTHORITY_DENIED` audit | M1, M7 |
-| "Why did the work pass?" | Per-requirement evidence vs exact contract version | M5 |
-| "Prove why money moved" | `PaymentDecision` + policy checks + capture only after PASS, timeline | M6 |
-| "What happens when it fails?" | FAIL → payment protected → revision → PASS → capture | M5→M6 |
-| "Will it refuse unsafe work?" | Over-budget counter refused; UNCERTAIN blocks capture | M2, M5 |
+| "What did you understand?" | The original request and a concise, editable interpretation with provenance | M1 |
+| "What did you assume?" | Explicit facts, unknowns, and AI proposals visibly distinguished; proposals are nonbinding | M1/M2 |
+| "What do you still need from me?" | Only task-critical clarifications, one focused question at a time, with a reason | M2 |
+| "What is my budget?" | The user's confirmed amount/range/currency or an explicit undecided state, never an AI-imputed ceiling | M2 |
+| "What am I approving?" | The exact server-owned brief version and its confirmed requirements before it is frozen | M3 |
 
-All five answered live from the product UI, not from code.
+Later provider, communication, payment, and completion-review gates must be designed and approved separately. No intake gate may trigger them.
 
 ---
 
@@ -382,45 +322,39 @@ Coding agents give us parallel implementation speed. They do **not** own judgmen
 
 ---
 
-## 10. Cut-Lines (ordered — cut from the top, never from the bottom)
+## 10. Current Phase Cut-Lines
 
-If the schedule slips, remove scope **in exactly this order**, one item per day of slip, both engineers agreeing:
+The old D1-D25 buffer and cut-line schedule is retired. If delivery capacity is constrained, agree a revised schedule before reducing scope.
 
-1. In-app notification bell (activity timeline remains)
-2. Clarification Q&A loop → fixed two questions from the planner
-3. Multiple negotiation rounds → single offer + single accept (still via immutable offer objects)
-4. Semantic/LLM verification check → deterministic checks only
-5. Ranking sophistication → single seeded provider, selection rationale still shown
-6. `UNCERTAIN` human-review UI → UNCERTAIN blocks capture and routes to one reviewer screen with Approve/Reject (no case messages/evidence UI)
-7. Agent autonomy depth (M7) → agent drives plan + provider search only; the rest stays button-driven **but the demo keeps agent-authored planning**
-8. Provider portal polish → single provider page (accept/start/submit/revise stacked)
+**Never cut from the intake phase:**
+- Preservation of the original request and server-owned session state.
+- Provenance and user confirmation for every binding requirement.
+- Explicit budget meaning, including the user-approved undecided state; no inferred ceiling or silent currency conversion.
+- Fail-closed behavior for invalid model output, stale versions, ownership failures, and persistence errors.
+- Regression evaluation of critical constraints, false-ready cases, and budget handling.
 
-**Never cut (system is undemoable or unsafe without these):**
-- contract review + human approval before authorization · capture gated on PASS (P1/P2) · idempotent money operations · webhook verification · immutable submissions · activity timeline (even as raw events) · the intentional verification failure in the demo · authorization-vs-capture distinction in UI copy
-
-The schedule has exactly **one buffer day (D25)**. Each lost day: consume the buffer first, then apply the next cut-line from the list below, both engineers agreeing. Never skip Gates 3, 5, or 6, and never start-then-abandon — if a milestone must shrink, cut *before* it starts.
-
-If runway is < 25 days from the outset, apply cut-lines proactively at the milestone boundaries (start with #1, #2, …) and re-issue the schedule in §7 via a PR to this file.
+Optional presentation polish may be deferred, but users must always be able to understand, correct, and explicitly confirm the brief. Provider discovery, contact, negotiation, payment, execution, and completion review remain later phases, not cut-line substitutions for intake.
 
 ---
 
 ## 11. Risk Register
 
-| # | Risk | Owner | Mitigation | Trigger date |
-|---|------|-------|-----------|--------------|
-| R1 | PayPal sandbox setup/webhook tunnel friction | A | Done at **Gate 0**; `FakePayPal` unblocks all other work regardless | D2 |
-| R2 | LLM structured output unreliable → planner stalls | B | Deterministic fallback spec from a template; validation pipeline; test with 10 canned prompts; `FakeAI` for everything non-demo | D5 |
-| R3 | Verification false positive/negative on the demo dataset | B | Fix golden dataset + expected results as a fixture test before M5 gate | D17 |
-| R4 | A/B interface drift (events/schema/OpenAPI) | Both | Frozen catalog + Zod-generated OpenAPI pipeline (Gate 0); daily integration; schema owner approval | continuous |
-| R5 | Scope creep from 36k lines of architecture docs | Both | §0 rule: no new docs; anything beyond §2.1 needs a §2.1 edit | continuous |
-| R6 | Frontend load outweighs backend near the end | Both | §5.4 rebalance clause considered at M3 review | D12 |
-| R7 | Demo-day data corruption / broken seed | Both | `make reset-demo`; never demo on dev data; recorded backup demo | D21 |
-| R8 | Platform mismatch: SSE streams cut on Vercel, worker unusable on serverless, DB cold starts | A | Workload-to-host fit fixed in §4 (worker on a long-lived host); deploy spine live at **D2** (§5.3.10); `Last-Event-ID`/cursor fallback on every realtime endpoint; pooled DB connections for serverless; smoke test SSE + webhook daily from D2 | D2 |
-| R9 | Coding-agent velocity creates unreviewed surface area | Both | §9.2 protocol: context packs, same-day reviews, dependency budget, invariants suite as the safety net; human edge-case test per agent PR | continuous |
+| # | Risk | Owner | Mitigation | Trigger |
+|---|------|-------|-----------|---------|
+| R1 | Model overgeneralizes or privileges familiar task domains | Intake | Evaluate across varied occupations, languages, expression styles, and task types; require human review of representative outputs | Before rollout |
+| R2 | LLM structured output unreliable, preventing safe progression | Intake | Bounded retry, preserve a recoverable draft, explain failure, allow user correction; invalid output never marks a brief ready | Before rollout |
+| R3 | Intake over-asks secondary details or misses critical unknowns | Product/UX | Test question usefulness and unnecessary-question rate with representative users; limit clarification to material task-critical information | Before rollout |
+| R4 | Ambiguous budget is silently converted into a price or ceiling | Intake | Model budget meaning explicitly; permit undecided; require user confirmation; never infer a spend limit or convert currencies silently | Before rollout |
+| R5 | Client tampering, stale versions, or cross-user access corrupts approved intent | API | Server-owned, owner-bound version state; authorization on every request; version checks and idempotent finalization; targeted security tests | Before rollout |
+| R6 | Legacy provider-search route triggers unapproved downstream actions | API | Keep it out of intake; disable or remove its side effects before redesigned product release; test that intake cannot reach it | Before rollout |
+| R7 | Deployment or runtime assumptions do not match the existing app | Engineering | Inspect current hosting and runtime before selecting dependencies or changing deployment; validate operational limits before rollout | Before rollout |
+| R8 | AI integration adds unreviewed data exposure or instruction-following risk | Engineering | Treat user text and attachments as untrusted input; minimize model context, record model/prompt versions, and test prompt-injection and privacy boundaries | Before rollout |
 
 ---
 
-## Appendix A — Initial Event Catalog (freeze at Gate 0)
+## Appendix A — Existing Event Catalog and Change Gate
+
+The catalog below is a compatibility reference for the existing system. During the intake phase, no event may automatically trigger provider search, professional contact, negotiation, offer acceptance, or payment. The user-led candidate flow and its events require a separate design before implementation.
 
 Producer owns the payload; consumers listed are the only ones that must react. Full envelope (id, correlation, causation, actor, version) per Component 12.
 
@@ -428,8 +362,8 @@ Producer owns the payload; consumers listed are the only ones that must react. F
 |-------|------------------|-----------|
 | `TASK_CREATED` | A | B (planner), A (activity) |
 | `WORK_SPEC_CREATED` / `CLARIFICATION_*` | B | A (contract compile), B (UI) |
-| `CONTRACT_APPROVED` | A | B (provider search), B (activity), B (agent) |
-| `PROVIDER_SEARCH_STARTED` / `PROVIDER_SELECTED` / `PROVIDER_SELECTION_FAILED` | B | A (negotiation), activity |
+| `CONTRACT_APPROVED` | A | B (activity only; no automatic provider search) |
+| `PROVIDER_SEARCH_STARTED` / `PROVIDER_SELECTED` / `PROVIDER_SELECTION_FAILED` | B | Legacy events; not emitted by or triggered from the intake phase |
 | `NEGOTIATION_STARTED` / `OFFER_*` / `COUNTEROFFER_RECEIVED` / `SCOPE_CHANGE_REQUESTED` | A | B (UI/activity), agent |
 | `COMMERCIAL_AGREEMENT_CREATED` | A | A (payment), B (execution), activity |
 | `PAYMENT_AUTHORIZED` / `PAYMENT_AUTHORIZATION_FAILED` | A | B (UI/activity), agent, execution |
@@ -453,17 +387,21 @@ Producer owns the payload; consumers listed are the only ones that must react. F
 
 **All writes to another owner's tables: forbidden.** Task status: only via A's `tasks.transition()`.
 
-## Appendix C — Endpoint Ownership (list every endpoint here at Gate 0)
+## Appendix C — Existing Endpoint Ownership
+
+This is a map of existing endpoints, not a license to expose all of them in the current product phase. In particular, the legacy `POST /api/v1/tasks/{id}/provider-search` path can start negotiation, accept an offer, and authorize payment; it must not be invoked or exposed as part of intake and must be disabled or stripped of those side effects before the redesigned product is released.
 
 **A:** `POST/GET /api/v1/tasks` · `POST /api/v1/tasks/{id}/files` (signed URL) · `GET /api/v1/tasks/{id}/activity` · `GET /api/v1/tasks/{id}/events` (SSE) · `GET /api/v1/contracts/{id}` · `POST /api/v1/contracts/{id}/approve` · `POST /api/v1/negotiations` · `POST /api/v1/negotiations/{id}/offers` · `POST /api/v1/negotiations/{id}/respond` · `GET /api/v1/tasks/{id}/payment` · `POST /api/v1/payments/{id}/authorize` · `POST /api/v1/payments/{id}/capture` (internal, policy-gated) · `POST /api/v1/webhooks/paypal` · `GET /api/v1/payments` · `GET /health` · `GET /ready` · auth/session endpoints
 
-**B:** `POST /api/v1/tasks/{id}/plan` (internal) · `GET/POST /api/v1/tasks/{id}/clarifications` · `GET /api/v1/tasks/{id}/provider-selection` · `POST /api/v1/tasks/{id}/provider-search` (internal) · `GET /api/v1/provider/work` · `POST /api/v1/provider/work/{id}/accept` · `POST /api/v1/provider/work/{id}/start` · `POST /api/v1/submissions` · `GET /api/v1/submissions/{id}/verification` · `POST /api/v1/verifications/{id}/review` · `GET/POST /api/v1/cases` · `POST /api/v1/cases/{id}/resolve` · `GET /api/v1/notifications` · agent endpoints (M7)
+**B:** `POST /api/v1/tasks/{id}/plan` (internal) · `GET/POST /api/v1/tasks/{id}/clarifications` · `GET /api/v1/tasks/{id}/provider-selection` · `POST /api/v1/tasks/{id}/provider-search` (legacy, disable before rollout) · `GET /api/v1/provider/work` · `POST /api/v1/provider/work/{id}/accept` · `POST /api/v1/provider/work/{id}/start` · `POST /api/v1/submissions` · `GET /api/v1/submissions/{id}/verification` · `POST /api/v1/verifications/{id}/review` · `GET/POST /api/v1/cases` · `POST /api/v1/cases/{id}/resolve` · `GET /api/v1/notifications` · legacy agent endpoints
 
 The frontend consumes **only** `/api/v1` + SSE. Generated types from `docs/openapi.yaml` — no hand-written client types. Route handlers live in `apps/web/app/api/v1/**`; ownership follows the path prefix above (A owns the `/tasks`, `/contracts`, `/negotiations`, `/payments`, `/webhooks` segments; B owns `/provider`, `/submissions`, `/verifications`, `/cases`, `/notifications` and the agent endpoints).
 
-## Appendix D — Invariant Test Suite (`invariants.test.ts`, red at Gate 0, green by H)
+## Appendix D — Existing-System Invariant Catalog
 
-| Test | §Ref | Owner | Target |
+The original target milestones in this catalog are retired along with the D1-D25/M1-M7 schedule. These safeguards remain relevant to the existing payment, authorization, and execution modules, but do not define intake delivery order.
+
+| Test | §Ref | Owner | Historical target |
 |------|------|-------|--------|
 | Money stored/compared only as minor units; float path fails typecheck + test; DB CHECK rejects negative amounts | M1 | A | Gate 0 |
 | Client-supplied amount ≠ agreement amount → authorize DENIED | M2, P3 | A | M3 |
@@ -480,11 +418,11 @@ The frontend consumes **only** `/api/v1` + SSE. Generated types from `docs/opena
 | Agent tool list contains no capture/refund/change_budget/override | P3, I2 | B | M7 |
 | Requirement added after approval cannot fail a provider | I1, D2 | B | M5 |
 | Verification run against wrong contract snapshot → hard failure, no verdict | P1 | B | M5 |
-| LLM malformed output → retry → deterministic fallback (never PASS-by-default) | I1 | B | M1 |
+| LLM malformed output → retry → draft remains non-ready and recoverable | I1 | B | M2 |
 | Outbox: state + event atomic; duplicate delivery → consumer no-op | D1 | A | Gate 0 |
 | Submission re-upload creates new version; v1 bytes unchanged (checksum) | D2 | B | M4 |
 | `SYSTEM_PAYMENT_PAUSE=true` → capture blocked | P3 | A | M6 |
 
 ---
 
-*End of plan. The architecture is written; the split is fixed; the gates are testable. Now we build the thing.*
+*This draft is the current product and delivery baseline, not a claim that every architecture decision is settled. Validate assumptions against the existing repository, keep evaluation design ahead of implementation, and revise the plan when evidence shows a better direction.*
