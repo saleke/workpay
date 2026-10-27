@@ -51,7 +51,11 @@ export const envSchema = z
     AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 characters"),
     AUTH_TRUST_HOST: booleanish.default(true),
 
+    // Existing planning/verification integrations remain independently configured.
     AI_PROVIDER: z.enum(["fake", "openai", "cloudflare"]).default("fake"),
+    INTAKE_AI_PROVIDER: z.enum(["disabled", "gateway"]).default("disabled"),
+    AI_GATEWAY_API_KEY: optionalString,
+    INTAKE_AI_MODEL: optionalString,
     OPENAI_API_KEY: optionalString,
     OPENAI_BASE_URL: optionalString,
     OPENAI_MODEL: z.string().default("gpt-4o-mini"),
@@ -117,6 +121,13 @@ export const envSchema = z
           message: "CLOUDFLARE_API_TOKEN is required when AI_PROVIDER=cloudflare",
         });
       }
+    }
+    if (env.INTAKE_AI_PROVIDER === "gateway" && !env.INTAKE_AI_MODEL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["INTAKE_AI_MODEL"],
+        message: "INTAKE_AI_MODEL is required when INTAKE_AI_PROVIDER=gateway",
+      });
     }
     if (env.PAYMENT_GATEWAY === "paypal") {
       for (const key of [

@@ -86,6 +86,8 @@ export type IdPrefix =
   | "corr"
   | "user"
   | "session"
+  | "source"
+  | "intakever"
   | "notif"
   | "wh"; // webhook receipt
 

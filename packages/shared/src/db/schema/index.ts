@@ -13,6 +13,7 @@ export * from "./execution";
 export * from "./verification";
 export * from "./cases";
 export * from "./agent";
+export * from "./intake";
 export * from "./infra";
 
 // Re-export the enum definitions. Drizzle Kit discovers enum types from the

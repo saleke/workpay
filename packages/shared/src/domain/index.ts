@@ -62,3 +62,4 @@ export * from "./activity/project.js";
 
 // Consultative Scoping & Information Threshold Model
 export * from "./scoping/index.js";
+export * from "./intake/index.js";

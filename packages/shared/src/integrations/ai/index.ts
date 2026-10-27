@@ -52,5 +52,6 @@ export function setAIClient(client: AIClient | null): void {
 }
 
 export * from "./types.js";
+export * from "./intake.js";
 export { FakeAI } from "./fake.js";
 export { OpenAIAI } from "./openai.js";
