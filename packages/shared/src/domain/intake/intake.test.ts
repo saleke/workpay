@@ -3,12 +3,19 @@ import {
   INTAKE_EVALUATION_CASES,
   INTAKE_EVALUATION_CORPUS_VERSION,
   INTAKE_SIMULATED_JOURNEYS,
+  answerCriticalUnknown,
+  approveIntakeBrief,
   budgetInterpretationOutputSchema,
   budgetMeaningSchema,
   createInitialIntakeVersion,
   createIntakeSessionRequestSchema,
   evaluateIntakeReadiness,
   intentInterpretationOutputSchema,
+  recordBudgetDecision,
+  recordCommunicationStylePreference,
+  recordIntentInterpretation,
+  recordInterpretationDecision,
+  recordScopeAssessment,
   resolveCommunicationStyle,
   scopeAssessmentOutputSchema,
   validateIntakeVersion,
@@ -18,6 +25,7 @@ import {
 function readyVersion(): IntakeVersion {
   return {
     version: 1,
+    aiOperations: [],
     sources: [
       {
         id: "request",
@@ -46,6 +54,7 @@ function readyVersion(): IntakeVersion {
         evidence: [],
       },
     },
+    correctionContext: null,
     scopeAssessment: {
       budget: {
         meaning: { state: "undecided" },
@@ -79,6 +88,240 @@ describe("general-purpose intake model", () => {
     expect(createIntakeSessionRequestSchema.safeParse({ originalRequest: "  " }).success).toBe(
       false,
     );
+  });
+
+  it("runs a versioned intake workflow and freezes only an explicitly approved brief", () => {
+    const operation = {
+      operation: "interpret_intent" as const,
+      provider: "vercel-ai-gateway",
+      model: "configured-test-model",
+      promptVersion: "intent-v1",
+      recordedAt: new Date().toISOString(),
+    };
+    const interpretation = {
+      summary: "Create a report.",
+      facts: [
+        {
+          id: "objective",
+          category: "objective" as const,
+          value: "Create a report",
+          evidence: [{ sourceId: "source_original", quote: "Create a report" }],
+        },
+      ],
+      taskFamiliarity: {
+        level: "unknown" as const,
+        confidence: "low" as const,
+        evidence: [],
+      },
+    };
+    const initial = createInitialIntakeVersion("Create a report.");
+    const proposed = recordIntentInterpretation(initial, interpretation, operation);
+    expect(proposed.version).toBe(2);
+    expect(proposed.aiOperations).toEqual([operation]);
+
+    const confirmed = recordInterpretationDecision(proposed, { decision: "confirm" });
+    const assessment = {
+      budget: { meaning: { state: "not_provided" as const }, evidence: [] },
+      criticalUnknowns: [
+        {
+          id: "volume",
+          question: "How many records should the report cover?",
+          whyItMatters: "The amount of information changes the amount of work.",
+          impact: "scale" as const,
+        },
+        {
+          id: "deadline",
+          question: "When do you need the report?",
+          whyItMatters: "A shorter deadline may affect the work plan.",
+          impact: "deadline" as const,
+        },
+      ],
+    };
+    const scopeOperation = {
+      ...operation,
+      operation: "assess_scope" as const,
+      promptVersion: "scope-v1",
+    };
+    const assessed = recordScopeAssessment(confirmed, assessment, scopeOperation);
+
+    expect(() =>
+      answerCriticalUnknown(assessed, { unknownId: "deadline", answer: "Next month" }),
+    ).toThrow(/highest-priority/);
+    const answeredVolume = answerCriticalUnknown(assessed, {
+      unknownId: "volume",
+      answer: "About 50 records.",
+    });
+    const answeredDeadline = answerCriticalUnknown(answeredVolume, {
+      unknownId: "deadline",
+      answer: "Next month.",
+    });
+    expect(answeredDeadline.unresolvedCriticalUnknownIds).toEqual([]);
+    const refreshed = recordScopeAssessment(
+      answeredDeadline,
+      { ...assessment, criticalUnknowns: [] },
+      scopeOperation,
+    );
+    const budgetConfirmed = recordBudgetDecision(refreshed, { state: "undecided" });
+    expect(evaluateIntakeReadiness(budgetConfirmed).ready).toBe(true);
+
+    const approved = approveIntakeBrief(budgetConfirmed);
+    expect(approved.approvedAt).not.toBeNull();
+    expect(approved.approvalSourceId).not.toBeNull();
+    expect(() => approveIntakeBrief(approved)).toThrow(/frozen/);
+  });
+
+  it("rejects AI interpretation evidence attributed to an attachment", () => {
+    const initial = createInitialIntakeVersion("Please help.");
+    const withAttachment: IntakeVersion = {
+      ...initial,
+      sources: [
+        ...initial.sources,
+        { id: "attachment", kind: "attachment", content: "Build a website" },
+      ],
+    };
+    expect(() =>
+      recordIntentInterpretation(
+        withAttachment,
+        {
+          summary: "Build a website.",
+          facts: [
+            {
+              id: "objective",
+              category: "objective",
+              value: "Build a website",
+              evidence: [{ sourceId: "attachment", quote: "Build a website" }],
+            },
+          ],
+          taskFamiliarity: { level: "unknown", confidence: "low", evidence: [] },
+        },
+        {
+          operation: "interpret_intent",
+          provider: "vercel-ai-gateway",
+          model: "configured-test-model",
+          promptVersion: "intent-v1",
+          recordedAt: new Date().toISOString(),
+        },
+      ),
+    ).toThrow(/safely matched/);
+  });
+
+  it("keeps a rejected interpretation only as nonbinding correction context", () => {
+    const initial = createInitialIntakeVersion("I need help with a report.");
+    const first = recordIntentInterpretation(
+      initial,
+      {
+        summary: "Create a report.",
+        facts: [
+          {
+            id: "objective",
+            category: "objective",
+            value: "Create a report",
+            evidence: [{ sourceId: "source_original", quote: "a report" }],
+          },
+        ],
+        taskFamiliarity: { level: "unknown", confidence: "low", evidence: [] },
+      },
+      {
+        operation: "interpret_intent",
+        provider: "vercel-ai-gateway",
+        model: "configured-test-model",
+        promptVersion: "intent-v1",
+        recordedAt: new Date().toISOString(),
+      },
+    );
+    const corrected = recordInterpretationDecision(first, {
+      decision: "correct",
+      correction: "I need the report to include monthly sales totals.",
+    });
+    expect(corrected.interpretation).toBeNull();
+    expect(corrected.correctionContext).toEqual(first.interpretation);
+    const correctionSource = corrected.sources.at(-1);
+    expect(correctionSource?.kind).toBe("user_correction");
+    if (!correctionSource) throw new Error("Correction source was not appended");
+    const reinterpreted = recordIntentInterpretation(
+      corrected,
+      {
+        summary: "Create a report with monthly sales totals.",
+        facts: [
+          {
+            id: "objective",
+            category: "objective",
+            value: "Create a report with monthly sales totals",
+            evidence: [
+              { sourceId: "source_original", quote: "a report" },
+              {
+                sourceId: correctionSource.id,
+                quote: "monthly sales totals",
+              },
+            ],
+          },
+        ],
+        taskFamiliarity: { level: "unknown", confidence: "low", evidence: [] },
+      },
+      {
+        operation: "interpret_intent",
+        provider: "vercel-ai-gateway",
+        model: "configured-test-model",
+        promptVersion: "intent-v1",
+        recordedAt: new Date().toISOString(),
+      },
+    );
+    expect(reinterpreted.correctionContext).toBeNull();
+    expect(reinterpreted.interpretation?.summary).toContain("monthly sales");
+  });
+
+  it("does not allow an attachment to establish the user's budget", () => {
+    const operation = {
+      operation: "interpret_intent" as const,
+      provider: "vercel-ai-gateway",
+      model: "configured-test-model",
+      promptVersion: "intent-v1",
+      recordedAt: new Date().toISOString(),
+    };
+    const interpreted = recordIntentInterpretation(
+      createInitialIntakeVersion("Create a report."),
+      {
+        summary: "Create a report.",
+        facts: [
+          {
+            id: "objective",
+            category: "objective",
+            value: "Create a report",
+            evidence: [{ sourceId: "source_original", quote: "Create a report" }],
+          },
+        ],
+        taskFamiliarity: { level: "unknown", confidence: "low", evidence: [] },
+      },
+      operation,
+    );
+    const confirmed = recordInterpretationDecision(interpreted, { decision: "confirm" });
+    const withAttachment: IntakeVersion = {
+      ...confirmed,
+      sources: [
+        ...confirmed.sources,
+        { id: "attachment", kind: "attachment", content: "Budget: USD 50,000" },
+      ],
+    };
+    expect(() =>
+      recordScopeAssessment(
+        withAttachment,
+        {
+          budget: {
+            meaning: {
+              state: "ceiling",
+              amount: { amountMinor: 5_000_000, currency: "USD" },
+            },
+            evidence: [{ sourceId: "attachment", quote: "Budget: USD 50,000" }],
+          },
+          criticalUnknowns: [],
+        },
+        {
+          ...operation,
+          operation: "assess_scope",
+          promptVersion: "scope-v1",
+        },
+      ),
+    ).toThrow(/safely matched/);
   });
 
   it("provides a versioned, typed gold corpus across task and budget types", () => {
@@ -303,6 +546,16 @@ describe("general-purpose intake model", () => {
         "plain_language",
       ),
     ).toBe("plain_language");
+    const preference = recordCommunicationStylePreference(
+      createInitialIntakeVersion("Help me with a project."),
+      "technical",
+    );
+    expect(
+      resolveCommunicationStyle(
+        { level: "unknown", confidence: "low", evidence: [] },
+        preference.communicationStylePreference?.style,
+      ),
+    ).toBe("technical");
   });
 
   it("requires each clarification to state the material impact it resolves", () => {

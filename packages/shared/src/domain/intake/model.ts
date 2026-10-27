@@ -14,7 +14,7 @@ export const intakeSourceSchema = z
 export const provenanceSchema = z
   .object({
     sourceId: z.string().min(1),
-    quote: z.string().min(1),
+    quote: z.string().min(1).max(5_000),
   })
   .strict();
 
@@ -41,7 +41,7 @@ export const taskFamiliaritySchema = z
   .object({
     level: z.enum(["unknown", "new_to_task", "some_experience", "experienced"]),
     confidence: z.enum(["low", "medium", "high"]),
-    evidence: z.array(provenanceSchema),
+    evidence: z.array(provenanceSchema).max(10),
   })
   .strict()
   .superRefine((assessment, context) => {
@@ -65,18 +65,27 @@ export const proposedIntentFactSchema = z
   .object({
     id: z.string().min(1),
     category: intentFactCategorySchema,
-    value: z.string().min(1),
-    evidence: z.array(provenanceSchema).min(1),
+    value: z.string().min(1).max(1_000),
+    evidence: z.array(provenanceSchema).min(1).max(10),
   })
   .strict();
 
 export const intentInterpretationOutputSchema = z
   .object({
-    summary: z.string().min(1),
-    facts: z.array(proposedIntentFactSchema),
+    summary: z.string().min(1).max(2_000),
+    facts: z.array(proposedIntentFactSchema).max(50),
     taskFamiliarity: taskFamiliaritySchema,
   })
-  .strict();
+  .strict()
+  .superRefine((interpretation, context) => {
+    if (new Set(interpretation.facts.map(({ id }) => id)).size !== interpretation.facts.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Fact IDs must be unique",
+        path: ["facts"],
+      });
+    }
+  });
 
 const budgetAmountSchema = z
   .object({
@@ -146,8 +155,8 @@ export const budgetInterpretationOutputSchema = budgetInterpretationFieldsSchema
 export const criticalUnknownSchema = z
   .object({
     id: z.string().min(1),
-    question: z.string().min(1),
-    whyItMatters: z.string().min(1),
+    question: z.string().min(1).max(500),
+    whyItMatters: z.string().min(1).max(1_000),
     impact: unknownImpactSchema,
   })
   .strict();
@@ -155,7 +164,29 @@ export const criticalUnknownSchema = z
 export const scopeAssessmentOutputSchema = z
   .object({
     budget: budgetInterpretationOutputSchema,
-    criticalUnknowns: z.array(criticalUnknownSchema),
+    criticalUnknowns: z.array(criticalUnknownSchema).max(20),
+  })
+  .strict()
+  .superRefine((assessment, context) => {
+    if (
+      new Set(assessment.criticalUnknowns.map(({ id }) => id)).size !==
+      assessment.criticalUnknowns.length
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Critical unknown IDs must be unique",
+        path: ["criticalUnknowns"],
+      });
+    }
+  });
+
+export const intakeAIOperationSchema = z
+  .object({
+    operation: z.enum(["interpret_intent", "assess_scope"]),
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    promptVersion: z.string().min(1),
+    recordedAt: z.string().datetime(),
   })
   .strict();
 
@@ -187,7 +218,9 @@ export const intakeVersionSchema = z
   .object({
     version: z.number().int().positive(),
     sources: z.array(intakeSourceSchema).min(1),
+    aiOperations: z.array(intakeAIOperationSchema).default([]),
     interpretation: intentInterpretationOutputSchema.nullable(),
+    correctionContext: intentInterpretationOutputSchema.nullable().default(null),
     scopeAssessment: scopeAssessmentOutputSchema.nullable(),
     factConfirmations: z.array(
       z
@@ -221,6 +254,63 @@ export const createIntakeSessionRequestSchema = z
   })
   .strict();
 
+const expectedVersionSchema = z.number().int().positive();
+
+export const interpretIntakeRequestSchema = z
+  .object({ expectedVersion: expectedVersionSchema })
+  .strict();
+
+export const interpretationDecisionRequestSchema = z.discriminatedUnion("decision", [
+  z
+    .object({
+      expectedVersion: expectedVersionSchema,
+      decision: z.literal("confirm"),
+    })
+    .strict(),
+  z
+    .object({
+      expectedVersion: expectedVersionSchema,
+      decision: z.literal("correct"),
+      correction: z
+        .string()
+        .max(5_000)
+        .refine((correction) => correction.trim().length > 0, "Describe what needs to change."),
+    })
+    .strict(),
+]);
+
+export const assessIntakeScopeRequestSchema = z
+  .object({ expectedVersion: expectedVersionSchema })
+  .strict();
+
+export const answerCriticalUnknownRequestSchema = z
+  .object({
+    expectedVersion: expectedVersionSchema,
+    answer: z
+      .string()
+      .max(5_000)
+      .refine((answer) => answer.trim().length > 0),
+  })
+  .strict();
+
+export const intakeBudgetDecisionRequestSchema = z
+  .object({
+    expectedVersion: expectedVersionSchema,
+    meaning: budgetMeaningSchema,
+  })
+  .strict();
+
+export const approveIntakeRequestSchema = z
+  .object({ expectedVersion: expectedVersionSchema })
+  .strict();
+
+export const communicationStyleDecisionRequestSchema = z
+  .object({
+    expectedVersion: expectedVersionSchema,
+    style: communicationStyleSchema,
+  })
+  .strict();
+
 export type IntakeSource = z.infer<typeof intakeSourceSchema>;
 export type Provenance = z.infer<typeof provenanceSchema>;
 export type ProposedIntentFact = z.infer<typeof proposedIntentFactSchema>;
@@ -232,6 +322,7 @@ export type BudgetMeaning = z.infer<typeof budgetMeaningSchema>;
 export type BudgetInterpretationOutput = z.infer<typeof budgetInterpretationOutputSchema>;
 export type CriticalUnknown = z.infer<typeof criticalUnknownSchema>;
 export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;
+export type IntakeAIOperation = z.infer<typeof intakeAIOperationSchema>;
 export type IntakeVersion = z.infer<typeof intakeVersionSchema>;
 
 export function createInitialIntakeVersion(originalRequest: string): IntakeVersion {
@@ -243,7 +334,9 @@ export function createInitialIntakeVersion(originalRequest: string): IntakeVersi
   return validateIntakeVersion({
     version: 1,
     sources: [source],
+    aiOperations: [],
     interpretation: null,
+    correctionContext: null,
     scopeAssessment: null,
     factConfirmations: [],
     interpretationConfirmationSourceId: null,
@@ -291,35 +384,45 @@ export function validateIntakeVersion(value: unknown): IntakeVersion {
     throw new Error("Unresolved critical unknown IDs must be unique within an intake version");
   }
 
-  for (const fact of version.interpretation?.facts ?? []) {
-    for (const evidence of fact.evidence) {
+  for (const interpretation of [version.interpretation, version.correctionContext]) {
+    for (const fact of interpretation?.facts ?? []) {
+      for (const evidence of fact.evidence) {
+        const source = version.sources.find((item) => item.id === evidence.sourceId);
+        if (
+          !source ||
+          !["original_request", "user_message", "user_correction"].includes(source.kind) ||
+          !source.content.includes(evidence.quote)
+        ) {
+          throw new Error(`Fact "${fact.id}" has evidence that does not match a source`);
+        }
+      }
+    }
+
+    for (const evidence of interpretation?.taskFamiliarity.evidence ?? []) {
       const source = version.sources.find((item) => item.id === evidence.sourceId);
-      if (!source || !source.content.includes(evidence.quote)) {
-        throw new Error(`Fact "${fact.id}" has evidence that does not match a source`);
+      if (
+        !source ||
+        !["original_request", "user_message", "user_correction"].includes(source.kind)
+      ) {
+        throw new Error("Task familiarity must be grounded in user-authored evidence");
+      }
+      if (!source.content.includes(evidence.quote)) {
+        throw new Error("Task familiarity evidence does not match a source");
       }
     }
   }
 
-  for (const evidence of version.interpretation?.taskFamiliarity.evidence ?? []) {
+  for (const evidence of [
+    ...version.budget.evidence,
+    ...(version.scopeAssessment?.budget.evidence ?? []),
+  ]) {
     const source = version.sources.find((item) => item.id === evidence.sourceId);
-    if (!source || !["original_request", "user_message", "user_correction"].includes(source.kind)) {
-      throw new Error("Task familiarity must be grounded in user-authored evidence");
-    }
-    if (!source.content.includes(evidence.quote)) {
-      throw new Error("Task familiarity evidence does not match a source");
-    }
-  }
-
-  for (const evidence of version.budget.evidence) {
-    const source = version.sources.find((item) => item.id === evidence.sourceId);
-    if (!source || !source.content.includes(evidence.quote)) {
-      throw new Error("Budget evidence does not match a source");
-    }
-    for (const evidence of version.scopeAssessment?.budget.evidence ?? []) {
-      const source = version.sources.find((item) => item.id === evidence.sourceId);
-      if (!source || !source.content.includes(evidence.quote)) {
-        throw new Error("Scope assessment budget evidence does not match a source");
-      }
+    if (
+      !source ||
+      !["original_request", "user_message", "user_correction"].includes(source.kind) ||
+      !source.content.includes(evidence.quote)
+    ) {
+      throw new Error("Budget evidence must match user-authored source text");
     }
   }
 

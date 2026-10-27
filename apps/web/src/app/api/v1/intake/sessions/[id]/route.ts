@@ -1,6 +1,7 @@
 import { getIntakeSession } from "@workpay/shared/domain/intake";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { requireIntakeBuyer } from "@/lib/server/intake-auth";
+import { toIntakeResponse } from "@/lib/server/intake-request";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,15 +12,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       userId: actor.id,
     });
 
-    return jsonOk({
-      data: {
-        sessionId: result.session.id,
-        version: result.version.version,
-        status: result.session.status,
-        originalRequest: result.session.originalRequest,
-        intake: result.version,
-      },
-    });
+    return jsonOk({ data: toIntakeResponse(result) });
   } catch (error) {
     return jsonError(error);
   }
