@@ -1,7 +1,17 @@
 import { z } from "zod";
 import { evaluateIntakeReadiness } from "./readiness.js";
 
-const currencySchema = z.string().regex(/^[A-Z]{3}$/, "Use an uppercase ISO 4217 currency code");
+const currencySchema = z
+  .string()
+  .regex(/^[A-Z]{3}$/, "Use an uppercase ISO 4217 currency code")
+  .refine((currency) => {
+    try {
+      new Intl.NumberFormat("en-US", { style: "currency", currency });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Use a currently supported ISO 4217 currency code");
 
 export const intakeSourceSchema = z
   .object({
@@ -89,7 +99,7 @@ export const intentInterpretationOutputSchema = z
 
 const budgetAmountSchema = z
   .object({
-    amountMinor: z.number().int().nonnegative(),
+    amountMinor: z.number().safe().int().nonnegative(),
     currency: currencySchema,
   })
   .strict();
@@ -161,6 +171,15 @@ export const criticalUnknownSchema = z
   })
   .strict();
 
+export const clarificationAnswerSchema = z
+  .object({
+    unknownId: z.string().min(1),
+    question: z.string().min(1).max(500),
+    answer: z.string().min(1).max(5_000),
+    sourceId: z.string().min(1),
+  })
+  .strict();
+
 export const scopeAssessmentOutputSchema = z
   .object({
     budget: budgetInterpretationOutputSchema,
@@ -222,6 +241,7 @@ export const intakeVersionSchema = z
     interpretation: intentInterpretationOutputSchema.nullable(),
     correctionContext: intentInterpretationOutputSchema.nullable().default(null),
     scopeAssessment: scopeAssessmentOutputSchema.nullable(),
+    clarificationAnswers: z.array(clarificationAnswerSchema).default([]),
     factConfirmations: z.array(
       z
         .object({
@@ -321,6 +341,7 @@ export type IntentInterpretationOutput = z.infer<typeof intentInterpretationOutp
 export type BudgetMeaning = z.infer<typeof budgetMeaningSchema>;
 export type BudgetInterpretationOutput = z.infer<typeof budgetInterpretationOutputSchema>;
 export type CriticalUnknown = z.infer<typeof criticalUnknownSchema>;
+export type ClarificationAnswer = z.infer<typeof clarificationAnswerSchema>;
 export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;
 export type IntakeAIOperation = z.infer<typeof intakeAIOperationSchema>;
 export type IntakeVersion = z.infer<typeof intakeVersionSchema>;
@@ -338,6 +359,7 @@ export function createInitialIntakeVersion(originalRequest: string): IntakeVersi
     interpretation: null,
     correctionContext: null,
     scopeAssessment: null,
+    clarificationAnswers: [],
     factConfirmations: [],
     interpretationConfirmationSourceId: null,
     communicationStylePreference: null,
@@ -382,6 +404,12 @@ export function validateIntakeVersion(value: unknown): IntakeVersion {
     version.unresolvedCriticalUnknownIds.length
   ) {
     throw new Error("Unresolved critical unknown IDs must be unique within an intake version");
+  }
+  if (
+    new Set(version.clarificationAnswers.map(({ sourceId }) => sourceId)).size !==
+    version.clarificationAnswers.length
+  ) {
+    throw new Error("Each clarification answer must have its own user source");
   }
 
   for (const interpretation of [version.interpretation, version.correctionContext]) {
@@ -433,6 +461,16 @@ export function validateIntakeVersion(value: unknown): IntakeVersion {
     const source = version.sources.find((item) => item.id === confirmation.sourceId);
     if (!source || !["user_message", "user_correction"].includes(source.kind)) {
       throw new Error("Fact confirmation must reference an explicit user decision source");
+    }
+  }
+  for (const answer of version.clarificationAnswers) {
+    const source = version.sources.find((item) => item.id === answer.sourceId);
+    if (
+      !source ||
+      source.kind !== "user_message" ||
+      source.content !== `Answer to "${answer.question}": ${answer.answer}`
+    ) {
+      throw new Error("Clarification answers must match their explicit user-message source");
     }
   }
   if (version.unresolvedCriticalUnknownIds.some((id) => !unknownIds.has(id))) {

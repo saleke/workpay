@@ -62,6 +62,7 @@ function readyVersion(): IntakeVersion {
       },
       criticalUnknowns: [],
     },
+    clarificationAnswers: [],
     factConfirmations: [{ factId: "objective", sourceId: "confirm" }],
     interpretationConfirmationSourceId: "confirm",
     communicationStylePreference: null,
@@ -156,18 +157,50 @@ describe("general-purpose intake model", () => {
       answer: "Next month.",
     });
     expect(answeredDeadline.unresolvedCriticalUnknownIds).toEqual([]);
+    expect(answeredDeadline.clarificationAnswers).toHaveLength(2);
     const refreshed = recordScopeAssessment(
       answeredDeadline,
       { ...assessment, criticalUnknowns: [] },
       scopeOperation,
     );
+    expect(refreshed.clarificationAnswers).toEqual(answeredDeadline.clarificationAnswers);
     const budgetConfirmed = recordBudgetDecision(refreshed, { state: "undecided" });
     expect(evaluateIntakeReadiness(budgetConfirmed).ready).toBe(true);
 
     const approved = approveIntakeBrief(budgetConfirmed);
     expect(approved.approvedAt).not.toBeNull();
     expect(approved.approvalSourceId).not.toBeNull();
+    expect(approved.clarificationAnswers).toEqual(answeredDeadline.clarificationAnswers);
     expect(() => approveIntakeBrief(approved)).toThrow(/frozen/);
+  });
+
+  it("validates clarification provenance independently of fact confirmations", () => {
+    const version = readyVersion();
+    const answerSource = {
+      id: "answer",
+      kind: "user_message" as const,
+      content: 'Answer to "How many records?": About 50.',
+    };
+    const clarificationAnswer = {
+      unknownId: "volume",
+      question: "How many records?",
+      answer: "About 50.",
+      sourceId: answerSource.id,
+    };
+    const withAnswer: IntakeVersion = {
+      ...version,
+      sources: [...version.sources, answerSource],
+      factConfirmations: [],
+      clarificationAnswers: [clarificationAnswer],
+    };
+
+    expect(validateIntakeVersion(withAnswer)).toEqual(withAnswer);
+    expect(() =>
+      validateIntakeVersion({
+        ...withAnswer,
+        clarificationAnswers: [{ ...clarificationAnswer, sourceId: "missing" }],
+      }),
+    ).toThrow(/Clarification answers must match/);
   });
 
   it("rejects AI interpretation evidence attributed to an attachment", () => {
