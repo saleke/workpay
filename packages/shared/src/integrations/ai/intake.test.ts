@@ -3,7 +3,7 @@ import {
   intentInterpretationOutputSchema,
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
-import { normalizeCloudflareIntentFamiliarity } from "./intake.js";
+import { normalizeCloudflareIntentFamiliarity, normalizeCloudflareScopeBudget } from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
 
 describe("intake output JSON schemas", () => {
@@ -85,6 +85,42 @@ describe("intake output JSON schemas", () => {
       level: "unknown",
       confidence: "low",
       evidence: [],
+    });
+  });
+
+  it("discards a budget with an invalid currency rather than accepting an inferred value", () => {
+    const result = normalizeCloudflareScopeBudget({
+      budget: {
+        meaning: {
+          state: "ceiling",
+          amount: { amountMinor: 50000, currency: "dollars" },
+        },
+        evidence: [{ sourceId: "source_original", quote: "I need a website." }],
+      },
+      criticalUnknowns: [],
+    });
+
+    expect(scopeAssessmentOutputSchema.parse(result).budget).toEqual({
+      meaning: { state: "not_provided" },
+      evidence: [],
+    });
+  });
+
+  it("normalizes the casing of a valid ISO currency code", () => {
+    const result = normalizeCloudflareScopeBudget({
+      budget: {
+        meaning: {
+          state: "ceiling",
+          amount: { amountMinor: 50000, currency: "usd" },
+        },
+        evidence: [{ sourceId: "source_original", quote: "I can spend 500 USD." }],
+      },
+      criticalUnknowns: [],
+    });
+
+    expect(scopeAssessmentOutputSchema.parse(result).budget.meaning).toEqual({
+      state: "ceiling",
+      amount: { amountMinor: 50000, currency: "USD" },
     });
   });
 });
