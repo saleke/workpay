@@ -563,8 +563,7 @@ The intake implementation is complete only when:
 - Original text, confirmed facts, AI proposals, unknowns, and provenance remain distinguishable.
 - Only material, task-critical clarifications are asked; unsupported details are not invented.
 - Clarification wording adapts to task-specific evidence, never grammar or writing fluency; use plain language when familiarity is unknown.
-- Offer a small set of outcome-focused answer choices when they help, while always allowing a user's own answer.
-- Let users explicitly request a professional recommendation instead of researching an unfamiliar choice; preserve that as a request for advice, not a selected requirement.
+- When a user needs help answering, offer a small set of AI-generated, outcome-focused choices with brief explanations; record a choice only after the user selects it, and always allow a custom answer.
 - Budget meaning is explicit, and undecided remains valid without inferred price or funding.
 - The final brief is versioned, owner-bound, and approved as an exact server-side version.
 - Stale versions, unauthorized access, persistence errors, and AI failures cannot create false readiness or approval.

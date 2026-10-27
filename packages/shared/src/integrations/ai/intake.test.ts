@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answerOptionSuggestionOutputSchema,
   intentInterpretationOutputSchema,
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
@@ -50,6 +51,31 @@ describe("intake output JSON schemas", () => {
         criticalUnknowns: { type: "array" },
       },
     });
+  });
+
+  it("requires short explanations for generated answer choices", () => {
+    expect(zodToJsonSchema(answerOptionSuggestionOutputSchema)).toMatchObject({
+      type: "object",
+      properties: {
+        answerOptions: {
+          type: "array",
+          minItems: 2,
+          maxItems: 4,
+          items: {
+            type: "object",
+            properties: {
+              label: { type: "string" },
+              explanation: { type: "string" },
+            },
+          },
+        },
+      },
+    });
+    expect(
+      answerOptionSuggestionOutputSchema.safeParse({
+        answerOptions: [{ label: "Choose a plan", explanation: "Customers pay online." }],
+      }).success,
+    ).toBe(false);
   });
 
   it("removes familiarity evidence when the model reports an unknown level", () => {

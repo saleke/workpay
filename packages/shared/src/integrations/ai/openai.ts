@@ -302,8 +302,17 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
       });
     }
     case "ZodArray": {
-      const element = (def as { type: z.ZodTypeAny }).type;
-      return withDescription({ type: "array", items: zodToJsonSchema(element) });
+      const arrayDef = def as {
+        type: z.ZodTypeAny;
+        minLength?: { value: number } | null;
+        maxLength?: { value: number } | null;
+      };
+      return withDescription({
+        type: "array",
+        items: zodToJsonSchema(arrayDef.type),
+        ...(arrayDef.minLength ? { minItems: arrayDef.minLength.value } : {}),
+        ...(arrayDef.maxLength ? { maxItems: arrayDef.maxLength.value } : {}),
+      });
     }
     case "ZodString": {
       const checks = (def as { checks?: Array<{ kind: string; value?: number }> }).checks ?? [];

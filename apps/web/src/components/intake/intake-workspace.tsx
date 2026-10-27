@@ -41,7 +41,16 @@ type IntakeError = {
 };
 type BudgetOption = "proposal" | "undecided" | "ceiling" | "target" | "range";
 type BusyAction =
-  "restore" | "create" | "interpret" | "confirm" | "scope" | "answer" | "budget" | "approve" | null;
+  | "restore"
+  | "create"
+  | "interpret"
+  | "confirm"
+  | "scope"
+  | "options"
+  | "answer"
+  | "budget"
+  | "approve"
+  | null;
 
 const stages = ["Your request", "Understanding", "Core details", "Budget", "Review and approve"];
 
@@ -196,6 +205,7 @@ export function IntakeWorkspace() {
   const [correction, setCorrection] = useState("");
   const [showCorrection, setShowCorrection] = useState(false);
   const [answer, setAnswer] = useState("");
+  const [showAnswerOptions, setShowAnswerOptions] = useState(false);
   const [budgetOption, setBudgetOption] = useState<BudgetOption>("proposal");
   const [editingBudget, setEditingBudget] = useState(false);
   const [currency, setCurrency] = useState("");
@@ -256,6 +266,9 @@ export function IntakeWorkspace() {
     version?.scopeAssessment &&
     version.scopeAssessment.criticalUnknowns.length > 0 &&
     version.unresolvedCriticalUnknownIds.length === 0,
+  );
+  const hasExplainedAnswerOptions = Boolean(
+    currentQuestion?.answerOptions.some((option) => typeof option !== "string"),
   );
   const budgetReadyForDecision = Boolean(
     version?.scopeAssessment &&
@@ -348,6 +361,24 @@ export function IntakeWorkspace() {
     void updateSession("scope", "/scope", { expectedVersion: session.version });
   };
 
+  const handleSuggestAnswerOptions = async () => {
+    if (!session || !currentQuestion) return;
+    const updated = await updateSession(
+      "options",
+      `/unknowns/${encodeURIComponent(currentQuestion.id)}/options`,
+      { expectedVersion: session.version },
+    );
+    if (updated) setShowAnswerOptions(true);
+  };
+
+  const handleHelpMeChoose = () => {
+    if (hasExplainedAnswerOptions) {
+      setShowAnswerOptions((shown) => !shown);
+      return;
+    }
+    void handleSuggestAnswerOptions();
+  };
+
   const handleAnswer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!session || !currentQuestion || !answer.trim()) return;
@@ -361,6 +392,7 @@ export function IntakeWorkspace() {
     );
     if (!updated) return;
     setAnswer("");
+    setShowAnswerOptions(false);
     if (
       updated.intake.unresolvedCriticalUnknownIds.length === 0 &&
       updated.intake.scopeAssessment?.criticalUnknowns.length
@@ -826,33 +858,67 @@ export function IntakeWorkspace() {
                             {currentQuestion.whyItMatters}
                           </p>
                         </div>
-                        {currentQuestion.answerOptions.length > 0 && (
-                          <fieldset className="space-y-2">
-                            <legend className="text-sm font-medium">
-                              Choose an answer, or write your own
-                            </legend>
-                            <div className="flex flex-wrap gap-2">
-                              {currentQuestion.answerOptions.map((option) => (
-                                <Button
-                                  key={option}
-                                  type="button"
-                                  size="sm"
-                                  variant={answer === option ? "default" : "outline"}
-                                  aria-pressed={answer === option}
-                                  disabled={busy !== null}
-                                  onClick={() => setAnswer(option)}
-                                >
-                                  {option}
-                                </Button>
-                              ))}
-                            </div>
-                          </fieldset>
-                        )}
+                        <div className="space-y-2">
+                          <p className="text-sm text-[var(--wp-text-secondary)]">
+                            Not sure? WorkPay can suggest a few possibilities and briefly explain
+                            each one. You decide whether any fits.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            aria-expanded={showAnswerOptions}
+                            aria-controls="scope-answer-options"
+                            disabled={busy !== null}
+                            onClick={handleHelpMeChoose}
+                          >
+                            {busy === "options" ? (
+                              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            {busy === "options"
+                              ? "Preparing options..."
+                              : showAnswerOptions
+                                ? "Hide options"
+                                : "Help me choose"}
+                          </Button>
+                          {showAnswerOptions && currentQuestion.answerOptions.length > 0 && (
+                            <fieldset id="scope-answer-options" className="space-y-2">
+                              <legend className="text-sm font-medium">
+                                Choose an option, or write your own
+                              </legend>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {currentQuestion.answerOptions.map((option, index) => {
+                                  const label = typeof option === "string" ? option : option.label;
+                                  const explanation =
+                                    typeof option === "string" ? null : option.explanation;
+                                  return (
+                                    <Button
+                                      key={`${label}-${index}`}
+                                      type="button"
+                                      variant={answer === label ? "secondary" : "outline"}
+                                      aria-pressed={answer === label}
+                                      disabled={busy !== null}
+                                      className="h-auto min-h-16 justify-start whitespace-normal p-3 text-left"
+                                      onClick={() => setAnswer(label)}
+                                    >
+                                      <span className="flex flex-col items-start gap-1">
+                                        <span className="font-medium">{label}</span>
+                                        {explanation && (
+                                          <span className="text-xs font-normal text-[var(--wp-text-secondary)]">
+                                            {explanation}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            </fieldset>
+                          )}
+                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="scope-answer">
-                            {currentQuestion.answerOptions.length > 0
-                              ? "Or tell us in your own words"
-                              : "Your answer"}
+                            {showAnswerOptions ? "Or tell us in your own words" : "Your answer"}
                           </Label>
                           <Textarea
                             id="scope-answer"
@@ -862,30 +928,6 @@ export function IntakeWorkspace() {
                             maxLength={5_000}
                             required
                           />
-                        </div>
-                        <div className="rounded-lg bg-[var(--wp-surface-subtle)] p-3">
-                          <p className="text-sm text-[var(--wp-text-secondary)]">
-                            Not sure? You can ask the professional to recommend an option that fits
-                            your goal. This records a request for advice, not a decision.
-                          </p>
-                          <Button
-                            className="mt-2"
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={busy !== null}
-                            aria-pressed={
-                              answer ===
-                              "I’m not sure. Please have the professional recommend an option that fits my goal."
-                            }
-                            onClick={() =>
-                              setAnswer(
-                                "I’m not sure. Please have the professional recommend an option that fits my goal.",
-                              )
-                            }
-                          >
-                            I’m not sure; ask for a recommendation
-                          </Button>
                         </div>
                         <Button type="submit" disabled={busy !== null || !answer.trim()}>
                           {busy === "answer" || busy === "scope" ? (

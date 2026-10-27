@@ -18,7 +18,17 @@ export const journeyActionSchema = z.discriminatedUnion("type", [
       impact: unknownImpactSchema,
       userReply: z.string().min(1),
       avoid: z.array(z.string()),
-      expectedAnswerOptions: z.array(z.string().min(1)).max(4).optional(),
+      expectedAnswerOptions: z
+        .array(
+          z
+            .object({
+              label: z.string().min(1),
+              explanation: z.string().min(1),
+            })
+            .strict(),
+        )
+        .max(4)
+        .optional(),
     })
     .strict(),
   z
@@ -143,23 +153,31 @@ export const INTAKE_SIMULATED_JOURNEYS: SimulatedIntakeJourney[] = [
         type: "clarify",
         question: "What should a customer be able to do first when they visit your site?",
         impact: "objective",
-        userReply:
-          "I’m not sure. Please have the professional recommend an option that fits my goal.",
+        userReply: "Let customers choose a plan and pay online",
         expectedAnswerOptions: [
-          "Compare plans and ask you a question",
-          "Choose a plan and pay online",
-          "Sign up and manage a hosting service",
+          {
+            label: "Show my plans and let customers contact me",
+            explanation: "A simple way to start without taking payments on the site.",
+          },
+          {
+            label: "Let customers choose a plan and pay online",
+            explanation: "Customers can sign up and pay without waiting for you.",
+          },
+          {
+            label: "Let customers sign up and manage their hosting",
+            explanation: "Customers can manage their service after signing up.",
+          },
         ],
         avoid: [
           "asking about a control panel",
-          "treating an AI suggestion as a selected requirement",
+          "presenting AI suggestions as if the user selected them",
         ],
       },
     ],
     completionCriteria: [
       "The question asks about customer outcomes, not hosting terminology.",
-      "A few plain-language options are offered, while a custom answer remains possible.",
-      "The recommendation request is preserved as a request for professional guidance, not a user decision.",
+      "A few plain-language options include brief explanations, while a custom answer remains possible.",
+      "Only the option the user selects is recorded as their answer.",
     ],
   },
   {

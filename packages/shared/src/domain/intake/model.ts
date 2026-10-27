@@ -162,13 +162,29 @@ const budgetInterpretationFieldsSchema = z
 
 export const budgetInterpretationOutputSchema = budgetInterpretationFieldsSchema;
 
+export const answerOptionSchema = z
+  .object({
+    label: z.string().min(1).max(200),
+    explanation: z.string().min(1).max(300),
+  })
+  .strict();
+
+export const answerOptionSuggestionOutputSchema = z
+  .object({
+    answerOptions: z.array(answerOptionSchema).min(2).max(4),
+  })
+  .strict();
+
 export const criticalUnknownSchema = z
   .object({
     id: z.string().min(1),
     question: z.string().min(1).max(500),
     whyItMatters: z.string().min(1).max(1_000),
     impact: unknownImpactSchema,
-    answerOptions: z.array(z.string().min(1).max(200)).max(4).default([]),
+    answerOptions: z
+      .array(z.union([answerOptionSchema, z.string().min(1).max(200)]))
+      .max(4)
+      .default([]),
   })
   .strict();
 
@@ -202,7 +218,7 @@ export const scopeAssessmentOutputSchema = z
 
 export const intakeAIOperationSchema = z
   .object({
-    operation: z.enum(["interpret_intent", "assess_scope"]),
+    operation: z.enum(["interpret_intent", "assess_scope", "suggest_answer_options"]),
     provider: z.string().min(1),
     model: z.string().min(1),
     promptVersion: z.string().min(1),
@@ -304,6 +320,10 @@ export const assessIntakeScopeRequestSchema = z
   .object({ expectedVersion: expectedVersionSchema })
   .strict();
 
+export const suggestAnswerOptionsRequestSchema = z
+  .object({ expectedVersion: expectedVersionSchema })
+  .strict();
+
 export const answerCriticalUnknownRequestSchema = z
   .object({
     expectedVersion: expectedVersionSchema,
@@ -341,6 +361,7 @@ export type TaskFamiliarity = z.infer<typeof taskFamiliaritySchema>;
 export type IntentInterpretationOutput = z.infer<typeof intentInterpretationOutputSchema>;
 export type BudgetMeaning = z.infer<typeof budgetMeaningSchema>;
 export type BudgetInterpretationOutput = z.infer<typeof budgetInterpretationOutputSchema>;
+export type AnswerOptionSuggestionOutput = z.infer<typeof answerOptionSuggestionOutputSchema>;
 export type CriticalUnknown = z.infer<typeof criticalUnknownSchema>;
 export type ClarificationAnswer = z.infer<typeof clarificationAnswerSchema>;
 export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;

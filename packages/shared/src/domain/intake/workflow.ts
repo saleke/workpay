@@ -1,6 +1,7 @@
 import { conflict, externalFailure, validationError } from "../../platform/errors.js";
 import { newId } from "../../platform/ids.js";
 import {
+  type AnswerOptionSuggestionOutput,
   type BudgetMeaning,
   type CommunicationStyle,
   type IntakeAIOperation,
@@ -156,6 +157,41 @@ export function recordScopeAssessment(
     }),
   );
   return candidate;
+}
+
+export function recordAnswerOptionSuggestions(
+  version: IntakeVersion,
+  unknownId: string,
+  proposal: AnswerOptionSuggestionOutput,
+  operation: IntakeAIOperation,
+): IntakeVersion {
+  assertEditable(version);
+  const scopeAssessment = version.scopeAssessment;
+  if (version.interpretationConfirmationSourceId === null || !scopeAssessment) {
+    throw conflict("Confirm the interpretation and assess scope before requesting answer options.");
+  }
+  const currentQuestion = scopeAssessment.criticalUnknowns.find(
+    ({ id }) => id === unknownId && version.unresolvedCriticalUnknownIds.includes(id),
+  );
+  if (!currentQuestion) {
+    throw conflict("Answer options can only be requested for the current scope question.");
+  }
+
+  return validateAIProposal(() =>
+    validateIntakeVersion({
+      ...version,
+      version: version.version + 1,
+      aiOperations: [...version.aiOperations, operation],
+      scopeAssessment: {
+        ...scopeAssessment,
+        criticalUnknowns: scopeAssessment.criticalUnknowns.map((question) =>
+          question.id === unknownId
+            ? { ...question, answerOptions: proposal.answerOptions }
+            : question,
+        ),
+      },
+    }),
+  );
 }
 
 export function answerCriticalUnknown(
