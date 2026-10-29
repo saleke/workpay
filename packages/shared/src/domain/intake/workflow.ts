@@ -8,6 +8,8 @@ import {
   type IntakeSource,
   type IntakeVersion,
   type IntentInterpretationOutput,
+  type ProfessionalBrief,
+  type ProfessionalBriefEdit,
   type ScopeAssessmentOutput,
   validateIntakeVersion,
 } from "./model.js";
@@ -24,7 +26,7 @@ function appendUserSource(
   kind: "user_message" | "user_correction",
   content: string,
 ): { source: IntakeSource; sources: IntakeSource[] } {
-  if (content.trim().length === 0 || content.length > 6_000) {
+  if (content.trim().length === 0 || content.length > 30_000) {
     throw validationError("The user response is empty or exceeds the supported size.");
   }
   const source = { id: newId("source"), kind, content };
@@ -59,6 +61,7 @@ export function recordIntentInterpretation(
       interpretation: proposal,
       correctionContext: null,
       scopeAssessment: null,
+      professionalBrief: null,
       clarificationAnswers: [],
       factConfirmations: [],
       interpretationConfirmationSourceId: null,
@@ -92,6 +95,7 @@ export function recordInterpretationDecision(
       interpretation: null,
       correctionContext: version.interpretation,
       scopeAssessment: null,
+      professionalBrief: null,
       clarificationAnswers: [],
       factConfirmations: [],
       interpretationConfirmationSourceId: null,
@@ -123,6 +127,7 @@ export function recordInterpretationDecision(
       factId: id,
       sourceId: source.id,
     })),
+    professionalBrief: null,
     interpretationConfirmationSourceId: source.id,
   });
 }
@@ -146,6 +151,7 @@ export function recordScopeAssessment(
       version: version.version + 1,
       aiOperations: [...version.aiOperations, operation],
       scopeAssessment: proposal,
+      professionalBrief: null,
       budget: {
         meaning: proposal.budget.meaning,
         evidence: proposal.budget.evidence,
@@ -157,6 +163,116 @@ export function recordScopeAssessment(
     }),
   );
   return candidate;
+}
+
+function validateProfessionalBriefEvidence(
+  brief: ProfessionalBrief,
+  sources: IntakeSource[],
+): void {
+  const sections = [
+    brief.title,
+    brief.goalAndContext,
+    ...brief.deliverables,
+    ...brief.requirements,
+    ...brief.boundaries,
+    ...brief.inputsAndDependencies,
+    ...(brief.timing ? [brief.timing] : []),
+  ];
+  for (const section of sections) {
+    for (const evidence of section.evidence) {
+      const source = sources.find((item) => item.id === evidence.sourceId);
+      if (
+        !source ||
+        !["original_request", "user_message", "user_correction"].includes(source.kind) ||
+        !source.content.includes(evidence.quote)
+      ) {
+        throw externalFailure(
+          "The professional brief could not be matched to confirmed user-provided information.",
+        );
+      }
+    }
+  }
+}
+
+export function recordProfessionalBriefProposal(
+  version: IntakeVersion,
+  proposal: ProfessionalBrief,
+  operation: IntakeAIOperation,
+): IntakeVersion {
+  assertEditable(version);
+  if (!evaluateIntakeReadiness(version).ready) {
+    throw conflict(
+      "Complete and confirm the intake details before composing a professional brief.",
+    );
+  }
+  validateProfessionalBriefEvidence(proposal, version.sources);
+  return validateAIProposal(() =>
+    validateIntakeVersion({
+      ...version,
+      version: version.version + 1,
+      aiOperations: [...version.aiOperations, operation],
+      professionalBrief: proposal,
+    }),
+  );
+}
+
+export function saveProfessionalBriefEdits(
+  version: IntakeVersion,
+  brief: ProfessionalBriefEdit["brief"],
+): IntakeVersion {
+  assertEditable(version);
+  if (!version.professionalBrief) {
+    throw conflict("Compose the professional brief before editing it.");
+  }
+
+  const normalized = {
+    title: brief.title.trim(),
+    goalAndContext: brief.goalAndContext.trim(),
+    deliverables: brief.deliverables.map((item) => item.trim()),
+    requirements: brief.requirements.map((item) => item.trim()).filter(Boolean),
+    boundaries: brief.boundaries.map((item) => item.trim()).filter(Boolean),
+    inputsAndDependencies: brief.inputsAndDependencies.map((item) => item.trim()).filter(Boolean),
+    timing: brief.timing.trim(),
+  };
+  const content = [
+    "Requester-edited professional-facing task brief:",
+    normalized.title,
+    normalized.goalAndContext,
+    ...normalized.deliverables,
+    ...normalized.requirements,
+    ...normalized.boundaries,
+    ...normalized.inputsAndDependencies,
+    normalized.timing,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const { source, sources } = appendUserSource(version, "user_message", content);
+  const evidence = (text: string) => [{ sourceId: source.id, quote: text }];
+  const result: ProfessionalBrief = {
+    title: { text: normalized.title, evidence: evidence(normalized.title) },
+    goalAndContext: {
+      text: normalized.goalAndContext,
+      evidence: evidence(normalized.goalAndContext),
+    },
+    deliverables: normalized.deliverables.map((text) => ({ text, evidence: evidence(text) })),
+    requirements: normalized.requirements.map((text) => ({ text, evidence: evidence(text) })),
+    boundaries: normalized.boundaries.map((text) => ({ text, evidence: evidence(text) })),
+    inputsAndDependencies: normalized.inputsAndDependencies.map((text) => ({
+      text,
+      evidence: evidence(text),
+    })),
+    timing: normalized.timing
+      ? { text: normalized.timing, evidence: evidence(normalized.timing) }
+      : null,
+  };
+  return validateIntakeVersion({
+    ...version,
+    version: version.version + 1,
+    sources,
+    professionalBrief: result,
+    approvedAt: null,
+    approvalSourceId: null,
+  });
 }
 
 export function recordAnswerOptionSuggestions(
@@ -226,6 +342,7 @@ export function answerCriticalUnknown(
         sourceId: source.id,
       },
     ],
+    professionalBrief: null,
     unresolvedCriticalUnknownIds: version.unresolvedCriticalUnknownIds.filter(
       (id) => id !== currentQuestion.id,
     ),
@@ -255,6 +372,7 @@ export function recordBudgetDecision(
     version: version.version + 1,
     sources,
     budget: { meaning, evidence, confirmationSourceId: source.id },
+    professionalBrief: null,
     approvedAt: null,
     approvalSourceId: null,
   });
@@ -280,6 +398,9 @@ export function recordCommunicationStylePreference(
 
 export function approveIntakeBrief(version: IntakeVersion): IntakeVersion {
   assertEditable(version);
+  if (!version.professionalBrief) {
+    throw conflict("Compose and review the professional-facing brief before approving it.");
+  }
   const readiness = evaluateIntakeReadiness(version);
   if (!readiness.ready) {
     throw conflict("The brief is not ready for approval.", { blockers: readiness.blockers });
@@ -288,7 +409,7 @@ export function approveIntakeBrief(version: IntakeVersion): IntakeVersion {
   const { source, sources } = appendUserSource(
     version,
     "user_message",
-    "I approve this brief for professional discovery.",
+    `I approve this exact professional-facing brief for discovery: ${JSON.stringify(version.professionalBrief)}`,
   );
   return validateIntakeVersion({
     ...version,

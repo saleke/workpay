@@ -175,6 +175,70 @@ export const answerOptionSuggestionOutputSchema = z
   })
   .strict();
 
+export const groundedBriefTextSchema = z
+  .object({
+    text: z.string().min(1).max(2_000),
+    evidence: z.array(provenanceSchema).min(1).max(10),
+  })
+  .strict();
+
+export const professionalBriefSchema = z
+  .object({
+    title: groundedBriefTextSchema,
+    goalAndContext: groundedBriefTextSchema,
+    deliverables: z.array(groundedBriefTextSchema).min(1).max(12),
+    requirements: z.array(groundedBriefTextSchema).max(20),
+    boundaries: z.array(groundedBriefTextSchema).max(20),
+    inputsAndDependencies: z.array(groundedBriefTextSchema).max(12),
+    timing: groundedBriefTextSchema.nullable(),
+  })
+  .strict();
+
+export const professionalBriefDraftSchema = professionalBriefSchema
+  .transform((brief) => ({
+    title: brief.title.text,
+    goalAndContext: brief.goalAndContext.text,
+    deliverables: brief.deliverables.map(({ text }) => text),
+    requirements: brief.requirements.map(({ text }) => text),
+    boundaries: brief.boundaries.map(({ text }) => text),
+    inputsAndDependencies: brief.inputsAndDependencies.map(({ text }) => text),
+    timing: brief.timing?.text ?? "",
+  }))
+  .pipe(
+    z
+      .object({
+        title: z.string().trim().min(1).max(2_000),
+        goalAndContext: z.string().trim().min(1).max(2_000),
+        deliverables: z.array(z.string().trim().min(1).max(2_000)).min(1).max(12),
+        requirements: z.array(z.string().trim().min(1).max(2_000)).max(20),
+        boundaries: z.array(z.string().trim().min(1).max(2_000)).max(20),
+        inputsAndDependencies: z.array(z.string().trim().min(1).max(2_000)).max(12),
+        timing: z.string().trim().max(2_000),
+      })
+      .strict(),
+  );
+
+export const professionalBriefEditSchema = z
+  .object({
+    expectedVersion: z.number().int().positive(),
+    brief: z
+      .object({
+        title: z.string().trim().min(1).max(2_000),
+        goalAndContext: z.string().trim().min(1).max(2_000),
+        deliverables: z.array(z.string().trim().min(1).max(2_000)).min(1).max(12),
+        requirements: z.array(z.string().trim().min(1).max(2_000)).max(20),
+        boundaries: z.array(z.string().trim().min(1).max(2_000)).max(20),
+        inputsAndDependencies: z.array(z.string().trim().min(1).max(2_000)).max(12),
+        timing: z.string().trim().max(2_000),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const composeProfessionalBriefRequestSchema = z
+  .object({ expectedVersion: z.number().int().positive() })
+  .strict();
+
 export const criticalUnknownSchema = z
   .object({
     id: z.string().min(1),
@@ -218,7 +282,12 @@ export const scopeAssessmentOutputSchema = z
 
 export const intakeAIOperationSchema = z
   .object({
-    operation: z.enum(["interpret_intent", "assess_scope", "suggest_answer_options"]),
+    operation: z.enum([
+      "interpret_intent",
+      "assess_scope",
+      "suggest_answer_options",
+      "compose_professional_brief",
+    ]),
     provider: z.string().min(1),
     model: z.string().min(1),
     promptVersion: z.string().min(1),
@@ -258,6 +327,7 @@ export const intakeVersionSchema = z
     interpretation: intentInterpretationOutputSchema.nullable(),
     correctionContext: intentInterpretationOutputSchema.nullable().default(null),
     scopeAssessment: scopeAssessmentOutputSchema.nullable(),
+    professionalBrief: professionalBriefSchema.nullable().default(null),
     clarificationAnswers: z.array(clarificationAnswerSchema).default([]),
     factConfirmations: z.array(
       z
@@ -362,6 +432,9 @@ export type IntentInterpretationOutput = z.infer<typeof intentInterpretationOutp
 export type BudgetMeaning = z.infer<typeof budgetMeaningSchema>;
 export type BudgetInterpretationOutput = z.infer<typeof budgetInterpretationOutputSchema>;
 export type AnswerOptionSuggestionOutput = z.infer<typeof answerOptionSuggestionOutputSchema>;
+export type ProfessionalBrief = z.infer<typeof professionalBriefSchema>;
+export type ProfessionalBriefDraft = z.infer<typeof professionalBriefDraftSchema>;
+export type ProfessionalBriefEdit = z.infer<typeof professionalBriefEditSchema>;
 export type CriticalUnknown = z.infer<typeof criticalUnknownSchema>;
 export type ClarificationAnswer = z.infer<typeof clarificationAnswerSchema>;
 export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;
@@ -381,6 +454,7 @@ export function createInitialIntakeVersion(originalRequest: string): IntakeVersi
     interpretation: null,
     correctionContext: null,
     scopeAssessment: null,
+    professionalBrief: null,
     clarificationAnswers: [],
     factConfirmations: [],
     interpretationConfirmationSourceId: null,
@@ -473,6 +547,31 @@ export function validateIntakeVersion(value: unknown): IntakeVersion {
       !source.content.includes(evidence.quote)
     ) {
       throw new Error("Budget evidence must match user-authored source text");
+    }
+  }
+
+  for (const section of [
+    ...(version.professionalBrief
+      ? [
+          version.professionalBrief.title,
+          version.professionalBrief.goalAndContext,
+          ...version.professionalBrief.deliverables,
+          ...version.professionalBrief.requirements,
+          ...version.professionalBrief.boundaries,
+          ...version.professionalBrief.inputsAndDependencies,
+          ...(version.professionalBrief.timing ? [version.professionalBrief.timing] : []),
+        ]
+      : []),
+  ]) {
+    for (const evidence of section.evidence) {
+      const source = version.sources.find((item) => item.id === evidence.sourceId);
+      if (
+        !source ||
+        !["original_request", "user_message", "user_correction"].includes(source.kind) ||
+        !source.content.includes(evidence.quote)
+      ) {
+        throw new Error("Professional brief evidence must match user-authored source text");
+      }
     }
   }
 

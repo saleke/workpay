@@ -12,12 +12,15 @@ import {
   createIntakeSessionRequestSchema,
   evaluateIntakeReadiness,
   intentInterpretationOutputSchema,
+  professionalBriefSchema,
   recordBudgetDecision,
   recordAnswerOptionSuggestions,
+  recordProfessionalBriefProposal,
   recordCommunicationStylePreference,
   recordIntentInterpretation,
   recordInterpretationDecision,
   recordScopeAssessment,
+  saveProfessionalBriefEdits,
   resolveCommunicationStyle,
   resolveIntakeCommunicationStyle,
   scopeAssessmentOutputSchema,
@@ -65,6 +68,7 @@ function readyVersion(): IntakeVersion {
       },
       criticalUnknowns: [],
     },
+    professionalBrief: null,
     clarificationAnswers: [],
     factConfirmations: [{ factId: "objective", sourceId: "confirm" }],
     interpretationConfirmationSourceId: "confirm",
@@ -172,7 +176,36 @@ describe("general-purpose intake model", () => {
     const budgetConfirmed = recordBudgetDecision(refreshed, { state: "undecided" });
     expect(evaluateIntakeReadiness(budgetConfirmed).ready).toBe(true);
 
-    const approved = approveIntakeBrief(budgetConfirmed);
+    const briefOperation = {
+      ...scopeOperation,
+      operation: "compose_professional_brief" as const,
+      promptVersion: "professional-brief-v1",
+    };
+    const composedBrief = recordProfessionalBriefProposal(
+      budgetConfirmed,
+      professionalBriefSchema.parse({
+        title: {
+          text: "Create a report",
+          evidence: [{ sourceId: "source_original", quote: "Create a report" }],
+        },
+        goalAndContext: {
+          text: "Create a report.",
+          evidence: [{ sourceId: "source_original", quote: "Create a report." }],
+        },
+        deliverables: [
+          {
+            text: "A report",
+            evidence: [{ sourceId: "source_original", quote: "Create a report" }],
+          },
+        ],
+        requirements: [],
+        boundaries: [],
+        inputsAndDependencies: [],
+        timing: null,
+      }),
+      briefOperation,
+    );
+    const approved = approveIntakeBrief(composedBrief);
     expect(approved.approvedAt).not.toBeNull();
     expect(approved.approvalSourceId).not.toBeNull();
     expect(approved.clarificationAnswers).toEqual(answeredDeadline.clarificationAnswers);
@@ -274,6 +307,7 @@ describe("general-purpose intake model", () => {
         },
       ],
     });
+
     const suggested = recordAnswerOptionSuggestions(assessed, question.id, suggestions, {
       ...operation,
       operation: "suggest_answer_options",
@@ -288,6 +322,91 @@ describe("general-purpose intake model", () => {
     expect(suggested.clarificationAnswers).toEqual([]);
     expect(suggested.sources).toEqual(assessed.sources);
     expect(suggested.aiOperations.at(-1)?.operation).toBe("suggest_answer_options");
+  });
+
+  it("requires a grounded professional brief before approving it for discovery", () => {
+    const version = readyVersion();
+    expect(() => approveIntakeBrief(version)).toThrow(/professional-facing brief/);
+    const operation = {
+      operation: "compose_professional_brief" as const,
+      provider: "cloudflare-workers-ai",
+      model: "test-model",
+      promptVersion: "professional-brief-v1",
+      recordedAt: new Date().toISOString(),
+    };
+    const proposal = professionalBriefSchema.parse({
+      title: {
+        text: "Prepare a report",
+        evidence: [{ sourceId: "request", quote: "Create a report." }],
+      },
+      goalAndContext: {
+        text: "Prepare a report.",
+        evidence: [{ sourceId: "request", quote: "Create a report." }],
+      },
+      deliverables: [
+        {
+          text: "One report",
+          evidence: [{ sourceId: "request", quote: "Create a report." }],
+        },
+      ],
+      requirements: [],
+      boundaries: [],
+      inputsAndDependencies: [],
+      timing: null,
+    });
+    expect(() =>
+      recordProfessionalBriefProposal(
+        version,
+        {
+          ...proposal,
+          title: {
+            ...proposal.title,
+            evidence: [{ sourceId: "request", quote: "Invented requirement" }],
+          },
+        },
+        operation,
+      ),
+    ).toThrow(/matched to confirmed user-provided information/);
+    const withAttachment = {
+      ...version,
+      sources: [
+        ...version.sources,
+        { id: "attachment", kind: "attachment" as const, content: "Attachment detail" },
+      ],
+    };
+    expect(() =>
+      recordProfessionalBriefProposal(
+        withAttachment,
+        {
+          ...proposal,
+          title: {
+            ...proposal.title,
+            evidence: [{ sourceId: "attachment", quote: "Attachment detail" }],
+          },
+        },
+        operation,
+      ),
+    ).toThrow(/matched to confirmed user-provided information/);
+    const composed = recordProfessionalBriefProposal(version, proposal, operation);
+    expect(composed.sources).toEqual(version.sources);
+    expect(composed.professionalBrief?.deliverables).toEqual(proposal.deliverables);
+    expect(composed.approvedAt).toBeNull();
+
+    const edited = saveProfessionalBriefEdits(composed, {
+      title: "Prepare a short report",
+      goalAndContext: "Prepare a short report.",
+      deliverables: ["A short report"],
+      requirements: [],
+      boundaries: [],
+      inputsAndDependencies: [],
+      timing: "",
+    });
+    expect(edited.professionalBrief?.title.text).toBe("Prepare a short report");
+    expect(edited.professionalBrief?.title.evidence[0]?.sourceId).not.toBe("request");
+    expect(edited.sources.at(-1)?.content).toContain("A short report");
+    expect(edited.approvedAt).toBeNull();
+    expect(approveIntakeBrief(edited).approvedAt).not.toBeNull();
+    expect(recordBudgetDecision(composed, { state: "undecided" }).professionalBrief).toBeNull();
   });
 
   it("validates clarification provenance independently of fact confirmations", () => {
