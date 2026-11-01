@@ -184,6 +184,31 @@ export function normalizeCloudflareScopeBudget(value: unknown): unknown {
   };
 }
 
+/**
+ * Workers AI occasionally wraps JSON-mode output in a top-level `response`
+ * property. Unwrap only that provider envelope; strict operation schemas and
+ * source-evidence validation still decide whether the enclosed value is safe.
+ */
+export function normalizeCloudflareResponseEnvelope(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || !("response" in value)) return value;
+  const response = (value as { response?: unknown }).response;
+  if (typeof response === "object" && response !== null) return response;
+  if (typeof response !== "string") return value;
+
+  const trimmed = response
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return value;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return typeof parsed === "object" && parsed !== null ? parsed : value;
+  } catch {
+    return value;
+  }
+}
+
 async function requestCloudflareOutput<T extends IntakeOutputSchema>(
   client: OpenAI,
   model: string,
@@ -256,13 +281,28 @@ async function requestCloudflareOutput<T extends IntakeOutputSchema>(
     throw externalFailure("Cloudflare AI returned invalid JSON for this intake request.", cause);
   }
 
-  const parsed = schema.safeParse(normalize ? normalize(result) : result);
+  const unwrapped = normalizeCloudflareResponseEnvelope(result);
+  const parsed = schema.safeParse(normalize ? normalize(unwrapped) : unwrapped);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((issue) => ({
       path: issue.path.length > 0 ? issue.path.join(".") : "response",
       message: issue.message,
     }));
     const paths = [...new Set(issues.map((issue) => issue.path))].join(", ");
+    logger.warn(
+      {
+        provider: "cloudflare-workers-ai",
+        model,
+        issuePaths: [...new Set(issues.map((issue) => issue.path))],
+        topLevelKeys:
+          typeof result === "object" && result !== null ? Object.keys(result).slice(0, 20) : [],
+        responseEnvelopeType:
+          typeof result === "object" && result !== null && "response" in result
+            ? typeof (result as { response?: unknown }).response
+            : null,
+      },
+      "cloudflare intake response failed schema validation",
+    );
     throw new AppError(
       "EXTERNAL_FAILURE",
       `Cloudflare AI returned an invalid intake response. Check these fields: ${paths}.`,

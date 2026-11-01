@@ -4,10 +4,28 @@ import {
   intentInterpretationOutputSchema,
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
-import { normalizeCloudflareIntentFamiliarity, normalizeCloudflareScopeBudget } from "./intake.js";
+import {
+  normalizeCloudflareIntentFamiliarity,
+  normalizeCloudflareResponseEnvelope,
+  normalizeCloudflareScopeBudget,
+} from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
 
 describe("intake output JSON schemas", () => {
+  it("unwraps object and JSON-string response envelopes without accepting prose", () => {
+    expect(normalizeCloudflareResponseEnvelope({ response: { title: "Task" } })).toEqual({
+      title: "Task",
+    });
+    expect(
+      normalizeCloudflareResponseEnvelope({
+        response: '```json\n{"title":"Task"}\n```',
+      }),
+    ).toEqual({ title: "Task" });
+    expect(normalizeCloudflareResponseEnvelope({ response: "Here is your task." })).toEqual({
+      response: "Here is your task.",
+    });
+  });
+
   it("preserves the intent output object when converting refined Zod schemas", () => {
     expect(zodToJsonSchema(intentInterpretationOutputSchema)).toMatchObject({
       type: "object",
