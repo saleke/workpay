@@ -315,6 +315,8 @@ describe("general-purpose intake model", () => {
     expect(reopened.approvalSourceId).toBeNull();
     expect(reopened.professionalBrief).toBeNull();
     expect(reopened.budget.confirmationSourceId).toBeNull();
+    expect(reopened.budget.meaning).toEqual(approved.budget.meaning);
+    expect(reopened.budget.evidence).toEqual(approved.budget.evidence);
     expect(reopened.scopeAssessment).toEqual(approved.scopeAssessment);
   });
 

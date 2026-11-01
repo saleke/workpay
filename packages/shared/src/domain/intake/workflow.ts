@@ -436,7 +436,6 @@ export function reopenApprovedIntakeBudget(version: IntakeVersion): IntakeVersio
   if (version.approvedAt === null || version.approvalSourceId === null) {
     throw conflict("Only an approved intake can be reopened for a budget correction.");
   }
-  const proposedBudget = version.scopeAssessment?.budget;
   const { sources } = appendUserSource(
     version,
     "user_message",
@@ -447,17 +446,10 @@ export function reopenApprovedIntakeBudget(version: IntakeVersion): IntakeVersio
     version: version.version + 1,
     sources,
     professionalBrief: null,
-    budget: proposedBudget
-      ? {
-          meaning: proposedBudget.meaning,
-          evidence: proposedBudget.evidence,
-          confirmationSourceId: null,
-        }
-      : {
-          meaning: { state: "not_provided" },
-          evidence: [],
-          confirmationSourceId: null,
-        },
+    budget: {
+      ...version.budget,
+      confirmationSourceId: null,
+    },
     approvedAt: null,
     approvalSourceId: null,
   });
