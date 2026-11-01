@@ -64,7 +64,8 @@ export function middleware(req: NextRequest) {
   }
 
   const sessionToken = req.cookies.get("workpay_session")?.value;
-  const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  const isProtectedRoute =
+    pathname === "/" || PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
   // Protected sections require authentication. Unauthenticated visitors are sent to login.
   if (!sessionToken && isProtectedRoute) {
