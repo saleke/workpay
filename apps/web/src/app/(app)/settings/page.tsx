@@ -945,7 +945,7 @@ function SettingsContent() {
                               </div>
                             ) : (
                               <Badge variant="outline" className="text-slate-600 border-slate-300 text-[10px]">
-                                Email delivery unavailable in beta
+                                Email delivery unavailable
                               </Badge>
                             )}
                           </div>

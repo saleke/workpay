@@ -118,7 +118,7 @@ export default function LoginPage() {
         {evaluationEnabled ? (
           <section className="space-y-2 rounded-xl border border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]/60 p-3">
             <div>
-              <div className="text-xs font-semibold text-foreground">Explore the hackathon beta</div>
+              <div className="text-xs font-semibold text-foreground">Explore WorkPay</div>
               <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                 Start from a task perspective. These are not exclusive account roles—every WorkPay
                 member may request work, maintain a professional profile, and accept an independent
@@ -267,7 +267,7 @@ export default function LoginPage() {
       </CardContent>
 
       <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
-        <span>{evaluationEnabled ? "Want your own beta account? " : "Don't have an account? "}</span>
+        <span>{evaluationEnabled ? "Want your own account? " : "Don't have an account? "}</span>
         <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
           {evaluationEnabled ? "Create Account" : "Sign Up"}
         </Link>

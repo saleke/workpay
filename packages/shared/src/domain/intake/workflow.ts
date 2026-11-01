@@ -11,8 +11,8 @@ import {
   type ProfessionalBrief,
   type ProfessionalBriefEdit,
   type ScopeAssessmentOutput,
-  budgetUsesBetaContractCurrency,
-  isPricedBetaContractBudget,
+  budgetUsesContractCurrency,
+  isPricedContractBudget,
   validateIntakeVersion,
 } from "./model.js";
 import { evaluateIntakeReadiness } from "./readiness.js";
@@ -365,9 +365,9 @@ export function recordBudgetDecision(
   if (version.scopeAssessment === null) {
     throw conflict("Assess the task scope before confirming a budget decision.");
   }
-  if (!budgetUsesBetaContractCurrency(meaning)) {
+  if (!budgetUsesContractCurrency(meaning)) {
     throw conflict(
-      "This beta creates contracts in USD only. Enter a USD amount you explicitly accept; WorkPay will not convert another currency automatically.",
+      "Contracts use USD. Enter a USD amount you explicitly accept; WorkPay will not convert another currency automatically.",
     );
   }
   const content = `Budget decision selected by the user: ${JSON.stringify(meaning)}`;
@@ -412,7 +412,7 @@ export function approveIntakeBrief(version: IntakeVersion): IntakeVersion {
   if (!readiness.ready) {
     throw conflict("The brief is not ready for approval.", { blockers: readiness.blockers });
   }
-  if (!isPricedBetaContractBudget(version.budget.meaning)) {
+  if (!isPricedContractBudget(version.budget.meaning)) {
     throw conflict(
       "Confirm a specific USD target, ceiling, or range before approving the brief for contract review.",
     );

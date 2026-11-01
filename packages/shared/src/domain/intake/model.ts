@@ -441,28 +441,28 @@ export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;
 export type IntakeAIOperation = z.infer<typeof intakeAIOperationSchema>;
 export type IntakeVersion = z.infer<typeof intakeVersionSchema>;
 
-export const BETA_CONTRACT_CURRENCY = "USD" as const;
+export const CONTRACT_CURRENCY = "USD" as const;
 
-export function budgetUsesBetaContractCurrency(meaning: BudgetMeaning): boolean {
+export function budgetUsesContractCurrency(meaning: BudgetMeaning): boolean {
   if (meaning.state === "ceiling" || meaning.state === "target") {
-    return meaning.amount.currency === BETA_CONTRACT_CURRENCY;
+    return meaning.amount.currency === CONTRACT_CURRENCY;
   }
   if (meaning.state === "range") {
     return (
-      meaning.minimum.currency === BETA_CONTRACT_CURRENCY &&
-      meaning.maximum.currency === BETA_CONTRACT_CURRENCY
+      meaning.minimum.currency === CONTRACT_CURRENCY &&
+      meaning.maximum.currency === CONTRACT_CURRENCY
     );
   }
   if (meaning.state === "ambiguous") {
-    return meaning.mentionedAmounts.every(({ currency }) => currency === BETA_CONTRACT_CURRENCY);
+    return meaning.mentionedAmounts.every(({ currency }) => currency === CONTRACT_CURRENCY);
   }
   return true;
 }
 
-export function isPricedBetaContractBudget(meaning: BudgetMeaning): boolean {
+export function isPricedContractBudget(meaning: BudgetMeaning): boolean {
   return (
     (meaning.state === "ceiling" || meaning.state === "target" || meaning.state === "range") &&
-    budgetUsesBetaContractCurrency(meaning)
+    budgetUsesContractCurrency(meaning)
   );
 }
 

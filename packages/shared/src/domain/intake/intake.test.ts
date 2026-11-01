@@ -277,7 +277,7 @@ describe("general-purpose intake model", () => {
         state: "target",
         amount: { amountMinor: 1_000_000, currency: "NGN" },
       }),
-    ).toThrow(/USD only/);
+    ).toThrow(/Contracts use USD/);
 
     const composed = recordProfessionalBriefProposal(
       version,

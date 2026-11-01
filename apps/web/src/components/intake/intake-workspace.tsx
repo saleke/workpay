@@ -6,11 +6,11 @@ import { ArrowRight, Check, CircleHelp, LoaderCircle, RotateCcw, Sparkles } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BETA_CONTRACT_CURRENCY,
-  budgetUsesBetaContractCurrency,
+  CONTRACT_CURRENCY,
+  budgetUsesContractCurrency,
   budgetMeaningSchema,
   intakeVersionSchema,
-  isPricedBetaContractBudget,
+  isPricedContractBudget,
   professionalBriefDraftSchema,
   type BudgetMeaning,
   type IntakeVersion,
@@ -239,7 +239,7 @@ export function IntakeWorkspace() {
   const [editingProfessionalBrief, setEditingProfessionalBrief] = useState(false);
   const [budgetOption, setBudgetOption] = useState<BudgetOption>("proposal");
   const [editingBudget, setEditingBudget] = useState(false);
-  const [currency] = useState(BETA_CONTRACT_CURRENCY);
+  const [currency] = useState(CONTRACT_CURRENCY);
   const [minimum, setMinimum] = useState("");
   const [maximum, setMaximum] = useState("");
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -307,8 +307,8 @@ export function IntakeWorkspace() {
     version.unresolvedCriticalUnknownIds.length === 0,
   );
   const suggestedBudget = version?.scopeAssessment?.budget.meaning ?? null;
-  const suggestedBudgetCanFundBetaContract = Boolean(
-    suggestedBudget && isPricedBetaContractBudget(suggestedBudget),
+  const suggestedBudgetCanFundContract = Boolean(
+    suggestedBudget && isPricedContractBudget(suggestedBudget),
   );
   const stageIndex = session ? getStageIndex(session) : 0;
   const progress = session
@@ -462,7 +462,7 @@ export function IntakeWorkspace() {
   const selectedBudget = useMemo((): BudgetMeaning | null => {
     if (!suggestedBudget) return null;
     if (budgetOption === "proposal") {
-      return isPricedBetaContractBudget(suggestedBudget) ? suggestedBudget : null;
+      return isPricedContractBudget(suggestedBudget) ? suggestedBudget : null;
     }
     if (budgetOption === "undecided") return { state: "undecided" };
 
@@ -501,7 +501,7 @@ export function IntakeWorkspace() {
     if (
       budgetOption !== "proposal" ||
       !suggestedBudget ||
-      isPricedBetaContractBudget(suggestedBudget)
+      isPricedContractBudget(suggestedBudget)
     ) {
       return;
     }
@@ -758,7 +758,7 @@ export function IntakeWorkspace() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {version && <BriefSummary version={version} />}
-                {version && isPricedBetaContractBudget(version.budget.meaning) ? (
+                {version && isPricedContractBudget(version.budget.meaning) ? (
                   <>
                     <p className="text-sm text-[var(--text-secondary)]">
                       Review the work terms and USD budget next. This will not select or contact a
@@ -781,9 +781,8 @@ export function IntakeWorkspace() {
                   <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
                     <p className="text-sm font-semibold">Confirm a USD contract budget</p>
                     <p className="text-sm text-[var(--wp-text-secondary)]">
-                      Your original currency remains in the intake record, but this beta creates
-                      contracts in USD only. WorkPay will not convert the amount or choose an
-                      exchange rate for you.
+                      Your original currency remains in the intake record. Contracts use USD, and
+                      WorkPay will not convert the amount or choose an exchange rate for you.
                     </p>
                     <Button
                       type="button"
@@ -1123,8 +1122,8 @@ export function IntakeWorkspace() {
                   <CardHeader>
                     <CardTitle className="text-lg">Confirm the budget state</CardTitle>
                     <CardDescription>
-                      WorkPay preserves the currency you stated, but beta contracts use USD. Enter a
-                      USD amount explicitly; WorkPay will not choose an exchange rate for you.
+                      WorkPay preserves the currency you stated. Contracts use USD, so enter a USD
+                      amount explicitly; WorkPay will not choose an exchange rate for you.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1150,13 +1149,13 @@ export function IntakeWorkspace() {
                             ? describeBudget(suggestedBudget)
                             : "No budget details yet."}
                         </p>
-                        {suggestedBudget && !budgetUsesBetaContractCurrency(suggestedBudget) && (
+                        {suggestedBudget && !budgetUsesContractCurrency(suggestedBudget) && (
                           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
                             <p className="font-semibold">Your original currency is preserved</p>
                             <p className="mt-1 text-[var(--wp-text-secondary)]">
-                              The amount above cannot be used as the beta contract budget. Enter the
-                              USD target, ceiling, or range you explicitly accept. No automatic
-                              conversion will be applied.
+                              The amount above is recorded in your original currency. To continue,
+                              enter the USD target, ceiling, or range you explicitly accept. No
+                              automatic conversion will be applied.
                             </p>
                           </div>
                         )}
@@ -1166,7 +1165,7 @@ export function IntakeWorkspace() {
                               What budget should we use?
                             </legend>
                             <div className="grid gap-2 sm:grid-cols-2">
-                              {suggestedBudget && suggestedBudgetCanFundBetaContract && (
+                              {suggestedBudget && suggestedBudgetCanFundContract && (
                                 <BudgetChoice
                                   checked={budgetOption === "proposal"}
                                   label={`Use what I said: ${describeBudget(suggestedBudget)}`}
@@ -1207,7 +1206,7 @@ export function IntakeWorkspace() {
                                   aria-readonly="true"
                                 />
                                 <p className="text-xs text-[var(--wp-text-secondary)]">
-                                  USD is the only contract currency enabled in this beta.
+                                  Contracts currently use USD.
                                 </p>
                               </div>
                               <div className="space-y-2">
