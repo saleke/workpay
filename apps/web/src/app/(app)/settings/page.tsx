@@ -96,15 +96,8 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     key: "notifications",
     title: "Notifications",
     shortTitle: "Notifications",
-    description: "Task, verification, revision, and payout alerts",
+    description: "Task, evidence, revision, and review alerts",
     icon: Bell,
-  },
-  {
-    key: "environment",
-    title: "Environment",
-    shortTitle: "Environment",
-    description: "Sandbox simulation and runtime configuration",
-    icon: Sliders,
   },
 ];
 
@@ -238,6 +231,11 @@ function SettingsContent() {
   const [notifyRevisions, setNotifyRevisions] = useState(true);
   const [notifyPayments, setNotifyPayments] = useState(true);
   const [notifyDisputes, setNotifyDisputes] = useState(true);
+  const [capabilities, setCapabilities] = useState({
+    emailDelivery: false,
+    githubOAuth: false,
+    personaVerification: false,
+  });
 
   useEffect(() => {
     if (rawTab && SETTINGS_TABS.some((t) => t.key === rawTab)) {
@@ -278,6 +276,23 @@ function SettingsContent() {
   };
 
   useEffect(() => {
+    void fetch("/api/v1/system/capabilities", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((value) =>
+        setCapabilities({
+          emailDelivery: value.emailDelivery === true,
+          githubOAuth: value.githubOAuth === true,
+          personaVerification: value.personaVerification === true,
+        }),
+      )
+      .catch(() =>
+        setCapabilities({
+          emailDelivery: false,
+          githubOAuth: false,
+          personaVerification: false,
+        }),
+      );
+
     const stored = window.localStorage.getItem("workpay_auth_user");
     if (stored) {
       try {
@@ -914,7 +929,7 @@ function SettingsContent() {
                                 <CheckCircle2 className="h-3 w-3" />
                                 Verified
                               </Badge>
-                            ) : (
+                            ) : capabilities.emailDelivery ? (
                               <div className="flex items-center gap-1.5">
                                 <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-[10px]">
                                   Unverified
@@ -928,6 +943,10 @@ function SettingsContent() {
                                   {sendingVerifyEmail ? "Sending..." : "Verify"}
                                 </button>
                               </div>
+                            ) : (
+                              <Badge variant="outline" className="text-slate-600 border-slate-300 text-[10px]">
+                                Email delivery unavailable in beta
+                              </Badge>
                             )}
                           </div>
                           <div className="relative">
@@ -943,7 +962,7 @@ function SettingsContent() {
                             Your verified account email used for authentication and security alerts.
                           </p>
 
-                          {emailVerifyStep === "otp" && !userProfile?.emailVerified && (
+                          {capabilities.emailDelivery && emailVerifyStep === "otp" && !userProfile?.emailVerified && (
                             <form onSubmit={handleConfirmEmailOtp} className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2">
                               <div className="flex items-center justify-between text-xs font-semibold">
                                 <span>Enter 6-Digit Email Code</span>
@@ -977,7 +996,8 @@ function SettingsContent() {
                     </CardContent>
                   </Card>
 
-                  {/* Step 1: Developer Quality Verification (GitHub) */}
+                  {/* Optional GitHub integration appears only when configured. */}
+                  {capabilities.githubOAuth ? (
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                     <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                       <div className="flex items-center justify-between">
@@ -1070,8 +1090,10 @@ function SettingsContent() {
                       )}
                     </CardContent>
                   </Card>
+                  ) : null}
 
-                  {/* Step 2: Government Identity & Milestone Threshold */}
+                  {/* Optional identity provider appears only when configured. */}
+                  {capabilities.personaVerification ? (
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                     <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                       <div className="flex items-center justify-between">
@@ -1149,6 +1171,7 @@ function SettingsContent() {
                       )}
                     </CardContent>
                   </Card>
+                  ) : null}
 
                   {/* Password Management */}
                   <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">

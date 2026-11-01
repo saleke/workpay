@@ -29,6 +29,7 @@ export type {
 
 export {
   getEmailClient,
+  isEmailDeliveryConfigured,
   setEmailClient,
   sendVerificationEmail,
   sendPasswordResetEmail,

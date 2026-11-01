@@ -9,11 +9,11 @@ export function getEmailClient(): EmailClient {
   if (cachedClient) return cachedClient;
 
   const env = getEnv();
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "WorkPay <noreply@workpay.local>";
+  const host = env.SMTP_HOST;
+  const port = env.SMTP_PORT;
+  const user = env.SMTP_USER;
+  const pass = env.SMTP_PASS;
+  const from = env.EMAIL_FROM;
 
   cachedClient = new NodemailerEmailClient({
     host,
@@ -24,6 +24,11 @@ export function getEmailClient(): EmailClient {
   });
 
   return cachedClient;
+}
+
+export function isEmailDeliveryConfigured(): boolean {
+  const env = getEnv();
+  return Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
 }
 
 export function setEmailClient(client: EmailClient | null): void {

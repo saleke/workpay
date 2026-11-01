@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import type { z } from "zod";
 import { AppError, externalFailure } from "../../platform/errors.js";
 import { getEnv } from "../../platform/env.js";
+import { logger } from "../../platform/logger.js";
 import { zodToJsonSchema } from "./openai.js";
 import {
   answerOptionSuggestionOutputSchema,
@@ -209,8 +210,37 @@ async function requestCloudflareOutput<T extends IntakeOutputSchema>(
     });
     raw = response.choices[0]?.message.content;
   } catch (cause) {
+    const providerError = cause as {
+      status?: number;
+      code?: string;
+      name?: string;
+      message?: string;
+    };
+    logger.warn(
+      {
+        provider: "cloudflare-workers-ai",
+        model,
+        status: providerError.status ?? null,
+        code: providerError.code ?? null,
+        errorType: providerError.name ?? "unknown",
+        message: providerError.message?.slice(0, 500) ?? String(cause).slice(0, 500),
+      },
+      "cloudflare intake request failed",
+    );
+    if (providerError.status === 429) {
+      throw externalFailure(
+        "The AI service is temporarily at capacity or its daily free allowance is exhausted. Your draft is unchanged; please try again shortly.",
+        cause,
+      );
+    }
+    if (providerError.status === 401 || providerError.status === 403) {
+      throw externalFailure(
+        "AI-assisted intake is temporarily unavailable because the provider configuration was rejected. Your draft is unchanged.",
+        cause,
+      );
+    }
     throw externalFailure(
-      "The Cloudflare AI service could not process this intake request.",
+      "The AI service could not complete this request before its timeout. Your draft is unchanged; please try again.",
       cause,
     );
   }

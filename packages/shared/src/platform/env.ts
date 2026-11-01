@@ -96,6 +96,13 @@ export const envSchema = z
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
     SENTRY_DSN: optionalString,
 
+    EMAIL_FROM: z.string().default("WorkPay <noreply@workpay.local>"),
+    SMTP_HOST: optionalString,
+    SMTP_PORT: z.coerce.number().int().positive().max(65_535).default(587),
+    SMTP_SECURE: booleanish.default(false),
+    SMTP_USER: optionalString,
+    SMTP_PASS: optionalString,
+
     // GitHub OAuth
     GITHUB_CLIENT_ID: optionalString,
     GITHUB_CLIENT_SECRET: optionalString,
@@ -174,6 +181,14 @@ export const envSchema = z
         path: ["S3_ACCESS_KEY_ID"],
         message:
           "S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be provided together, or both omitted to use the AWS default credential provider chain.",
+      });
+    }
+    const smtpValues = [env.SMTP_HOST, env.SMTP_USER, env.SMTP_PASS];
+    if (smtpValues.some(Boolean) && !smtpValues.every(Boolean)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["SMTP_HOST"],
+        message: "SMTP_HOST, SMTP_USER, and SMTP_PASS must be configured together.",
       });
     }
   });

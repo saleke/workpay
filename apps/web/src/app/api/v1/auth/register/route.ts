@@ -6,7 +6,10 @@ import { getDb, jsonError } from "@/lib/server/api";
 import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
 import { hashPassword, newId, logger } from "@workpay/shared/platform";
-import { sendVerificationEmail } from "@workpay/shared/integrations";
+import {
+  isEmailDeliveryConfigured,
+  sendVerificationEmail,
+} from "@workpay/shared/integrations";
 import { createSession, setSessionCookie } from "@/lib/server/session";
 import { validateEmailForRegistration, validateUsername } from "@/lib/server/disposable-emails";
 
@@ -108,38 +111,44 @@ export async function POST(req: Request) {
       payoutEmail: parsed.email,
     }).onConflictDoNothing();
 
-    const verifyToken = randomBytes(32).toString("hex");
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await db
-      .insert(verificationTokens)
-      .values([
-        {
-          identifier: parsed.email.toLowerCase(),
-          token: verifyToken,
-          expires: tokenExpires,
-        },
-        {
-          identifier: parsed.email.toLowerCase(),
-          token: otpCode,
-          expires: tokenExpires,
-        },
-      ])
-      .onConflictDoNothing();
+    const requiresEmailVerification = isEmailDeliveryConfigured();
+    if (requiresEmailVerification) {
+      const verifyToken = randomBytes(32).toString("hex");
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db
+        .insert(verificationTokens)
+        .values([
+          {
+            identifier: parsed.email.toLowerCase(),
+            token: verifyToken,
+            expires: tokenExpires,
+          },
+          {
+            identifier: parsed.email.toLowerCase(),
+            token: otpCode,
+            expires: tokenExpires,
+          },
+        ])
+        .onConflictDoNothing();
 
-    const envUrl = process.env.APP_URL || "http://localhost:3000";
-    const appUrl = envUrl.replace(/\/$/, "");
-    const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${verifyToken}`;
+      const envUrl = process.env.APP_URL || "http://localhost:3000";
+      const appUrl = envUrl.replace(/\/$/, "");
+      const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${verifyToken}`;
 
-    try {
-      await sendVerificationEmail({
-        email: parsed.email,
-        name: parsed.name,
-        otpCode,
-        verificationUrl,
-      });
-    } catch (sendErr) {
-      logger.error({ err: String(sendErr), email: parsed.email }, "failed to dispatch verification email");
+      try {
+        await sendVerificationEmail({
+          email: parsed.email,
+          name: parsed.name,
+          otpCode,
+          verificationUrl,
+        });
+      } catch (sendErr) {
+        logger.error(
+          { err: String(sendErr), email: parsed.email },
+          "failed to dispatch verification email",
+        );
+      }
     }
 
     const sessionToken = await createSession(userId);
@@ -155,7 +164,7 @@ export async function POST(req: Request) {
           idVerificationStatus: "UNVERIFIED",
           paypalVerified: false,
         },
-        requiresEmailVerification: true,
+        requiresEmailVerification,
       },
     });
 

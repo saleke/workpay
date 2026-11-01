@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AtSign, Github, KeyRound, Lock, Mail, User } from "lucide-react";
@@ -24,6 +24,19 @@ export default function RegisterPage() {
   const [registeredUser, setRegisteredUser] = useState<any>(null);
   const [otpInput, setOtpInput] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [oauthCapabilities, setOauthCapabilities] = useState({ github: false, google: false });
+
+  useEffect(() => {
+    void fetch("/api/v1/system/capabilities", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((capabilities) =>
+        setOauthCapabilities({
+          github: capabilities.githubOAuth === true,
+          google: capabilities.googleOAuth === true,
+        }),
+      )
+      .catch(() => setOauthCapabilities({ github: false, google: false }));
+  }, []);
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -76,7 +89,11 @@ export default function RegisterPage() {
       const user = json.data?.user;
       if (user) {
         setRegisteredUser(user);
-        setStep("verify");
+        if (json.data?.requiresEmailVerification) {
+          setStep("verify");
+        } else {
+          handleCompleteAuth(user);
+        }
       }
     } catch {
       setError("Network error. Please try again.");
@@ -153,7 +170,9 @@ export default function RegisterPage() {
 
         {step === "form" ? (
           <>
+            {oauthCapabilities.github || oauthCapabilities.google ? (
             <div className="space-y-2">
+              {oauthCapabilities.github ? (
               <Button
                 type="button"
                 variant="outline"
@@ -165,7 +184,9 @@ export default function RegisterPage() {
                 <Github className="h-4 w-4 shrink-0" />
                 Sign up with GitHub
               </Button>
+              ) : null}
 
+              {oauthCapabilities.google ? (
               <Button
                 type="button"
                 variant="outline"
@@ -182,8 +203,11 @@ export default function RegisterPage() {
                 </svg>
                 Sign up with Google
               </Button>
+              ) : null}
             </div>
+            ) : null}
 
+            {oauthCapabilities.github || oauthCapabilities.google ? (
             <div className="flex items-center gap-3 my-1">
               <div className="h-px flex-1 bg-border/70" />
               <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
@@ -191,6 +215,7 @@ export default function RegisterPage() {
               </span>
               <div className="h-px flex-1 bg-border/70" />
             </div>
+            ) : null}
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div className="space-y-1.5">
