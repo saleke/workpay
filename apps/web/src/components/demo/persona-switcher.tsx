@@ -352,10 +352,10 @@ export function PersonaSwitcher() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-primary" />
-              WorkPay Execution Architecture
+              WorkPay validation journey
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Autonomous execution and non-custodial PayPal settlement lifecycle.
+              A user-led flow with explicit consent at every consequential step. Payments are simulated.
             </DialogDescription>
           </DialogHeader>
 
@@ -363,30 +363,30 @@ export function PersonaSwitcher() {
             <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <h4 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">1</span>
-                Task Owner Step: Agreement &amp; Authorization Hold
+                Alice: define the task and choose who to contact
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Click <strong>"New Task"</strong> or select an existing task. Review the Definition of Done, add or customize criteria as needed, and click <strong>"Approve Agreement &amp; Match Specialist"</strong>. The agent reserves funds via PayPal Authorization hold.
+                Start with <strong>New Task</strong>. Confirm WorkPay's interpretation, answer only material questions, approve the exact brief and terms, then review available professional profiles. Nobody is selected or contacted until Alice approves the recipient and exact first message.
               </p>
             </div>
 
             <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
               <h4 className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">2</span>
-                Specialist Step: Milestone Delivery
+                Bob: accept contact and agree terms
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Switch perspective to <strong>Bob (Specialist)</strong> and visit the <strong>Work Studio</strong>. Review the transparent Definition of Done, accept the assignment, report progress check-ins, and submit your deliverable file.
+                Switch to <strong>Bob (Professional)</strong> and open <strong>Work Studio</strong>. Bob may decline the contact request, ask questions, or agree structured commercial changes. Only after both parties agree and Alice starts the policy simulation does an assignment appear for Bob to accept and start.
               </p>
             </div>
 
             <div className="rounded-xl border border-purple-200/70 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
               <h4 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 mb-1">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">3</span>
-                Verification Proofs &amp; PayPal Settlement
+                Evidence and independent review
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                WorkPay automatically inspects the deliverable against the agreed Definition of Done. If flawed, it rejects it and preserves the authorization hold for revision. When clean, it triggers instant <strong>PayPal Capture</strong>, releasing payment directly to the specialist.
+                Objective checks evaluate only the properties they can prove. Subjective criteria remain uncertain unless the parties appoint an independent reviewer and agree the exact review plan. Payment authorization and capture states are simulated; no funds move.
               </p>
             </div>
 

@@ -3,7 +3,7 @@ import { evaluateAgentAuthority, type AgentAuthorityInput } from "./authority.js
 
 function base(overrides: Partial<AgentAuthorityInput> = {}): AgentAuthorityInput {
   return {
-    actionType: "CREATE_PLAN",
+    actionType: "REQUEST_VERIFICATION",
     actor: { kind: "AGENT", onBehalfOfUserId: "user_1" },
     task: {
       userId: "user_1",
@@ -19,7 +19,7 @@ function base(overrides: Partial<AgentAuthorityInput> = {}): AgentAuthorityInput
 }
 
 describe("agent authority", () => {
-  it("allows a reversible planning action within the mandate", () => {
+  it("allows bounded verification coordination within the mandate", () => {
     expect(evaluateAgentAuthority(base()).allowed).toBe(true);
   });
 
@@ -56,33 +56,34 @@ describe("agent authority", () => {
     expect(decision.reasonCode).toBe("agent.task_terminal");
   });
 
-  it("blocks a money action above budget", () => {
+  it("blocks a commercial action regardless of budget", () => {
     const decision = evaluateAgentAuthority(
       base({ actionType: "ACCEPT_OFFER", amountMinor: 10001 }),
     );
     expect(decision.allowed).toBe(false);
-    expect(decision.reasonCode).toBe("agent.over_budget");
+    expect(decision.reasonCode).toBe("agent.explicit_authority_required");
   });
 
-  it("allows a money action at exactly the budget", () => {
+  it("does not let an agent accept an offer even at exactly the budget", () => {
     const decision = evaluateAgentAuthority(
       base({ actionType: "ACCEPT_OFFER", amountMinor: 10000 }),
     );
-    expect(decision.allowed).toBe(true);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCode).toBe("agent.explicit_authority_required");
   });
 
-  it("requires the payment policy gate for authorize, but not for planning", () => {
+  it("marks retired payment authority as still requiring policy defense in depth", () => {
     expect(
       evaluateAgentAuthority(base({ actionType: "AUTHORIZE_PAYMENT", amountMinor: 5000 }))
         .requiresPolicyGate,
     ).toBe(true);
-    expect(evaluateAgentAuthority(base({ actionType: "CREATE_PLAN" })).requiresPolicyGate).toBe(
+    expect(evaluateAgentAuthority(base({ actionType: "REQUEST_VERIFICATION" })).requiresPolicyGate).toBe(
       false,
     );
   });
 
-  it("requires an amount for a money action", () => {
+  it("rejects authorize before considering an amount", () => {
     const decision = evaluateAgentAuthority(base({ actionType: "AUTHORIZE_PAYMENT" }));
-    expect(decision.reasonCode).toBe("agent.missing_amount");
+    expect(decision.reasonCode).toBe("agent.explicit_authority_required");
   });
 });

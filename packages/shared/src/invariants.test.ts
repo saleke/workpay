@@ -201,28 +201,14 @@ describe("Appendix D: Architectural Invariants", () => {
         "OVERRIDE_VERIFICATION",
       ];
 
-      const agentActionTypes: AgentActionType[] = [
-        "CREATE_PLAN",
-        "REQUEST_CLARIFICATION",
-        "CREATE_CONTRACT",
-        "SELECT_PROVIDER",
-        "START_NEGOTIATION",
-        "SEND_OFFER",
-        "ACCEPT_OFFER",
-        "AUTHORIZE_PAYMENT",
-        "REQUEST_VERIFICATION",
-        "REQUEST_REVISION",
-        "OPEN_CASE",
-        "WAIT",
-        "COMPLETE_TASK",
-      ];
+      const agentActionTypes: AgentActionType[] = ["REQUEST_VERIFICATION", "WAIT"];
 
       for (const forbidden of forbiddenActions) {
         expect(agentActionTypes).not.toContain(forbidden);
       }
     });
 
-    it("DENIES agent action when offer exceeds the buyer budget", () => {
+    it("DENIES agent offer acceptance because commercial consent is human", () => {
       const authority = evaluateAgentAuthority({
         actionType: "ACCEPT_OFFER",
         actor: { kind: "AGENT", onBehalfOfUserId: "buyer_1" },
@@ -239,7 +225,7 @@ describe("Appendix D: Architectural Invariants", () => {
       });
 
       expect(authority.allowed).toBe(false);
-      expect(authority.reasonCode).toBe("agent.over_budget");
+      expect(authority.reasonCode).toBe("agent.explicit_authority_required");
     });
 
     it("DENIES agent action on terminal tasks", () => {

@@ -12,6 +12,7 @@
  */
 import { AppError } from "../../platform/errors.js";
 import { logger } from "../../platform/logger.js";
+import { paypalRequestId } from "./idempotency.js";
 import type {
   AuthorizeRequest,
   AuthorizeResult,
@@ -139,7 +140,7 @@ export class SandboxPayPal implements PaymentGateway {
             },
           ],
         },
-        `${request.idempotencyKey}:create`,
+        paypalRequestId("paypal-order-create", request.idempotencyKey),
       );
       if (order.status >= 500) {
         return { status: "UNKNOWN", errorMessage: `PayPal order create ${order.status}` };
@@ -154,7 +155,7 @@ export class SandboxPayPal implements PaymentGateway {
         "POST",
         `/v2/checkout/orders/${orderId}/authorize`,
         {},
-        `${request.idempotencyKey}:authorize`,
+        paypalRequestId("paypal-order-authorize", request.idempotencyKey),
       );
       if (auth.status >= 500) {
         return { status: "UNKNOWN", errorMessage: `PayPal authorize ${auth.status}` };
@@ -270,7 +271,8 @@ export class SandboxPayPal implements PaymentGateway {
       if (result.status >= 400) {
         return this.declinedFromBody(result.status, result.json);
       }
-      const batchHeader = (result.json as { batch_header?: { payout_batch_id?: string } })?.batch_header;
+      const batchHeader = (result.json as { batch_header?: { payout_batch_id?: string } })
+        ?.batch_header;
       return {
         status: "SUCCESS",
         payoutBatchId: batchHeader?.payout_batch_id,
@@ -390,7 +392,7 @@ export class SandboxPayPal implements PaymentGateway {
       verified?: boolean | string;
       verified_account?: boolean | string;
     };
-    const payerId = body.payer_id ?? (body.user_id ? body.user_id.split("/").pop() ?? "" : "");
+    const payerId = body.payer_id ?? (body.user_id ? (body.user_id.split("/").pop() ?? "") : "");
     const email = body.email ?? "";
     const isVerified =
       body.verified === true ||
@@ -429,7 +431,6 @@ export interface PayPalUserInfo {
   name?: string;
   verifiedAccount?: boolean;
 }
-
 
 /** Convert integer minor units to the decimal string PayPal expects. */
 function minorToDecimalString(amountMinor: number): string {

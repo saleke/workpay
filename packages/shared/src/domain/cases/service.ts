@@ -1,10 +1,9 @@
 /**
  * Case service (Component 10).
  *
- * Cases are the human escape hatch for anything the automated path cannot
- * decide: uncertain verification, disputes, payment exceptions. A case can
- * block payment capture, but it never bypasses the money rules: resolving a
- * case that releases money still re-runs the deterministic payment policy.
+ * Cases record platform/payment exceptions and unresolved party issues. WorkPay
+ * does not adjudicate deliverable quality or party disputes; those require the
+ * parties' agreed independent-review or other external process.
  */
 import { eq } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
@@ -17,7 +16,7 @@ import {
 } from "../../db/schema/cases.js";
 import { appendEvent } from "../../events/outbox.js";
 import { newId } from "../../platform/ids.js";
-import { notFound } from "../../platform/errors.js";
+import { authorizationError, conflict, notFound } from "../../platform/errors.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
 import { caseOpenerFor, caseAuthorFor } from "./mapping.js";
@@ -151,14 +150,42 @@ export interface ResolveCaseInput {
   correlationId: string;
 }
 
+export function assertCaseResolutionAllowed(
+  caseType: "EXCEPTION" | "DISPUTE" | "HUMAN_REVIEW",
+  category: OpenCaseInput["category"],
+  outcome: ResolveCaseInput["outcome"],
+  actor: Actor,
+) {
+  if (actor.kind !== "SYSTEM") {
+    throw authorizationError(
+      "Platform exceptions can only be closed by an authoritative system reconciliation.",
+    );
+  }
+  if (
+    caseType !== "EXCEPTION" ||
+    (category !== "PAYMENT_EXCEPTION" &&
+      category !== "TECHNICAL_FAILURE" &&
+      category !== "FRAUD_SUSPECTED")
+  ) {
+    throw conflict(
+      "WorkPay does not adjudicate deliverable quality or party disputes. Use the independent process agreed by the task participants.",
+    );
+  }
+  if (outcome !== "NO_ACTION") {
+    throw conflict(
+      "Case resolution records reconciliation; it cannot release, refund, void, or otherwise move money.",
+    );
+  }
+}
+
 /**
- * Resolve a case. Resolving never releases money by itself: `RELEASE_PAYMENT`
- * clears the blocking flag, after which the normal capture policy must still
- * produce an ALLOW.
+ * Resolve a platform exception. Task-quality and party-dispute cases are
+ * deliberately excluded: WorkPay does not provide independent review.
  */
 export async function resolveCase(tx: Database, input: ResolveCaseInput) {
   const [existing] = await tx.select().from(cases).where(eq(cases.id, input.caseId)).limit(1);
   if (!existing) throw notFound("Case");
+  assertCaseResolutionAllowed(existing.type, existing.category, input.outcome, input.actor);
 
   const [resolution] = await tx
     .insert(resolutions)
@@ -172,16 +199,13 @@ export async function resolveCase(tx: Database, input: ResolveCaseInput) {
     })
     .returning();
 
-  // A release or refund resolves the blocking condition; anything else leaves
-  // the case in a reviewed state where a reviewer acts next.
-  const releasesBlock = input.outcome === "RELEASE_PAYMENT" || input.outcome === "REFUND_PAYMENT";
   await tx
     .update(cases)
     .set({
       status: "RESOLVED",
-      blocksPaymentCapture: releasesBlock ? false : existing.blocksPaymentCapture,
+      blocksPaymentCapture: false,
       resolvedAt: new Date(),
-      closedAt: releasesBlock ? new Date() : null,
+      closedAt: new Date(),
     })
     .where(eq(cases.id, input.caseId));
 
@@ -200,7 +224,7 @@ export async function resolveCase(tx: Database, input: ResolveCaseInput) {
       caseId: input.caseId,
       targetType: "PAYMENT",
       targetId: existing.paymentId,
-      impact: releasesBlock ? "UNBLOCK" : "NO_CHANGE",
+      impact: "RECONCILED",
       detail: { outcome: input.outcome },
     });
   }

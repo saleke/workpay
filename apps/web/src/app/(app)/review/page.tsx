@@ -1,5 +1,5 @@
-import { CasesReviewList } from "@/components/cases/cases-review-list";
+import { redirect } from "next/navigation";
 
 export default function ReviewPage() {
-  return <CasesReviewList />;
+  redirect("/reviewer/engagements");
 }

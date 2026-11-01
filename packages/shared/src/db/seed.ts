@@ -16,8 +16,10 @@ import { eq } from "drizzle-orm";
 import { getDb, closeDb, type Database } from "./client.js";
 import { users } from "./schema/identity.js";
 import { availability, capabilities, providers, reputation } from "./schema/providers.js";
+import { reviewerEvidence, reviewerExpertise, reviewerProfiles } from "./schema/reviewers.js";
 import { logger } from "../platform/logger.js";
 import { newId } from "../platform/ids.js";
+import { hashPassword } from "../platform/password.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(here, "../../fixtures");
@@ -82,29 +84,97 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
   const providerUserId = "usr_provider_bob";
   const reviewerId = "usr_admin_carol";
 
-  await db
-    .insert(users)
-    .values([
-      {
-        id: buyerId,
-        name: "Alice Buyer",
-        email: "buyer@example.com",
-        role: "buyer",
-      },
-      {
-        id: providerUserId,
-        name: "Bob DataClean",
-        email: "provider@example.com",
-        role: "provider",
-      },
-      {
-        id: reviewerId,
-        name: "Carol Reviewer",
-        email: "reviewer@example.com",
-        role: "admin_reviewer",
-      },
-    ])
-    .onConflictDoNothing();
+  const demoPasswordHash = process.env.WORKPAY_DEMO_PASSWORD
+    ? hashPassword(process.env.WORKPAY_DEMO_PASSWORD)
+    : undefined;
+  const demoAccounts = [
+    {
+      id: buyerId,
+      name: "Alice Buyer",
+      displayName: "Alice Buyer",
+      username: "alice_buyer",
+      email: "buyer@example.com",
+      role: "buyer" as const,
+    },
+    {
+      id: providerUserId,
+      name: "Bob DataClean",
+      displayName: "Bob DataClean",
+      username: "bob_dataclean",
+      email: "provider@example.com",
+      role: "provider" as const,
+    },
+    {
+      id: reviewerId,
+      name: "Carol Reviewer",
+      displayName: "Carol Reviewer",
+      username: "carol_reviewer",
+      email: "reviewer@example.com",
+      role: "admin_reviewer" as const,
+    },
+    {
+      id: "usr_provider_dee",
+      name: "Dee Accessibility",
+      displayName: "Dee Accessibility",
+      username: "dee_accessibility",
+      email: "dee@example.com",
+      role: "provider" as const,
+    },
+    {
+      id: "usr_provider_sam",
+      name: "Sam Design",
+      displayName: "Sam Design",
+      username: "sam_design",
+      email: "sam@example.com",
+      role: "provider" as const,
+    },
+    {
+      id: "usr_provider_taylor",
+      name: "Taylor Bookkeeping",
+      displayName: "Taylor Bookkeeping",
+      username: "taylor_books",
+      email: "taylor@example.com",
+      role: "provider" as const,
+    },
+    {
+      id: "usr_reviewer_jamie",
+      name: "Jamie Accessibility Reviewer",
+      displayName: "Jamie Accessibility Reviewer",
+      username: "jamie_review",
+      email: "jamie@example.com",
+      role: "provider" as const,
+    },
+    {
+      id: "usr_reviewer_morgan",
+      name: "Morgan Finance Reviewer",
+      displayName: "Morgan Finance Reviewer",
+      username: "morgan_review",
+      email: "morgan@example.com",
+      role: "provider" as const,
+    },
+  ];
+
+  for (const account of demoAccounts) {
+    const values = {
+      ...account,
+      ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
+    };
+    await db
+      .insert(users)
+      .values(values)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          name: account.name,
+          displayName: account.displayName,
+          username: account.username,
+          email: account.email,
+          role: account.role,
+          ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
+          updatedAt: new Date(),
+        },
+      });
+  }
 
   // 2. Seeded Providers
   const providerSpecs = [
@@ -112,7 +182,8 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       id: "pro_dataclean_apex",
       userId: providerUserId,
       displayName: "Apex Data Solutions (Bob)",
-      payoutEmail: "bob.dataclean@example.com",
+      payoutEmail: "provider@example.com",
+      bio: "Independent data specialist focused on careful cleaning, deduplication, and validation.",
       hourlyRateMinor: 4500, // $45/hr
       tags: [
         "data_cleaning",
@@ -133,16 +204,12 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
     },
     {
       id: "pro_datasweep_labs",
-      displayName: "DataSweep AI & Human Labs",
+      userId: "usr_provider_sam",
+      displayName: "Sam Design Studio",
+      payoutEmail: "sam@example.com",
+      bio: "Independent design professional specializing in clear, accessible digital experiences.",
       hourlyRateMinor: 5000, // $50/hr
-      tags: [
-        "data_cleaning",
-        "dataset_cleaning",
-        "data_preprocessing",
-        "csv",
-        "csv_processing",
-        "spreadsheet",
-      ],
+      tags: ["web_design", "ui_design", "accessibility", "ux_research", "prototyping"],
       capacity: 3,
       activeAssignments: 0,
       completedTasks: 28,
@@ -151,22 +218,46 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
     },
     {
       id: "pro_quickclean_csv",
-      displayName: "QuickClean CSV Services",
+      userId: "usr_provider_taylor",
+      displayName: "Taylor Bookkeeping",
+      payoutEmail: "taylor@example.com",
+      bio: "Independent bookkeeping specialist focused on reconciliations and clean financial records.",
       hourlyRateMinor: 3500, // $35/hr
-      tags: [
-        "data_cleaning",
-        "data_preprocessing",
-        "csv",
-        "csv_processing",
-        "spreadsheet",
-      ],
+      tags: ["bookkeeping", "financial_analysis", "reconciliation", "spreadsheet"],
       capacity: 2,
       activeAssignments: 0,
       completedTasks: 15,
       onTimeRatePct: 82.0,
       firstPassAcceptancePct: 76.0,
     },
-  ];
+    {
+      id: "pro_accessibility_dee",
+      userId: "usr_provider_dee",
+      displayName: "Dee Accessibility Consulting",
+      payoutEmail: "dee@example.com",
+      bio: "Accessibility specialist focused on practical audits and standards-informed recommendations.",
+      hourlyRateMinor: 6000,
+      tags: ["accessibility", "wcag", "web_accessibility", "usability"],
+      capacity: 2,
+      activeAssignments: 0,
+      completedTasks: 19,
+      onTimeRatePct: 94.0,
+      firstPassAcceptancePct: 91.0,
+    },
+  ] satisfies Array<{
+    id: string;
+    userId: string;
+    displayName: string;
+    payoutEmail: string;
+    bio: string;
+    hourlyRateMinor: number;
+    tags: string[];
+    capacity: number;
+    activeAssignments: number;
+    completedTasks: number;
+    onTimeRatePct: number;
+    firstPassAcceptancePct: number;
+  }>;
 
   for (const spec of providerSpecs) {
     const existing = await db
@@ -178,13 +269,14 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
     if (existing.length === 0) {
       await db.insert(providers).values({
         id: spec.id,
-        userId: (spec as any).userId ?? null,
+        userId: spec.userId,
         displayName: spec.displayName,
         type: "HUMAN",
         status: "ACTIVE",
+        bio: spec.bio,
         hourlyRateMinor: spec.hourlyRateMinor,
         currency: "USD",
-        payoutEmail: (spec as any).payoutEmail ?? null,
+        payoutEmail: spec.payoutEmail,
       });
 
       await db.insert(capabilities).values(
@@ -216,11 +308,87 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       await db
         .update(providers)
         .set({
-          userId: (spec as any).userId ?? null,
-          payoutEmail: (spec as any).payoutEmail ?? null,
+          userId: spec.userId,
+          displayName: spec.displayName,
+          bio: spec.bio,
+          hourlyRateMinor: spec.hourlyRateMinor,
+          payoutEmail: spec.payoutEmail,
+          status: "ACTIVE",
+          updatedAt: new Date(),
         })
         .where(eq(providers.id, spec.id));
     }
+  }
+
+  const reviewerSpecs = [
+    {
+      userId: "usr_reviewer_jamie",
+      displayName: "Jamie Accessibility Reviewer",
+      summary: "Independent review of web accessibility evidence and remediation plans.",
+      feeMinor: 18000,
+      domainTag: "accessibility",
+      scope: "Reviews keyboard access, semantic structure, and documented accessibility findings.",
+    },
+    {
+      userId: "usr_reviewer_morgan",
+      displayName: "Morgan Finance Reviewer",
+      summary: "Independent review of bookkeeping reconciliations and financial summaries.",
+      feeMinor: 22000,
+      domainTag: "bookkeeping",
+      scope: "Reviews reconciliations, traceability, and consistency of financial summaries.",
+    },
+  ];
+  for (const reviewer of reviewerSpecs) {
+    const [existing] = await db
+      .select({ id: reviewerProfiles.id })
+      .from(reviewerProfiles)
+      .where(eq(reviewerProfiles.userId, reviewer.userId))
+      .limit(1);
+    const profileId = existing?.id ?? newId("reviewer");
+    const profileValues = {
+      userId: reviewer.userId,
+      displayName: reviewer.displayName,
+      publicContactUrl: null,
+      isListed: true,
+      available: true,
+      summary: reviewer.summary,
+      languages: ["English"],
+      feeMinor: reviewer.feeMinor,
+      currency: "USD",
+      typicalTurnaroundDays: 4,
+      conflictDisclosureConfirmed: true,
+      updatedAt: new Date(),
+    };
+    if (existing) {
+      await db
+        .update(reviewerProfiles)
+        .set(profileValues)
+        .where(eq(reviewerProfiles.id, profileId));
+    } else {
+      await db.insert(reviewerProfiles).values({ id: profileId, ...profileValues });
+    }
+
+    await db.delete(reviewerExpertise).where(eq(reviewerExpertise.profileId, profileId));
+    await db.delete(reviewerEvidence).where(eq(reviewerEvidence.profileId, profileId));
+    await db.insert(reviewerExpertise).values({
+      id: newId("rex"),
+      profileId,
+      domainTag: reviewer.domainTag,
+      scope: reviewer.scope,
+      selfAssessedLevel: 4,
+      yearsExperience: 6,
+      methods: ["evidence review", "written findings"],
+    });
+    await db.insert(reviewerEvidence).values({
+      id: newId("revd"),
+      profileId,
+      kind: "EXPERIENCE",
+      title: "Reviewer-supplied experience summary",
+      description: `Synthetic test profile for ${reviewer.domainTag}; this claim is not verified.`,
+      url: null,
+      issuer: null,
+      provenance: "REVIEWER_SUPPLIED",
+    });
   }
 
   // 3. Demo CSV Fixtures

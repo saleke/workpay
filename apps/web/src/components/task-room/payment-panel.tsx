@@ -12,10 +12,10 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <Wallet className="h-4 w-4 text-primary" /> PayPal Settlement Ledger
+            <Wallet className="h-4 w-4 text-primary" /> Payment policy simulation
           </CardTitle>
           <CardDescription>
-            No payment has been initialized for this contract yet. Authorization hold is created once the contract is approved.
+            No simulated payment has been initialized. Approving task terms does not authorize or move money.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -39,9 +39,9 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <ShieldCheck className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Settlement Capture Succeeded</div>
+            <div className="font-semibold text-base">Simulated capture passed</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              {amount} has been captured from PayPal authorization hold and disbursed directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "specialist account"} via PayPal Payouts API. Release was triggered only after deterministic acceptance proof completed with zero defects.
+              The policy simulation recorded a capture of {amount}. No funds were charged, held, or paid to a professional.
             </p>
           </div>
         </div>
@@ -51,9 +51,9 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">PayPal Authorization Hold Active</div>
+            <div className="font-semibold text-base">Simulated authorization active</div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              {amount} is secured in PayPal authorization hold. Funds cannot be captured until verification completes. Upon passing, settlement will disburse directly to {payment.payoutEmail ? <span className="font-mono font-semibold underline">{payment.payoutEmail}</span> : "assigned specialist"}.
+              WorkPay is testing the authorization and policy states for {amount}. This is not a PayPal hold and no funds have moved.
             </p>
           </div>
         </div>
@@ -63,14 +63,14 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
         <CardHeader className="border-b border-border/60 bg-muted/20 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Wallet className="h-4 w-4 text-primary" /> PayPal Transaction Ledger
+              <Wallet className="h-4 w-4 text-primary" /> Simulated payment lifecycle
             </CardTitle>
             <StatusBadge tone={paymentStatusTone(payment.status)}>
               {paymentStatusLabel(payment.status)}
             </StatusBadge>
           </div>
           <CardDescription className="mt-0.5">
-            Immutable financial state tracked via PostgreSQL outbox and synced with PayPal Orders v2 and Payouts v1.
+            Validation data for policy, idempotency, and state transitions. Live payment execution is disabled.
           </CardDescription>
         </CardHeader>
 
@@ -89,32 +89,32 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
 
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                PayPal Authorization ID
+                Authorization reference
               </span>
               <span className="text-xs font-mono font-semibold text-foreground mt-1 block truncate">
                 {payment.paypalAuthorizationId ?? "Pending Approval"}
               </span>
-              <span className="text-[11px] text-muted-foreground">Pre-authorized hold token</span>
+              <span className="text-[11px] text-muted-foreground">Simulation reference only</span>
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                PayPal Capture ID
+                Capture reference
               </span>
               <span className="text-xs font-mono font-semibold text-foreground mt-1 block truncate">
                 {payment.paypalCaptureId ?? "Awaiting Verification"}
               </span>
-              <span className="text-[11px] text-muted-foreground">Final settlement token</span>
+              <span className="text-[11px] text-muted-foreground">Simulation reference only</span>
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                Provider Payout Destination
+                Execution mode
               </span>
-              <span className="text-xs font-mono font-semibold text-foreground mt-1 block truncate" title={payment.payoutEmail ?? "Pending Assignment"}>
-                {payment.payoutEmail ?? "Pending Assignment"}
+              <span className="text-xs font-semibold text-foreground mt-1 block">
+                No money movement
               </span>
-              <span className="text-[11px] text-muted-foreground">Direct PayPal recipient</span>
+              <span className="text-[11px] text-muted-foreground">Validation-only environment</span>
             </div>
           </div>
 

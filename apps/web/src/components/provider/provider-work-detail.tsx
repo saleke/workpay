@@ -134,7 +134,7 @@ export function ProviderWorkDetail({
                 {busy === "accept" ? "Accepting..." : "Accept work"}
               </button>
               <span className="lbl">
-                {moneyAmount} is secured via PayPal authorization hold.
+                {moneyAmount} is the agreed amount used by the payment-policy simulation. No funds are held.
               </span>
             </div>
           )}

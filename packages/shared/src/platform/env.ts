@@ -110,6 +110,14 @@ export const envSchema = z
     PERSONA_WEBHOOK_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
+    if (env.PAYMENT_GATEWAY === "paypal") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["PAYMENT_GATEWAY"],
+        message:
+          "Live payments are disabled while the user-led lifecycle is being validated. Use PAYMENT_GATEWAY=fake.",
+      });
+    }
     if (env.AI_PROVIDER === "openai" && !env.OPENAI_API_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -154,21 +162,6 @@ export const envSchema = z
           path: ["CLOUDFLARE_API_TOKEN"],
           message: "CLOUDFLARE_API_TOKEN is required when INTAKE_AI_PROVIDER=cloudflare",
         });
-      }
-    }
-    if (env.PAYMENT_GATEWAY === "paypal") {
-      for (const key of [
-        "PAYPAL_CLIENT_ID",
-        "PAYPAL_CLIENT_SECRET",
-        "PAYPAL_WEBHOOK_ID",
-      ] as const) {
-        if (!env[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required when PAYMENT_GATEWAY=paypal`,
-          });
-        }
       }
     }
   });

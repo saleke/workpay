@@ -27,13 +27,12 @@ import type {
   AcceptancePlanDto,
   AgentActionType,
 } from "@/lib/api/types";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: taskId } = await params;
+    await requireTaskOwner(req, taskId);
     const db = getDb();
     const task = await getTaskById(db, taskId);
 
@@ -137,14 +136,16 @@ export async function GET(
 
     if (selection) {
       const candidates = (selection.candidates as ProviderSnapshotDto[]) ?? [];
-      const topPick = candidates.find((c) => c.providerId === selection.providerId) ?? candidates[0] ?? null;
+      const topPick = selection.providerId
+        ? candidates.find((c) => c.providerId === selection.providerId) ?? null
+        : null;
       const alternatives = candidates.filter((c) => c.providerId !== selection.providerId);
 
       providerSelectionDto = {
         id: selection.id,
         taskId: selection.taskId,
         contractId: selection.contractId,
-        status: selection.status as "SELECTED" | "FAILED" | "EXPIRED",
+        status: selection.status as ProviderSelectionDto["status"],
         provider: topPick,
         alternatives,
         reason: selection.reason,
@@ -253,7 +254,12 @@ export async function GET(
           id: imp.id,
           caseId: imp.caseId,
           kind: imp.impact,
-          detail: typeof imp.detail === "string" ? imp.detail : imp.detail ? JSON.stringify(imp.detail) : null,
+          detail:
+            typeof imp.detail === "string"
+              ? imp.detail
+              : imp.detail
+                ? JSON.stringify(imp.detail)
+                : null,
         })),
       createdAt: c.openedAt.toISOString(),
       resolvedAt: c.resolvedAt?.toISOString() ?? null,

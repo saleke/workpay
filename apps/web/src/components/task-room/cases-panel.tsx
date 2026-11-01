@@ -1,4 +1,4 @@
-import { AlertTriangle, Scale } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { caseStatusLabel } from "@/lib/status";
@@ -22,9 +22,12 @@ export function CasesPanel({ cases }: { cases: CaseDto[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Scale className="h-4 w-4" /> Human review
+          <AlertTriangle className="h-4 w-4" /> Case status
         </CardTitle>
-        <CardDescription>Cases that need a person to decide.</CardDescription>
+        <CardDescription>
+          A case is a platform status signal, not a decision about work quality. Any independent review
+          is agreed and handled by the task participants.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
         {cases.map((c) => (
@@ -43,7 +46,7 @@ export function CasesPanel({ cases }: { cases: CaseDto[] }) {
             <p className="text-sm text-muted-foreground">{c.summary}</p>
             {c.blocksPaymentCapture ? (
               <p className="flex items-center gap-1 text-xs text-amber-700">
-                <AlertTriangle className="h-3.5 w-3.5" /> While open, payment capture is blocked.
+                <AlertTriangle className="h-3.5 w-3.5" /> Payment capture remains blocked while this case is open.
               </p>
             ) : null}
           </div>

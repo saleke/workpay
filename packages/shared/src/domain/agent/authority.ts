@@ -18,7 +18,7 @@
  * or a database.
  */
 
-export const AGENT_AUTHORITY_VERSION = "agent-authority-v1";
+export const AGENT_AUTHORITY_VERSION = "agent-authority-v2";
 
 export type AgentActionType =
   | "CREATE_PLAN"
@@ -40,6 +40,21 @@ const MONEY_ACTIONS: ReadonlySet<AgentActionType> = new Set(["ACCEPT_OFFER", "AU
 
 /** Actions that require the deterministic payment policy engine to also allow. */
 const POLICY_GATED_ACTIONS: ReadonlySet<AgentActionType> = new Set(["AUTHORIZE_PAYMENT"]);
+
+/** Legacy actions that now require an explicit human or deterministic system action. */
+const RETIRED_AGENT_ACTIONS: ReadonlySet<AgentActionType> = new Set([
+  "CREATE_PLAN",
+  "REQUEST_CLARIFICATION",
+  "CREATE_CONTRACT",
+  "SELECT_PROVIDER",
+  "START_NEGOTIATION",
+  "SEND_OFFER",
+  "ACCEPT_OFFER",
+  "AUTHORIZE_PAYMENT",
+  "REQUEST_REVISION",
+  "OPEN_CASE",
+  "COMPLETE_TASK",
+]);
 
 export interface AgentAuthorityInput {
   actionType: AgentActionType;
@@ -88,6 +103,12 @@ export function evaluateAgentAuthority(input: AgentAuthorityInput): AgentAuthori
   }
   if (input.task.terminal) {
     return deny("agent.task_terminal", "The task is in a terminal state");
+  }
+  if (RETIRED_AGENT_ACTIONS.has(input.actionType)) {
+    return deny(
+      "agent.explicit_authority_required",
+      "This action requires an explicit participant or deterministic system decision",
+    );
   }
 
   if (MONEY_ACTIONS.has(input.actionType)) {

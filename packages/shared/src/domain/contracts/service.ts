@@ -194,8 +194,17 @@ export async function approveContract(
     .select()
     .from(workContracts)
     .where(eq(workContracts.id, options.contractId))
+    .for("update")
     .limit(1);
   if (!contract) throw notFound("Contract");
+  const [task] = await tx
+    .select()
+    .from(tasks)
+    .where(eq(tasks.id, contract.taskId))
+    .limit(1);
+  if (!task || options.actor.kind !== "USER" || options.actor.id !== task.userId) {
+    throw notFound("Contract");
+  }
   if (contract.status !== "AWAITING_APPROVAL") {
     throw conflict(`Contract cannot be approved from status ${contract.status}`);
   }
@@ -227,8 +236,7 @@ export async function approveContract(
 
   // Approving the contract is the buyer's decision that unlocks provider search;
   // advance the task so the next agent step has an APPROVED task to act on.
-  const [task] = await tx.select().from(tasks).where(eq(tasks.id, contract.taskId)).limit(1);
-  if (task && canTransition(task.status, "APPROVED")) {
+  if (canTransition(task.status, "APPROVED")) {
     await transitionTask(tx, {
       taskId: task.id,
       to: "APPROVED",

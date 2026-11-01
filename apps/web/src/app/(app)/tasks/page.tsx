@@ -271,7 +271,7 @@ export default function TasksPage() {
                 break;
               case "HUMAN_REVIEW":
                 statusBadge = "bg-amber-100 text-amber-800";
-                statusLabel = "In Arbitration";
+                statusLabel = "Independent Review Needed";
                 break;
               case "PAYMENT_RELEASE":
               case "COMPLETED":
@@ -319,7 +319,7 @@ export default function TasksPage() {
                   <div className="text-right">
                     <div className="text-base font-bold text-[var(--charcoal)]">{moneyStr}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">
-                      {isCompleted ? "Paid upon proof" : "PayPal Authorization Hold"}
+                      {isCompleted ? "Simulation completed" : "Agreed budget"}
                     </div>
                   </div>
 

@@ -24,11 +24,11 @@ export function VerificationView({ verification }: { verification: VerificationD
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">PayPal Authorization Hold Maintained</div>
+            <div className="font-semibold text-base">Payment simulation remains blocked</div>
             <p className="mt-0.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
               {isFailed
-                ? "The deliverable failed deterministic validation checks. Funds are strictly held in PayPal authorization hold and cannot be captured until a compliant revision is verified."
-                : "Verification requires human arbitration. Funds remain protected in PayPal authorization hold until an arbitrator resolves the case."}
+                ? "A deterministic check failed on the specific property it tests. Review the finding with the professional. Payment-policy simulation is evaluated separately."
+                : "The evidence is inconclusive. AI findings are advisory and WorkPay does not provide a reviewer or adjudicator. Use the contract's independent-review process; payment cannot proceed from this result alone."}
             </p>
           </div>
         </div>
@@ -38,9 +38,9 @@ export function VerificationView({ verification }: { verification: VerificationD
             <ShieldCheck className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Cryptographic Proof Verified</div>
+            <div className="font-semibold text-base">Deterministic checks passed</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              All acceptance criteria passed deterministic and semantic evaluation. PayPal capture policy gate has approved fund release to the provider.
+              The automated checks passed only the specific properties they test. This is not a general quality judgment, and simulated capture remains subject to its separate policy gate.
             </p>
           </div>
         </div>
@@ -50,7 +50,7 @@ export function VerificationView({ verification }: { verification: VerificationD
         <CardHeader className="border-b border-border/60 bg-muted/20 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-base font-semibold">Verification Proof Matrix</CardTitle>
+              <CardTitle className="text-base font-semibold">Evidence check matrix</CardTitle>
               <CardDescription className="mt-0.5">
                 Evaluated against Contract Version {verification.contractVersion}:{" "}
                 <strong className="text-emerald-600 font-medium">{verification.passedRequirements} passed</strong>,{" "}
@@ -64,7 +64,7 @@ export function VerificationView({ verification }: { verification: VerificationD
                 {verificationOutcomeLabel(verification.outcome)}
               </StatusBadge>
             ) : (
-              <StatusBadge tone="progress">Evaluating Proofs...</StatusBadge>
+              <StatusBadge tone="progress">Evaluating evidence…</StatusBadge>
             )}
           </div>
         </CardHeader>

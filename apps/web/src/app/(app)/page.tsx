@@ -120,32 +120,31 @@ export default function HomeDashboardPage() {
         </div>
       </div>
 
-      {/* 2. Commitment Summary Ribbon (Real PayPal Authorization Data - Section 5 & 12) */}
+      {/* 2. Commitment Summary Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>PayPal Authorization Hold</span>
+            <span>Simulated authorization</span>
             <ShieldCheck className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {commitments.held}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Secured externally via PayPal authorization hold. Captured only after proof verification
-            passes.
+            Agreement amounts currently exercising the payment-policy path. No funds are held.
           </p>
         </div>
 
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Verified & Settled</span>
+            <span>Simulated captures</span>
             <CheckCircle2 className="h-4 w-4 text-[var(--green)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {commitments.settled}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Released to providers following cryptographically confirmed deliverables.
+            Capture paths accepted by policy during validation. No professional was paid.
           </p>
         </div>
 

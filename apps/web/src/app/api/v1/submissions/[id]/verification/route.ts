@@ -3,6 +3,7 @@ import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { verificationRuns, verificationResults, evidence } from "@workpay/shared/db/schema/verification";
 import { contractRequirements } from "@workpay/shared/db/schema/contracts";
 import type { VerificationDto, VerificationResultDto } from "@/lib/api/types";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 
 export async function GET(
   req: Request,
@@ -22,6 +23,7 @@ export async function GET(
     if (!run) {
       return jsonError({ code: "NOT_FOUND", message: "Verification not found for submission" }, 404);
     }
+    await requireTaskOwner(req, run.taskId);
 
     const results = await db
       .select()

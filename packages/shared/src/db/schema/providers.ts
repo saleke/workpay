@@ -124,7 +124,7 @@ export const providerSelections = pgTable(
       onDelete: "set null",
     }),
     status: providerSelectionStatusEnum("status").notNull().default("SELECTED"),
-    /** Full ranked candidate list with scores, for audit and the UI. */
+    /** Candidate profile snapshots shown to the buyer; discovery never selects a provider. */
     candidates: jsonb("candidates"),
     /** Deterministic human-readable reason for the top pick. */
     reason: text("reason"),

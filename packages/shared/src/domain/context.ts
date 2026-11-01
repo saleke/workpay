@@ -22,8 +22,8 @@ export function userActor(userId: string, role: Actor["role"] = "buyer"): Actor 
   return { kind: "USER", id: userId, role };
 }
 
-export function providerActor(providerId: string): Actor {
-  return { kind: "PROVIDER", id: providerId };
+export function providerActor(userId: string): Actor {
+  return { kind: "PROVIDER", id: userId, role: "provider" };
 }
 
 export function reviewerActor(userId: string): Actor {

@@ -60,10 +60,10 @@ function humanizeStatus(status: unknown): string {
     case "REVISION_REQUIRED":
       return "Revision Requested";
     case "HUMAN_REVIEW":
-      return "In Arbitration";
+      return "Independent review needed";
     case "PAYMENT_RELEASE":
     case "COMPLETED":
-      return "Settled";
+      return "Completed";
     case "CANCELLED":
     case "EXPIRED":
       return "Closed";
@@ -114,8 +114,8 @@ function humanizeAgentAction(actionType: unknown): { title: string; description:
       };
     case "TRIGGER_CAPTURE":
       return {
-        title: "Settlement Dispatched",
-        description: "WorkPay Agent confirmed proof verification and dispatched direct capture of PayPal funds.",
+        title: "Capture simulation requested",
+        description: "The legacy workflow requested a payment-policy simulation; no funds were moved.",
       };
     default: {
       const cleanName = act
@@ -274,50 +274,50 @@ export function describeEvent(
       const act = String(p.action || "CAPTURE").toLowerCase();
       const code = String(p.reasonCode || p.result || "APPROVED");
       return {
-        title: "Settlement policy evaluated",
-        description: `Deterministic settlement rule evaluated for ${act} (${code}).`,
+        title: "Payment policy evaluated",
+        description: `Deterministic payment simulation evaluated ${act} (${code}).`,
       };
     }
     case "PAYMENT_AUTHORIZATION_REQUESTED": {
       const { name: subj, isSelf } = resolveSubject(context, "Task Owner");
       return {
-        title: "Authorizing payment hold",
+        title: "Simulating authorization",
         description: isSelf
-          ? "You initiated the PayPal authorization hold."
-          : `${subj} initiated the PayPal authorization hold.`,
+          ? "You initiated a payment authorization simulation."
+          : `${subj} initiated a payment authorization simulation.`,
       };
     }
     case "PAYMENT_AUTHORIZED": {
       const { name: subj, isSelf } = resolveSubject(context, "Task Owner");
       const money = formatMoney(p.amount);
       return {
-        title: "Payment hold secured",
+        title: "Simulated authorization recorded",
         description: isSelf
-          ? `You secured a non-custodial PayPal payment hold of ${money}.`
-          : `${subj} secured a non-custodial PayPal payment hold of ${money}.`,
+          ? `You recorded a simulated authorization of ${money}; no funds were held.`
+          : `${subj} recorded a simulated authorization of ${money}; no funds were held.`,
       };
     }
     case "PAYMENT_AUTHORIZATION_FAILED":
       return {
-        title: "Payment authorization failed",
-        description: String(p.reason ?? "The PayPal authorization hold could not be secured."),
+        title: "Payment simulation failed",
+        description: String(p.reason ?? "The payment authorization simulation failed."),
       };
     case "CAPTURE_COMMAND_CREATED":
       return {
-        title: "Settlement approved by policy",
-        description: "Deterministic policy confirmed verification checks and approved settlement.",
+        title: "Simulated capture approved by policy",
+        description: "Deterministic policy confirmed that the simulated capture path was eligible.",
       };
     case "PAYMENT_CAPTURED": {
       const money = formatMoney(p.amount);
       return {
-        title: "Payment released",
-        description: `Payment of ${money} captured from PayPal authorization hold and settled directly to specialist.`,
+        title: "Simulated capture recorded",
+        description: `The simulation recorded capture eligibility for ${money}; no funds were moved.`,
       };
     }
     case "PAYMENT_CAPTURE_FAILED":
       return {
-        title: "Payment settlement failed",
-        description: String(p.reason ?? "The capture transaction could not be executed."),
+        title: "Capture simulation failed",
+        description: String(p.reason ?? "The simulated capture could not be completed."),
       };
     case "PROVIDER_ACCEPTED": {
       const { name: subj, isSelf } = resolveSubject(context, "Specialist");
@@ -384,22 +384,23 @@ export function describeEvent(
     }
     case "VERIFICATION_UNCERTAIN":
       return {
-        title: "Human review required",
-        description: "Automated checks flagged an ambiguity in deliverables. Case routed to arbitration.",
+        title: "Verification is uncertain",
+        description:
+          "Automated checks could not confidently assess the deliverable. The parties should use their agreed independent-review or evidence process; WorkPay does not decide the result.",
       };
     case "CASE_OPENED":
       return {
-        title: "Arbitration case opened",
-        description: `Review case opened for ${String(p.category || "deliverable review").toLowerCase()} (${String(p.severity || "standard").toLowerCase()} priority).`,
+        title: "Case opened",
+        description: `A case was opened for ${String(p.category || "a platform issue").toLowerCase()} (${String(p.severity || "standard").toLowerCase()} priority).`,
       };
     case "CASE_RESOLVED": {
-      const { name: subj, isSelf } = resolveSubject(context, "Arbitrator");
+      const { name: subj, isSelf } = resolveSubject(context, "Platform reviewer");
       const outcome = String(p.outcome || "resolved");
       return {
-        title: "Arbitration ruling issued",
+        title: "Platform case updated",
         description: isSelf
-          ? `You resolved the arbitration case with outcome: ${outcome}.`
-          : `${subj} resolved the arbitration case with outcome: ${outcome}.`,
+          ? `You updated the platform exception case with outcome: ${outcome}.`
+          : `${subj} updated the platform exception case with outcome: ${outcome}.`,
       };
     }
     case "AGENT_ACTION_RECORDED":
@@ -490,4 +491,3 @@ export async function getTaskActivity(
       };
     });
 }
-

@@ -191,22 +191,189 @@ export interface AgentActionDto {
 export interface ProviderSnapshotDto {
   providerId: string;
   displayName: string;
+  bio?: string | null;
+  capabilities?: Array<{ tag: string; proficiency: number }>;
   firstPassAcceptancePct?: number;
   onTimeRatePct?: number;
   completedTasks?: number;
   priceMinor?: number;
   currency?: string;
+  eligible?: boolean;
+  reason?: string;
+  score?: number;
 }
 
 export interface ProviderSelectionDto {
   id: string;
   taskId: string;
   contractId: string;
-  status: "SELECTED" | "FAILED" | "EXPIRED";
+  status: "SELECTED" | "CANDIDATES_AVAILABLE" | "FAILED" | "EXPIRED";
   provider: ProviderSnapshotDto | null;
   alternatives: ProviderSnapshotDto[];
   reason: string | null;
   createdAt: string;
+}
+
+export interface ReviewerExpertiseDto {
+  domainTag: string;
+  scope: string;
+  selfAssessedLevel: number;
+  yearsExperience: number | null;
+  methods: string[];
+}
+
+export interface ReviewerEvidenceDto {
+  kind: "PORTFOLIO" | "CREDENTIAL" | "EXPERIENCE" | "REFERENCE";
+  title: string;
+  description: string;
+  url: string | null;
+  issuer: string | null;
+  provenance?: "REVIEWER_SUPPLIED";
+}
+
+export interface ReviewerProfileDto {
+  id: string;
+  isListed: boolean;
+  available: boolean;
+  displayName: string;
+  publicContactUrl: string | null;
+  summary: string;
+  languages: string[];
+  feeMinor: number | null;
+  currency: string;
+  typicalTurnaroundDays: number | null;
+  conflictDisclosureConfirmed: boolean;
+  expertise: ReviewerExpertiseDto[];
+  evidence: ReviewerEvidenceDto[];
+  conflicts: Array<{ username: string | null; displayName: string | null }>;
+}
+
+export interface ReviewerProfileInputDto {
+  isListed: boolean;
+  available: boolean;
+  displayName: string;
+  publicContactUrl: string | null;
+  summary: string;
+  languages: string[];
+  feeMinor: number | null;
+  typicalTurnaroundDays: number | null;
+  conflictDisclosureConfirmed: boolean;
+  conflictUsernames: string[];
+  expertise: ReviewerExpertiseDto[];
+  evidence: Array<Omit<ReviewerEvidenceDto, "provenance">>;
+}
+
+export interface ReviewerRecommendationDto {
+  userId: string;
+  username: string | null;
+  displayName: string;
+  publicContactUrl: string | null;
+  summary: string;
+  feeMinor: number | null;
+  currency: string;
+  languages: string[];
+  typicalTurnaroundDays: number | null;
+  matchedDomains: string[];
+  matchingExpertise: ReviewerExpertiseDto[];
+  evidence: Array<ReviewerEvidenceDto & { id: string }>;
+  rationale: string[];
+  profileEvidence: "NONE" | "REVIEWER_SUPPLIED";
+}
+
+export interface TaskReviewerRecommendationsDto {
+  contractVersion: number | null;
+  suggestedDomains: string[];
+  requiredDomains: string[];
+  recommendations: ReviewerRecommendationDto[];
+  reason: string;
+}
+
+export interface IndependentReviewFindingDto {
+  requirementKey: string;
+  outcome: VerificationOutcome;
+  rationale: string;
+  evidence: Array<{ description: string; url?: string }>;
+}
+
+export interface IndependentReviewReportDto {
+  id: string;
+  engagementId: string;
+  taskId: string;
+  submissionId: string;
+  contractVersion: number;
+  contractHash: string;
+  reviewerUserId: string;
+  outcome: VerificationOutcome;
+  rationale: string;
+  findings: IndependentReviewFindingDto[];
+  createdAt: string;
+}
+
+export interface IndependentReviewEngagementDto {
+  id: string;
+  taskId: string;
+  conversationId: string;
+  contractId: string;
+  contractVersion: number;
+  contractHash: string;
+  buyerUserId: string;
+  providerUserId: string;
+  reviewerUserId: string;
+  proposerUserId: string;
+  requirementKeys: string[];
+  domains: string[];
+  authority: "CONTRACTUAL_ACCEPTANCE";
+  feeMinor: number | null;
+  feeCurrency: string;
+  feePayer: "BUYER" | "PROVIDER" | "SHARED" | "DIRECT";
+  status:
+    | "PROPOSED"
+    | "AWAITING_REVIEWER"
+    | "ENGAGED"
+    | "INCONCLUSIVE"
+    | "CLOSED"
+    | "DECLINED"
+    | "CANCELLED";
+  buyerAcceptedAt: string | null;
+  providerAcceptedAt: string | null;
+  reviewerAcceptedAt: string | null;
+  reviewerConflictConfirmed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  reports: IndependentReviewReportDto[];
+  contractContext?: {
+    title: string;
+    summary: string;
+    requirements: Array<{
+      key: string;
+      statement: string;
+      acceptanceRelevant: boolean;
+      reviewInstructions: Array<{
+        method: "DETERMINISTIC" | "SEMANTIC" | "HUMAN_REVIEW";
+        instructions: string | null;
+      }>;
+    }>;
+    included: string[];
+    excluded: string[];
+  };
+  latestSubmission?: {
+    id: string;
+    taskId: string;
+    contractVersion: number;
+    contractHash: string;
+    status: "SUBMITTED" | "UNDER_REVIEW";
+    submittedAt: string | null;
+    notes: string | null;
+    submissionHash: string | null;
+    artifacts: Array<{
+      id: string;
+      submissionId: string;
+      type: "PRIMARY_DELIVERABLE" | "SUPPORTING_FILE" | "EVIDENCE";
+      filename: string;
+      contentType: string | null;
+      sizeBytes: number;
+    }>;
+  } | null;
 }
 
 export interface OfferDto {
@@ -256,6 +423,7 @@ export interface PaymentDto {
   amountMinor: number;
   currency: string;
   status: PaymentStatus;
+  mode: "SIMULATED" | "LIVE";
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
   payoutEmail?: string | null;
@@ -390,6 +558,117 @@ export interface TaskRoomDto {
   cases: CaseDto[];
 }
 
+export interface TaskConversationMessageDto {
+  id: string;
+  conversationId: string;
+  sequence: number;
+  clientMessageId: string;
+  authorUserId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface ConversationContractSnapshotDto {
+  id: string;
+  version: number;
+  hash: string;
+  title: string;
+  summary: string;
+  requirements: Array<{ key: string; statement: string; acceptanceRelevant: boolean }>;
+  included: string[];
+  excluded: string[];
+  acceptanceRules: Array<{
+    requirementKey: string;
+    method: "DETERMINISTIC" | "SEMANTIC" | "HUMAN_REVIEW";
+    params?: Record<string, unknown>;
+    instructions?: string;
+  }>;
+  budget: Money;
+  agreedPrice?: Money | null;
+  deadline: string | null;
+}
+
+export interface TaskConversationDto {
+  id: string;
+  taskId: string;
+  buyerUserId: string;
+  providerId: string;
+  providerUserId: string;
+  providerDisplayName?: string;
+  status: "CONTACT_PENDING" | "OPEN" | "DECLINED" | "CLOSED";
+  contactApprovedAt: string;
+  contactApprovedContractVersion: number;
+  contactApprovedContractHash: string;
+  currentContractVersion: number;
+  currentContractHash: string;
+  currentContractSnapshot: ConversationContractSnapshotDto;
+  contractSnapshot: ConversationContractSnapshotDto;
+  providerRespondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages: TaskConversationMessageDto[];
+}
+
+export interface ContractChangeTermsDto {
+  title: string;
+  summary: string;
+  requirements: Array<{ key: string; statement: string; acceptanceRelevant: boolean }>;
+  included: string[];
+  excluded: string[];
+  acceptanceRules: Array<{
+    requirementKey: string;
+    method: "DETERMINISTIC" | "SEMANTIC" | "HUMAN_REVIEW";
+    params?: Record<string, unknown>;
+    instructions?: string;
+  }>;
+  budget: Money;
+  agreedPriceMinor: number | null;
+  deadline: string | null;
+}
+
+export interface ContractChangeRequestDto {
+  id: string;
+  taskId: string;
+  conversationId: string;
+  baseContractId: string;
+  baseContractVersion: number;
+  baseContractHash: string;
+  proposerUserId: string;
+  respondentUserId: string;
+  reason: string;
+  proposedTerms: ContractChangeTermsDto;
+  proposedTermsHash: string;
+  proposedContractHash: string;
+  proposedBudgetMinor: number;
+  proposedAgreedPriceMinor: number | null;
+  currency: string;
+  paymentAdjustmentPlan: {
+    action: string;
+    targetAmountMinor?: number;
+    paymentId?: string;
+    deltaAmountMinor?: number;
+    refundAmountMinor?: number;
+  } | null;
+  status:
+    | "PROPOSED"
+    | "ACCEPTED_PENDING_ACTIVATION"
+    | "ACTIVATING"
+    | "ACTIVATION_FAILED"
+    | "ACTIVATION_RECONCILIATION_REQUIRED"
+    | "CANCELLATION_PENDING"
+    | "ACTIVATED"
+    | "DECLINED"
+    | "WITHDRAWN"
+    | "CANCELLED";
+  responseNote: string | null;
+  cancellationRequestedBy: string | null;
+  activatedContractId: string | null;
+  activatedAt: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApprovalResultDto {
   contractId: string;
   status: ContractStatus;
@@ -474,4 +753,3 @@ export interface TaskAuditStatusDto {
   latestCheckin: AuditCheckinDto | null;
   checkins: AuditCheckinDto[];
 }
-

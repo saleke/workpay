@@ -23,7 +23,8 @@ const navItems: NavLinkItem[] = [
   { href: "/payments", label: "Payments" },
   { href: "/activity", label: "Activity" },
   { href: "/provider", label: "Work Studio" },
-  { href: "/review", label: "Review" },
+  { href: "/reviewers", label: "Reviewers" },
+  { href: "/reviewer/engagements", label: "My reviews" },
   { href: "/settings", label: "Settings" },
 ];
 

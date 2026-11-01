@@ -32,6 +32,7 @@ import {
 import { workContracts } from "./contracts";
 import { providers } from "./providers";
 import { tasks } from "./tasks";
+import { taskConversations } from "./conversations";
 
 export const negotiations = pgTable(
   "negotiations",
@@ -113,9 +114,13 @@ export const commercialAgreements = pgTable(
     contractId: varchar("contract_id", { length: 64 })
       .notNull()
       .references(() => workContracts.id, { onDelete: "cascade" }),
-    negotiationId: varchar("negotiation_id", { length: 64 })
-      .notNull()
-      .references(() => negotiations.id, { onDelete: "cascade" }),
+    negotiationId: varchar("negotiation_id", { length: 64 }).references(() => negotiations.id, {
+      onDelete: "cascade",
+    }),
+    sourceConversationId: varchar("source_conversation_id", { length: 64 }).references(
+      () => taskConversations.id,
+      { onDelete: "restrict" },
+    ),
     providerId: varchar("provider_id", { length: 64 })
       .notNull()
       .references(() => providers.id, { onDelete: "cascade" }),
@@ -127,7 +132,7 @@ export const commercialAgreements = pgTable(
     status: agreementStatusEnum("status").notNull().default("PENDING_AUTHORIZATION"),
     agreedPriceMinor: bigint("agreed_price_minor", { mode: "number" }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
-    deliveryDeadline: timestamp("delivery_deadline", { withTimezone: true }).notNull(),
+    deliveryDeadline: timestamp("delivery_deadline", { withTimezone: true }),
     paymentTerms: paymentTermsTypeEnum("payment_terms").notNull().default("FULL_ON_ACCEPTANCE"),
     /** sha256 over the frozen commercial terms. */
     agreementHash: varchar("agreement_hash", { length: 64 }).notNull(),
@@ -163,5 +168,9 @@ export const commercialAgreementsRelations = relations(commercialAgreements, ({ 
   provider: one(providers, {
     fields: [commercialAgreements.providerId],
     references: [providers.id],
+  }),
+  conversation: one(taskConversations, {
+    fields: [commercialAgreements.sourceConversationId],
+    references: [taskConversations.id],
   }),
 }));

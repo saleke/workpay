@@ -1,6 +1,7 @@
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { getTaskActivity } from "@workpay/shared/domain";
 import type { ActivityEntryDto } from "@/lib/api/types";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 
 export async function GET(
   req: Request,
@@ -8,8 +9,12 @@ export async function GET(
 ) {
   try {
     const { id: taskId } = await params;
+    const { actor } = await requireTaskOwner(req, taskId);
     const db = getDb();
-    const rows = await getTaskActivity(db, taskId);
+    const rows = await getTaskActivity(db, taskId, {
+      allowedVisibilities: ["USER"],
+      viewerId: actor.id,
+    });
 
     const data: ActivityEntryDto[] = rows.map((r) => ({
       id: r.id,

@@ -6,6 +6,7 @@ import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { listProviderWork } from "@/lib/api/endpoints";
 import type { ProviderWorkDto } from "@/lib/api/types";
+import { ProviderConversationInbox } from "@/components/provider/provider-conversation-inbox";
 
 function getProviderRowInfo(w: ProviderWorkDto) {
   const isPaid = w.status === "COMPLETED";
@@ -34,7 +35,7 @@ function getProviderRowInfo(w: ProviderWorkDto) {
   } else if (isPaid) {
     stateLabel = "Settled";
     badgeClass = "bg-emerald-100 text-emerald-800";
-    noteText = "Every requirement met. PayPal payout released.";
+    noteText = "The validation workflow reached its completed state. No payout was made.";
   }
 
   const deadlineText = w.deadline
@@ -67,14 +68,17 @@ export default function ProviderPortalPage() {
 
   if (works.length === 0) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <Briefcase className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
-          No active work assignments
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          WorkPay matches specialist profiles with buyers based on verifiable skill fits and past cryptographic proofs. New orders will appear here automatically.
-        </p>
+      <div className="space-y-8 py-8">
+        <ProviderConversationInbox />
+        <div className="py-12 text-center max-w-md mx-auto">
+          <Briefcase className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
+            No active work assignments
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1.5">
+            New work appears here after an agreement is accepted and payment is ready.
+          </p>
+        </div>
       </div>
     );
   }
@@ -87,9 +91,12 @@ export default function ProviderPortalPage() {
           Specialist Work Studio
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Review assignments, deliver verifiable outputs, inspect cryptographic criteria proofs, and track settlement.
+          Review assignments, deliver verifiable outputs, inspect cryptographic criteria proofs, and
+          track settlement.
         </p>
       </div>
+
+      <ProviderConversationInbox />
 
       {/* 2. Work Orders List */}
       <div className="space-y-3">
@@ -104,28 +111,26 @@ export default function ProviderPortalPage() {
             >
               <div className="space-y-1.5 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${info.badgeClass}`}>
+                  <span
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${info.badgeClass}`}
+                  >
                     {info.stateLabel}
                   </span>
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {info.metaLine}
-                  </span>
+                  <span className="text-xs text-[var(--text-muted)]">{info.metaLine}</span>
                 </div>
 
                 <h2 className="text-base font-semibold text-[var(--charcoal)] group-hover:text-[var(--blue)] transition-colors">
                   {w.taskTitle}
                 </h2>
 
-                <p className="text-xs text-[var(--text-muted)]">
-                  {info.noteText}
-                </p>
+                <p className="text-xs text-[var(--text-muted)]">{info.noteText}</p>
               </div>
 
               <div className="flex items-center justify-between sm:justify-end gap-6 sm:border-l sm:border-[var(--border-subtle)] sm:pl-6 shrink-0">
                 <div className="text-right">
                   <div className="text-base font-bold text-[var(--charcoal)]">{info.moneyStr}</div>
                   <div className="text-[11px] text-[var(--text-muted)]">
-                    {info.isPaid ? "Paid upon proof" : "PayPal Authorization Hold"}
+                    {info.isPaid ? "Simulation completed" : "Agreed amount"}
                   </div>
                 </div>
 

@@ -3,7 +3,7 @@ import { ACTIONS, authorize, requireAuthorized, type Actor } from "./authorize.j
 
 const buyer: Actor = { kind: "USER", id: "user_buyer", role: "buyer" };
 const otherBuyer: Actor = { kind: "USER", id: "user_other", role: "buyer" };
-const provider: Actor = { kind: "PROVIDER", id: "provider_1", role: "provider" };
+const provider: Actor = { kind: "PROVIDER", id: "user_provider_1", role: "provider" };
 const reviewer: Actor = { kind: "USER", id: "user_reviewer", role: "admin_reviewer" };
 const system: Actor = { kind: "SYSTEM", id: null };
 const agent: Actor = {
@@ -28,8 +28,8 @@ describe("authorize (Component 13)", () => {
     expect(authorize(otherBuyer, ACTIONS.taskView, task).allowed).toBe(false);
   });
 
-  it("lets a reviewer view any task", () => {
-    expect(authorize(reviewer, ACTIONS.taskView, task).allowed).toBe(true);
+  it("does not give a reviewer global task access", () => {
+    expect(authorize(reviewer, ACTIONS.taskView, task).allowed).toBe(false);
   });
 
   it("only lets the owner approve a pending contract", () => {
@@ -61,7 +61,8 @@ describe("authorize (Component 13)", () => {
       type: "execution",
       id: "e1",
       ownerUserId: "user_buyer",
-      providerId: "provider_1",
+      providerId: "provider_profile_1",
+      providerUserId: "user_provider_1",
       status: "ACCEPTED",
     };
     expect(authorize(provider, ACTIONS.submissionCreate, execution).allowed).toBe(true);
@@ -69,7 +70,7 @@ describe("authorize (Component 13)", () => {
     const notStarted = { ...execution, status: "ASSIGNED" };
     expect(authorize(provider, ACTIONS.submissionCreate, notStarted).allowed).toBe(false);
 
-    const wrongProvider: Actor = { kind: "PROVIDER", id: "provider_2", role: "provider" };
+    const wrongProvider: Actor = { kind: "PROVIDER", id: "user_provider_2", role: "provider" };
     expect(authorize(wrongProvider, ACTIONS.submissionCreate, execution).allowed).toBe(false);
   });
 
@@ -82,10 +83,11 @@ describe("authorize (Component 13)", () => {
     expect(authorize(agent, ACTIONS.taskView, otherTask).allowed).toBe(false);
   });
 
-  it("only reviewers may resolve cases", () => {
+  it("reserves operational case resolution for system reconciliation", () => {
     const c = { type: "case", id: "case_1", ownerUserId: "user_buyer" };
-    expect(authorize(reviewer, ACTIONS.caseResolve, c).allowed).toBe(true);
+    expect(authorize(reviewer, ACTIONS.caseResolve, c).allowed).toBe(false);
     expect(authorize(buyer, ACTIONS.caseResolve, c).allowed).toBe(false);
+    expect(authorize(system, ACTIONS.caseResolve, c).allowed).toBe(true);
   });
 
   it("fails closed for an unknown action", () => {

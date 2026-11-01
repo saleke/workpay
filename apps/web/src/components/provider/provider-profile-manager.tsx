@@ -265,11 +265,6 @@ export function ProviderProfileManager() {
       return;
     }
 
-    if (!payoutEmail.trim() || !payoutEmail.includes("@")) {
-      toast.error("A valid PayPal payout email is required for settlement readiness");
-      return;
-    }
-
     setSaving(true);
     try {
       const payload = {
@@ -277,7 +272,7 @@ export function ProviderProfileManager() {
         bio: bio.trim() || null,
         hourlyRateMinor: Math.round(targetRate * 100),
         currency: "USD",
-        payoutEmail: payoutEmail.trim(),
+        payoutEmail: payoutEmail.trim() || null,
         status,
         capabilities,
         availability: {
@@ -405,7 +400,7 @@ export function ProviderProfileManager() {
           { key: "pricing", label: "Pricing & Commercials" },
           { key: "commitments", label: "Acceptance Rules" },
           { key: "execution", label: "Execution & Quality" },
-          { key: "payout", label: "Payout Readiness" },
+          { key: "payout", label: "Payment Validation" },
         ].map((sec) => (
           <button
             key={sec.key}
@@ -1087,8 +1082,36 @@ export function ProviderProfileManager() {
         </Card>
       )}
 
-      {/* SECTION G: PAYOUT READINESS */}
+      {/* SECTION G: PAYMENT VALIDATION */}
       {activeSection === "payout" && (
+        <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+          <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
+              Payment integration is not active
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+              Professional profiles do not require or expose a payout destination during lifecycle validation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
+            <p>
+              Agreed prices can be exercised through the payment-policy simulation, but no funds are
+              charged or paid. A future marketplace payment design will require separate professional
+              onboarding and explicit buyer approval at the payment provider.
+            </p>
+            <Button asChild variant="outline" size="sm" className="text-xs font-medium gap-1.5">
+              <Link href="/payments">
+                <span>View simulation records</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Legacy payout form retained temporarily for migration reference. */}
+      {Boolean(0) && activeSection === "payout" && (
         <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">

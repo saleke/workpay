@@ -7,26 +7,70 @@
  * bound to the contract hash they were produced against, so a resubmission after
  * a contract change is detectable.
  */
-import { and, desc, eq } from "drizzle-orm";
-import type { Database } from "../../db/client.js";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { withTransaction, type Database } from "../../db/client.js";
 import {
   providerAcceptances,
   submissionArtifacts,
   workExecutions,
   workSubmissions,
 } from "../../db/schema/execution.js";
-import { availability } from "../../db/schema/providers.js";
+import { contractChangeRequests } from "../../db/schema/contract-changes.js";
+import { workContracts } from "../../db/schema/contracts.js";
+import { availability, providers } from "../../db/schema/providers.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
 import { hashObject, sha256HexOfBytes } from "../../platform/hashing.js";
 import { newId } from "../../platform/ids.js";
-import { conflict, notFound } from "../../platform/errors.js";
+import { authorizationError, conflict, notFound } from "../../platform/errors.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
 import { canTransition } from "../tasks/state.js";
 import { transitionTask } from "../tasks/service.js";
 import { getEnv } from "../../platform/env.js";
 import { buildStorageKey, getObjectStorage } from "../../integrations/storage/index.js";
+
+async function requireProviderProfileActor(
+  tx: Database,
+  providerId: string,
+  actor: Actor,
+): Promise<void> {
+  if (actor.kind !== "PROVIDER" || !actor.id) {
+    throw authorizationError("Only the assigned professional may perform this action.");
+  }
+  const [provider] = await tx
+    .select({ id: providers.id })
+    .from(providers)
+    .where(and(eq(providers.id, providerId), eq(providers.userId, actor.id)))
+    .limit(1);
+  if (!provider) {
+    throw authorizationError("Only the assigned professional may perform this action.");
+  }
+}
+
+async function lockTaskWithoutPendingAmendment(tx: Database, taskId: string) {
+  const [task] = await tx.select().from(tasks).where(eq(tasks.id, taskId)).for("update").limit(1);
+  if (!task) throw notFound("Task");
+  const [pendingChange] = await tx
+    .select({ id: contractChangeRequests.id })
+    .from(contractChangeRequests)
+    .where(
+      and(
+        eq(contractChangeRequests.taskId, taskId),
+        inArray(contractChangeRequests.status, [
+          "ACCEPTED_PENDING_ACTIVATION",
+          "ACTIVATING",
+          "ACTIVATION_RECONCILIATION_REQUIRED",
+          "CANCELLATION_PENDING",
+        ]),
+      ),
+    )
+    .limit(1);
+  if (pendingChange) {
+    throw conflict("Work is paused until the agreed contract change is activated or reconciled.");
+  }
+  return task;
+}
 
 export async function assignExecution(
   tx: Database,
@@ -39,6 +83,21 @@ export async function assignExecution(
     providerId: string;
   },
 ) {
+  await lockTaskWithoutPendingAmendment(tx, options.taskId);
+  const [contract] = await tx
+    .select()
+    .from(workContracts)
+    .where(and(eq(workContracts.id, options.contractId), eq(workContracts.taskId, options.taskId)))
+    .for("update")
+    .limit(1);
+  if (
+    !contract ||
+    contract.status !== "ACTIVE" ||
+    contract.version !== options.contractVersion ||
+    contract.contractHash !== options.contractHash
+  ) {
+    throw conflict("Execution must use the current active contract version.");
+  }
   const [execution] = await tx
     .insert(workExecutions)
     .values({
@@ -60,10 +119,19 @@ export async function acceptAssignment(
   tx: Database,
   options: { executionId: string; providerId: string; actor: Actor; correlationId: string },
 ) {
+  await requireProviderProfileActor(tx, options.providerId, options.actor);
+  const [initialExecution] = await tx
+    .select()
+    .from(workExecutions)
+    .where(eq(workExecutions.id, options.executionId))
+    .limit(1);
+  if (!initialExecution) throw notFound("Execution");
+  await lockTaskWithoutPendingAmendment(tx, initialExecution.taskId);
   const [execution] = await tx
     .select()
     .from(workExecutions)
     .where(eq(workExecutions.id, options.executionId))
+    .for("update")
     .limit(1);
   if (!execution) throw notFound("Execution");
   if (execution.providerId !== options.providerId) {
@@ -122,10 +190,19 @@ export async function startWork(
   tx: Database,
   options: { executionId: string; providerId: string; actor: Actor; correlationId: string },
 ) {
+  await requireProviderProfileActor(tx, options.providerId, options.actor);
+  const [initialExecution] = await tx
+    .select()
+    .from(workExecutions)
+    .where(eq(workExecutions.id, options.executionId))
+    .limit(1);
+  if (!initialExecution) throw notFound("Execution");
+  const task = await lockTaskWithoutPendingAmendment(tx, initialExecution.taskId);
   const [execution] = await tx
     .select()
     .from(workExecutions)
     .where(eq(workExecutions.id, options.executionId))
+    .for("update")
     .limit(1);
   if (!execution) throw notFound("Execution");
   if (execution.providerId !== options.providerId) {
@@ -144,8 +221,7 @@ export async function startWork(
 
   // After a revision request the task sits in REVISION_REQUIRED; resuming work
   // returns it to WORK_IN_PROGRESS (Component 11 state machine).
-  const [task] = await tx.select().from(tasks).where(eq(tasks.id, execution.taskId)).limit(1);
-  if (task && canTransition(task.status, "WORK_IN_PROGRESS")) {
+  if (canTransition(task.status, "WORK_IN_PROGRESS")) {
     await transitionTask(tx, {
       taskId: task.id,
       to: "WORK_IN_PROGRESS",
@@ -179,7 +255,6 @@ export interface SubmissionArtifactInput {
  * storage; the database keeps only metadata and content hashes.
  */
 export async function createSubmission(
-  tx: Database,
   options: {
     executionId: string;
     providerId: string;
@@ -190,94 +265,131 @@ export async function createSubmission(
     artifacts: SubmissionArtifactInput[];
   },
 ) {
-  const [execution] = await tx
-    .select()
-    .from(workExecutions)
-    .where(eq(workExecutions.id, options.executionId))
-    .limit(1);
-  if (!execution) throw notFound("Execution");
-  if (execution.providerId !== options.providerId) {
-    throw conflict("Only the assigned provider may submit this work");
-  }
-  if (!["ACCEPTED", "IN_PROGRESS", "REVISION_REQUESTED"].includes(execution.status)) {
-    throw conflict(`Execution is not open for submission (status ${execution.status})`);
+  if (options.artifacts.length === 0) {
+    throw conflict("A submission must include at least one artifact.");
   }
 
-  const [latest] = await tx
-    .select({ version: workSubmissions.version })
-    .from(workSubmissions)
-    .where(eq(workSubmissions.executionId, execution.id))
-    .orderBy(desc(workSubmissions.version))
-    .limit(1);
-  const version = (latest?.version ?? 0) + 1;
+  const prepared = await withTransaction(async (tx) => {
+    await requireProviderProfileActor(tx, options.providerId, options.actor);
+    const [initialExecution] = await tx
+      .select()
+      .from(workExecutions)
+      .where(eq(workExecutions.id, options.executionId))
+      .limit(1);
+    if (!initialExecution) throw notFound("Execution");
+    await lockTaskWithoutPendingAmendment(tx, initialExecution.taskId);
+    const [execution] = await tx
+      .select()
+      .from(workExecutions)
+      .where(eq(workExecutions.id, options.executionId))
+      .for("update")
+      .limit(1);
+    if (!execution) throw notFound("Execution");
+    if (execution.providerId !== options.providerId) {
+      throw conflict("Only the assigned provider may submit this work");
+    }
+    if (!["ACCEPTED", "IN_PROGRESS", "REVISION_REQUESTED"].includes(execution.status)) {
+      throw conflict(`Execution is not open for submission (status ${execution.status})`);
+    }
 
-  const submissionId = newId("sub");
+    const [latest] = await tx
+      .select({ version: workSubmissions.version })
+      .from(workSubmissions)
+      .where(eq(workSubmissions.executionId, execution.id))
+      .orderBy(desc(workSubmissions.version))
+      .limit(1);
+    const version = (latest?.version ?? 0) + 1;
+    const submissionId = newId("sub");
+    const [submission] = await tx
+      .insert(workSubmissions)
+      .values({
+        id: submissionId,
+        executionId: execution.id,
+        taskId: execution.taskId,
+        version,
+        status: "DRAFT",
+        contractVersion: execution.contractVersion,
+        contractHash: execution.contractHash,
+        notes: options.notes ?? null,
+        summary: options.summary ?? null,
+      })
+      .returning();
+    if (!submission) throw new Error("Submission insert returned no row");
+    return { execution, submission };
+  });
+
   const storage = getObjectStorage();
-
-  const artifactRows = [];
-  for (const artifact of options.artifacts) {
-    const storageKey = buildStorageKey(
-      `submissions/${execution.taskId}`,
-      submissionId,
-      artifact.filename,
-    );
-    await storage.put({
-      key: storageKey,
-      body: artifact.bytes,
-      contentType: artifact.contentType ?? "application/octet-stream",
-    });
-    artifactRows.push({
-      id: newId("sart"),
-      submissionId,
-      type: artifact.type,
-      filename: artifact.filename,
-      storageKey,
-      contentType: artifact.contentType ?? "application/octet-stream",
-      sizeBytes: artifact.bytes.byteLength,
-      sha256: sha256HexOfBytes(artifact.bytes),
-    });
+  const artifactRows: Array<typeof submissionArtifacts.$inferInsert> = [];
+  const uploadedKeys: string[] = [];
+  try {
+    for (const artifact of options.artifacts) {
+      const storageKey = buildStorageKey(
+        `submissions/${prepared.execution.taskId}`,
+        prepared.submission.id,
+        artifact.filename,
+      );
+      await storage.put({
+        key: storageKey,
+        body: artifact.bytes,
+        contentType: artifact.contentType ?? "application/octet-stream",
+      });
+      uploadedKeys.push(storageKey);
+      artifactRows.push({
+        id: newId("sart"),
+        submissionId: prepared.submission.id,
+        type: artifact.type,
+        filename: artifact.filename,
+        storageKey,
+        contentType: artifact.contentType ?? "application/octet-stream",
+        sizeBytes: artifact.bytes.byteLength,
+        sha256: sha256HexOfBytes(artifact.bytes),
+      });
+    }
+  } catch (error) {
+    await Promise.allSettled(uploadedKeys.map((key) => storage.delete(key)));
+    throw error;
   }
 
   const submissionHash = hashObject(
     artifactRows.map((a) => ({ type: a.type, filename: a.filename, sha256: a.sha256 })),
   );
-
-  const [submission] = await tx
-    .insert(workSubmissions)
-    .values({
-      id: submissionId,
-      executionId: execution.id,
-      taskId: execution.taskId,
-      version,
-      status: "DRAFT",
-      contractVersion: execution.contractVersion,
-      contractHash: execution.contractHash,
-      submissionHash,
-      notes: options.notes ?? null,
-      summary: options.summary ?? null,
-    })
-    .returning();
-  if (!submission) throw new Error("Submission insert returned no row");
-
-  if (artifactRows.length > 0) {
-    await tx.insert(submissionArtifacts).values(artifactRows);
+  try {
+    return await withTransaction(async (tx) => {
+      const [submission] = await tx
+        .select()
+        .from(workSubmissions)
+        .where(eq(workSubmissions.id, prepared.submission.id))
+        .for("update")
+        .limit(1);
+      if (!submission || submission.status !== "DRAFT" || submission.submissionHash !== null) {
+        throw conflict("The submission draft changed before its artifacts were finalized.");
+      }
+      await tx.insert(submissionArtifacts).values(artifactRows);
+      const [updated] = await tx
+        .update(workSubmissions)
+        .set({ submissionHash })
+        .where(eq(workSubmissions.id, submission.id))
+        .returning();
+      if (!updated) throw conflict("The submission draft could not be finalized.");
+      await appendEvent(tx, {
+        type: "SUBMISSION_CREATED",
+        aggregateId: submission.id,
+        taskId: prepared.execution.taskId,
+        actor: toEventActor(options.actor),
+        correlationId: options.correlationId,
+        payload: {
+          taskId: prepared.execution.taskId,
+          executionId: prepared.execution.id,
+          submissionId: submission.id,
+          version: submission.version,
+        },
+      });
+      return updated;
+    });
+  } catch (error) {
+    await Promise.allSettled(uploadedKeys.map((key) => storage.delete(key)));
+    throw error;
   }
-
-  await appendEvent(tx, {
-    type: "SUBMISSION_CREATED",
-    aggregateId: submission.id,
-    taskId: execution.taskId,
-    actor: toEventActor(options.actor),
-    correlationId: options.correlationId,
-    payload: {
-      taskId: execution.taskId,
-      executionId: execution.id,
-      submissionId: submission.id,
-      version,
-    },
-  });
-
-  return submission;
 }
 
 /** Mark a submission as submitted and the execution as submitted. */
@@ -285,18 +397,36 @@ export async function submitWork(
   tx: Database,
   options: { submissionId: string; providerId: string; actor: Actor; correlationId: string },
 ) {
+  await requireProviderProfileActor(tx, options.providerId, options.actor);
+  const [initialSubmission] = await tx
+    .select()
+    .from(workSubmissions)
+    .where(eq(workSubmissions.id, options.submissionId))
+    .limit(1);
+  if (!initialSubmission) throw notFound("Submission");
+  const [initialExecution] = await tx
+    .select()
+    .from(workExecutions)
+    .where(eq(workExecutions.id, initialSubmission.executionId))
+    .limit(1);
+  if (!initialExecution) throw notFound("Execution");
+  await lockTaskWithoutPendingAmendment(tx, initialExecution.taskId);
   const [submission] = await tx
     .select()
     .from(workSubmissions)
     .where(eq(workSubmissions.id, options.submissionId))
+    .for("update")
     .limit(1);
   if (!submission) throw notFound("Submission");
   const [execution] = await tx
     .select()
     .from(workExecutions)
     .where(eq(workExecutions.id, submission.executionId))
+    .for("update")
     .limit(1);
   if (!execution) throw notFound("Execution");
+  const [task] = await tx.select().from(tasks).where(eq(tasks.id, execution.taskId)).limit(1);
+  if (!task) throw notFound("Task");
   if (execution.providerId !== options.providerId) {
     throw conflict("Only the assigned provider may submit this work");
   }
@@ -319,8 +449,7 @@ export async function submitWork(
 
   // A submitted deliverable moves the task to SUBMITTED, the state verification
   // reads. Covers both the first submission and a resubmission after a revision.
-  const [task] = await tx.select().from(tasks).where(eq(tasks.id, execution.taskId)).limit(1);
-  if (task && canTransition(task.status, "SUBMITTED")) {
+  if (canTransition(task.status, "SUBMITTED")) {
     await transitionTask(tx, {
       taskId: task.id,
       to: "SUBMITTED",

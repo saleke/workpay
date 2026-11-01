@@ -27,54 +27,59 @@ When documents disagree, this order decides:
 
 ## 1. Product Direction and Delivery Sequence
 
-WorkPay is being reoriented as a general-purpose system that helps people express work they need done, makes sure their intent and budget are understood, and prepares a user-approved brief before any professional is approached.
+WorkPay is a general-purpose, user-led system for making work intentions, core requirements, and budget explicit; presenting professionals for user choice; and supporting consensual collaboration. Each major behavior remains open to improvement based on real-world validation.
 
-The first delivery phase is **user-intent intake only**:
+The current completion scope is the **integrated user-led work lifecycle**:
 
-> Capture the user's request, interpret it without silently inventing requirements, let the user correct and confirm that interpretation, ask only essential primary questions, establish an explicit budget state, and freeze an approved, versioned brief.
+> Interpret and confirm the user's task and budget; approve an exact brief and terms; show candidate professionals without autonomous selection; contact only the professional the buyer explicitly approves; require mutual agreement before commercial commitments; support collaboration without WorkPay silently making decisions for the parties; and make any independent review optional, agreed by both parties and the reviewer, version-bound, evidence-based, and outside WorkPay's staffing or arbitration.
 
-The intake milestone is accepted only when representative users can state a goal, correct the system's interpretation, answer essential questions, explicitly confirm their budget state, and approve a versioned brief without the model turning assumptions into requirements. Evaluation must cover multiple occupations, task types, language styles, and budget expressions, with human review of model quality.
-
-The later workflow begins only after the brief is approved: candidate discovery, user selection, explicit approval of contact, and separately designed collaboration, payment, and completion review. These are not part of the intake milestone.
+Intake, discovery, communication, independent review, and payment controls are all in scope for completion and validation. Their prior designation as separate phases described sequencing, not permanent exclusions. AI can assist with understanding and organization but cannot invent binding requirements, independently contact people, adjudicate quality, or authorize acceptance or payment. An independent reviewer supplies an attributable opinion against agreed criteria; WorkPay is not the reviewer, does not certify reviewer claims, and does not provide a dispute-resolution service.
 
 ---
 
 ## 2. Scope: Phased Cut Lines
 
-### 2.1 Current phase: confirmed task-intent intake
+### 2.1 Current phase: complete and validate the user-led lifecycle
 
 - Accept open-ended requests across occupations and task types without requiring a predefined domain selection.
 - Preserve the original user wording and relevant supplied context as source material.
 - Use validated AI-assisted stages for intent interpretation, user correction/confirmation, primary-scope clarification, and final brief composition. Keep each stage bounded and separately testable.
+- Compose the professional-facing brief only after intake readiness, from user-authored source material. Keep the intake Q&A private, show budget separately, preserve exact-source evidence, and let the user edit and approve the final brief. Approval records the brief only; it does not start discovery or contact a professional.
 - Track provenance for user-stated, user-confirmed, deterministically derived, and AI-proposed information. AI suggestions cannot become binding requirements without user approval.
 - Capture budget meaning explicitly, including ceiling, target/range, unclear/conflicting, and an intentionally undecided state. An undecided budget carries no estimated price or funding assumption.
 - Persist owner-bound intake state and immutable versions on the server. Finalization must use the exact approved server-side version and be idempotent.
+- Convert an exact approved intake version into one owner-bound task and draft contract; preserve the intake link and source requirements, and make retries return the same task.
+- Require the buyer to approve the generated scope and budget before discovery. Approval is not a PayPal authorization.
+- Show available professional profiles as unranked, self-described information. Do not select, endorse, contact, or claim a verified fit for anyone automatically.
+- Preview the chosen recipient, exact terms, and exact first message; record explicit per-recipient buyer consent before sending. Keep messaging closed until the professional accepts.
 - Evaluate intake across varied work domains, writing styles, and user contexts. Include human review of model quality and correction UX.
+- Support an optional reviewer-discovery directory with user-managed profiles, domain-specific expertise, clearly labeled self-supplied evidence, eligibility filters, explainable recommendations, and explicit limits on claims. Exclude the task owner and performing professional from recommendations.
+- Let buyer and professional exchange private task messages after the professional accepts contact. Preserve party control over requirements, commercial decisions, and changes; do not silently apply proposed terms.
+- Where independent review is chosen, require mutual agreement on reviewer, review scope, criteria, contract version, and any fee arrangement before work starts. Give the reviewer the exact agreed criteria and necessary submitted materials, with access limited to that engagement.
+- Treat reviewer reports as attributable evidence and the agreed process as an explicit contract term. Never let AI decide professional quality or override objective failures. Keep payment authorization, capture, release, revision, and disputes on explicit, independently enforced policy gates; a reviewer recommendation alone is not a payment command.
+- Make review-fee limitations clear: unless a separately approved payment feature is implemented, compensation is arranged directly by the parties and reviewer, not collected or guaranteed by WorkPay.
+- Validate the integrated flow with separate buyer, professional, and reviewer identities against a migrated development/test database, including browser-level workflows and payment-gate outcomes.
 - Preserve deterministic authorization, money, privacy, audit, and persistence controls. No database transaction may span an AI network call.
 
-### 2.2 Later direction, not part of the current intake phase
+### 2.2 Follow-on design decisions within the current completion scope
 
-- Candidate discovery with useful professional profiles and transparent, evidence-based fit information.
-- User-controlled candidate selection and explicit approval before contact.
-- Professional response, negotiation, agreement, execution, task changes, and completion review.
-- Profile onboarding and expanded human-review workflows, designed after the intake baseline is reliable.
-
-These are approved product directions but are not permission to implement them ahead of the intake phase. Each later phase requires its own design, acceptance criteria, and safety review.
+- Any production payment of reviewer fees requires a separate explicit product and payment-policy decision; recording fee terms does not pay or secure the reviewer.
+- Disagreement, appeal, reviewer replacement, and task disputes must be clearly distinguished from WorkPay arbitration. Until an agreed self-sustaining process exists, fail closed for payment and communicate the limitation rather than presenting an AI or WorkPay decision as final.
+- Expanded profile verification must be designed as evidence disclosure and user choice; self-reported profiles are not certified credentials.
 
 ### 2.3 Out of scope for the current phase
 
 ```
-✗ provider search, candidate ranking, or professional contact
-✗ negotiation, offer acceptance, payment authorization, or execution
-✗ post-match messaging, scope/price-change workflows, and completion review
 ✗ using model estimates as user budget, contract terms, or payment amounts
 ✗ treating AI-proposed requirements or browser-provided state as authoritative
 ✗ new infrastructure, microservices, or architecture documents without review
 ```
 
-Current payment integration remains USD-only. Intake must preserve the user's stated currency and must not silently convert it. Any unsupported currency or unresolved downstream commercial requirement must be made explicit before a task can enter a money-moving workflow.
+Current payment-policy validation remains USD-only. Intake must preserve the user's stated currency and must not silently convert it. Any unsupported currency or unresolved downstream commercial requirement must be made explicit before a task can enter payment-policy validation.
 
-The existing technical stack and safety invariants remain authoritative. This phase change supersedes the frozen product scope in Component 19 §§35-36; the related schedule, component sequence, and cut-lines require an engineering-reviewed re-baseline before implementation or merge.
+Live money movement is disabled for the current completion scope. The fake gateway validates amounts, authorization/capture states, idempotency, evidence gates, and failure recovery without external side effects. The UI and documentation must label those states as simulated. PayPal OAuth identity data is not charging authority, payout authority, or independent identity verification. A production gateway requires a separately approved marketplace-payment model, explicit provider onboarding, explicit buyer approval at the provider, webhook/reconciliation validation, and an engineering and legal review before `PAYMENT_GATEWAY=paypal` can be enabled.
+
+The existing technical stack and safety invariants remain authoritative. This user-approved direction supersedes the earlier intake-only phase boundary and deferrals in this execution plan. The integrated lifecycle must be judged by the current scope above, not by those obsolete exclusions.
 
 ---
 
@@ -106,6 +111,7 @@ These are **testable laws** (derived from Component 19 §13/§34 and Components 
 - **D3.** No DB transaction is ever held across an LLM, PayPal, or storage network call. Short transactions only.
 - **D4.** Postgres is the sole authoritative store. Files live in object storage; DB metadata + SHA-256 checksum = artifact identity. Browser and LLM context are never authoritative.
 - **D5.** No module writes another module's tables directly (see §6.3 and Appendix B).
+- **D6.** Conversation messages do not amend an agreement. A structured change proposal snapshots the complete replacement terms against the exact approved contract version/hash; the other participant must accept it. Acceptance remains pending activation until WorkPay creates the next immutable contract version and completes the required external payment action. Until then, the current contract remains authoritative and capture is blocked. Unknown PayPal state requires reconciliation; lower post-capture totals require an explicit refund review, never an automatic refund. An accepted but not-yet-active proposal can only be cancelled with both participants' consent.
 
 ### AI
 - **I1.** AI outputs are untrusted data: schema-validated, provenance-tagged, never executed as instructions. `AI_PROPOSED` requirements cannot enter an active contract without user confirmation.
@@ -248,12 +254,13 @@ The previous D1-D25 hackathon schedule and M1-M7 provider/payment/agent sequence
 | **M1: Intent and evaluation model** | Versioned intent/provenance contract, explicit budget states, readiness rules, and representative evaluation cases | Schema/state tests and the evaluation set prove raw request preservation and nonbinding AI proposals |
 | **M2: Server-owned AI intake** | Persisted sessions; separate interpretation, primary clarification, and brief-composition operations | AI failure, stale versions, unowned sessions, and unresolved critical questions cannot produce a ready/approved brief |
 | **M3: User confirmation and finalization** | Editable interpretation, minimal clarification UX, explicit budget choice, and approval of an exact brief version | API/UI tests prove browser tampering cannot change the approved version and finalization is idempotent |
-| **M4: Quality and UX validation** | Human-reviewed multi-domain evaluation and accessibility/usability pass before rollout | Agreed regression gates pass; reviewers confirm interpretation accuracy, question usefulness, and user correction success |
-| **Later phases, separately approved** | User-led candidate discovery, explicit contact approval, then separately designed collaboration and completion review | No candidate search, contact, negotiation, acceptance, or payment work starts as part of M1-M4 |
+| **M4: User-led professional flow** | Buyer-approved terms, candidate choice, exact-message contact approval, professional response, and mutual commercial terms | Separate-identity API/UI tests prove no automatic selection/contact and no payment before valid agreement |
+| **M5: Collaboration and independent review** | Party-controlled messaging and amendments; optional external reviewer with mutual consent, exact criteria/materials, report, and explicit limits | Lifecycle tests cover stale versions, conflicts, revision cycles, privacy, reviewer disagreement, and fail-closed payment |
+| **M6: Integrated quality and operations** | Migrations verified from scratch, seeded test roles, human-reviewed intake evaluation, accessibility/usability, and complete browser flow | Test evidence from a confirmed development/test database; representative browser workflows pass with no external payment side effects |
 
-**Implementation checkpoint:** the versioned intake API exposes separate interpretation, interpretation confirmation/correction, scope assessment, single-question answers, budget decisions, communication-style preferences, and exact-version approval operations under `/api/v1/intake/sessions`. Mutations require the expected version; model calls run outside database transactions; only user-authored sources can support intent or budget evidence; and approval is rejected while readiness blockers remain. Correcting an interpretation preserves the rejected proposal only as nonbinding context for the next interpretation call. The main new-task entry points now lead to the intake experience. Legacy scoping/finalization, direct task creation, and automated provider selection return 410 so they cannot bypass the new confirmation or approved user-led contact flow. Approval currently saves an intake brief only; it does not create a task or contact anyone. AI Gateway remains disabled by default, and no live model quality or usability gate has been claimed.
+**Implementation checkpoint:** the versioned intake API exposes separate interpretation, interpretation confirmation/correction, scope assessment, single-question answers, budget decisions, communication-style preferences, and exact-version approval operations under `/api/v1/intake/sessions`. Mutations require the expected version; model calls run outside database transactions; only user-authored sources can support intent or budget evidence; and approval is rejected while readiness blockers remain. Correcting an interpretation preserves the rejected proposal only as nonbinding context for the next interpretation call. An approved intake can create a single owner-bound task and draft contract; the buyer must approve terms before viewing unranked available profiles, and contact requires a separate explicit confirmation of the selected professional and exact message. No payment is authorized by those approvals. Legacy scoping/finalization and direct task creation remain disabled. Automatic provider selection/negotiation is retired. AI Gateway remains disabled by default, and no live model quality or usability gate has been claimed.
 
-No schedule date is set until the team estimates these milestones against the existing repository. Each gate requires test evidence, UX review, and engineering review. AI failures must preserve a recoverable draft and must never silently mark the brief ready or approved.
+All milestones are in the current completion scope; prior phase boundaries do not defer any of them. No schedule date is set until the team estimates these milestones against the existing repository. Each gate requires test evidence, UX review, and engineering review. AI failures must preserve a recoverable draft and must never silently mark the brief ready or approved.
 
 The initial versioned corpus, annotation rubric, and pass thresholds live in `packages/shared/src/domain/intake/evaluation/`. They are a seed for M1 contract and regression work, not statistical evidence of broad performance. Before model selection or implementation, preserve these gates: zero invented binding requirements, lost explicit constraints, budget misclassification, inferred spend ceilings, silent currency conversion, and false-ready outcomes on curated critical-unknown cases. Human-rated question usefulness and user comprehension thresholds are also specified there; do not rely on an LLM judge alone or tune thresholds after seeing model results. Expand and stratify the set before rollout.
 
@@ -292,8 +299,13 @@ A feature is done when **all** hold:
 | "What do you still need from me?" | Only task-critical clarifications, one focused question at a time, with a reason | M2 |
 | "What is my budget?" | The user's confirmed amount/range/currency or an explicit undecided state, never an AI-imputed ceiling | M2 |
 | "What am I approving?" | The exact server-owned brief version and its confirmed requirements before it is frozen | M3 |
+| "Who will be contacted?" | The chosen professional, exact terms, and exact first message before explicit per-recipient consent | M4 |
+| "What happens after contact?" | A professional's explicit response and mutual agreement before a commercial commitment | M4 |
+| "Who reviews the work?" | Optional reviewer identity, conflicts, fee/payer, exact criteria, and contract version accepted by both parties and reviewer | M5 |
+| "What is the reviewer judging?" | The exact accepted contract criteria and permitted submission materials, with access limited to that engagement | M5 |
+| "What happens if review is inconclusive or disputed?" | A clear fail-closed status and no WorkPay/AI claim of arbitration or automatic payment authority | M5 |
 
-Later provider, communication, payment, and completion-review gates must be designed and approved separately. No intake gate may trigger them.
+No earlier gate implies consent or authorizes a later action. Each transition remains explicit, independently enforced, auditable, and reversible only through a defined state transition.
 
 ---
 
@@ -326,14 +338,16 @@ Coding agents give us parallel implementation speed. They do **not** own judgmen
 
 The old D1-D25 buffer and cut-line schedule is retired. If delivery capacity is constrained, agree a revised schedule before reducing scope.
 
-**Never cut from the intake phase:**
+**Never cut from the integrated lifecycle:**
 - Preservation of the original request and server-owned session state.
 - Provenance and user confirmation for every binding requirement.
 - Explicit budget meaning, including the user-approved undecided state; no inferred ceiling or silent currency conversion.
 - Fail-closed behavior for invalid model output, stale versions, ownership failures, and persistence errors.
-- Regression evaluation of critical constraints, false-ready cases, and budget handling.
+- Regression evaluation of critical constraints, false-ready cases, budget handling, consent, version binding, access control, and payment gates.
+- User choice and explicit consent before professional contact; mutual agreement before commercial commitment.
+- Reviewer independence, exact agreed review context, limited artifact access, and fail-closed handling of uncertain or disputed outcomes.
 
-Optional presentation polish may be deferred, but users must always be able to understand, correct, and explicitly confirm the brief. Provider discovery, contact, negotiation, payment, execution, and completion review remain later phases, not cut-line substitutions for intake.
+Optional presentation polish may be deferred, but users must always be able to understand, correct, and explicitly confirm the brief and each consequential transition. No integrated lifecycle capability is excluded merely because it was formerly scheduled later.
 
 ---
 
@@ -349,6 +363,8 @@ Optional presentation polish may be deferred, but users must always be able to u
 | R6 | Legacy provider-search route triggers unapproved downstream actions | API | Keep it out of intake; disable or remove its side effects before redesigned product release; test that intake cannot reach it | Before rollout |
 | R7 | Deployment or runtime assumptions do not match the existing app | Engineering | Inspect current hosting and runtime before selecting dependencies or changing deployment; validate operational limits before rollout | Before rollout |
 | R8 | AI integration adds unreviewed data exposure or instruction-following risk | Engineering | Treat user text and attachments as untrusted input; minimize model context, record model/prompt versions, and test prompt-injection and privacy boundaries | Before rollout |
+| R9 | Reviewer report is mistaken for WorkPay certification or impartial arbitration | Product/UX | Label claims as self-reported, disclose reviewer identity and conflicts, bind report to agreed criteria/version, and keep appeals/disputes outside WorkPay unless separately designed | Before review rollout |
+| R10 | A report or UI state bypasses payment policy or causes duplicate settlement | Payments | Recheck agreement, contract, payment, verification, blocking cases, authorization, idempotency, and gateway state at the money-moving boundary; test PASS/FAIL/UNCERTAIN and retries | Before any live money flow |
 
 ---
 
@@ -363,7 +379,7 @@ Producer owns the payload; consumers listed are the only ones that must react. F
 | `TASK_CREATED` | A | B (planner), A (activity) |
 | `WORK_SPEC_CREATED` / `CLARIFICATION_*` | B | A (contract compile), B (UI) |
 | `CONTRACT_APPROVED` | A | B (activity only; no automatic provider search) |
-| `PROVIDER_SEARCH_STARTED` / `PROVIDER_SELECTED` / `PROVIDER_SELECTION_FAILED` | B | Legacy events; not emitted by or triggered from the intake phase |
+| `PROVIDER_SEARCH_STARTED` / `PROVIDER_CANDIDATES_DISCOVERED` / `PROVIDER_SELECTION_FAILED` | Buyer-controlled discovery | Activity only; discovery never selects a professional |
 | `NEGOTIATION_STARTED` / `OFFER_*` / `COUNTEROFFER_RECEIVED` / `SCOPE_CHANGE_REQUESTED` | A | B (UI/activity), agent |
 | `COMMERCIAL_AGREEMENT_CREATED` | A | A (payment), B (execution), activity |
 | `PAYMENT_AUTHORIZED` / `PAYMENT_AUTHORIZATION_FAILED` | A | B (UI/activity), agent, execution |

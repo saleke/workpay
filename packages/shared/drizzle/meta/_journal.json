@@ -43,6 +43,41 @@
       "when": 1792975475444,
       "tag": "0005_intake_bootstrap",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793138289000,
+      "tag": "0006_contract_change_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793139000000,
+      "tag": "0007_reviewer_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793196000000,
+      "tag": "0008_intake_task_candidate_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793196100000,
+      "tag": "0009_independent_review_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793196200000,
+      "tag": "0010_independent_review_events",
+      "breakpoints": true
     }
   ]
 }

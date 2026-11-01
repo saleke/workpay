@@ -24,7 +24,11 @@ export type ActorKind = "USER" | "PROVIDER" | "AGENT" | "SYSTEM" | "REVIEWER" | 
 
 export interface Actor {
   kind: ActorKind;
-  /** Actor id, for example a user id or an agent run id. Null for SYSTEM. */
+  /**
+   * Authenticated principal id. Human actors always use their `users.id`;
+   * agents use an agent-run id. Domain profile ids belong on the resource,
+   * never in the human actor identity. Null for SYSTEM.
+   */
   id: string | null;
   /** Present for human actors. */
   role?: Role;
@@ -50,6 +54,8 @@ export interface ResourceFacts {
   ownerUserId?: string | null;
   /** Provider id associated with the resource. */
   providerId?: string | null;
+  /** User id that owns the associated provider profile. */
+  providerUserId?: string | null;
   /** Task-local status, used where the plan constrains the operation. */
   status?: string;
   /** Arbitrary extra facts the specific policy needs. */
@@ -104,6 +110,15 @@ function isOwner(actor: Actor, resource: ResourceFacts): boolean {
   return userId !== null && resource.ownerUserId !== null && userId === resource.ownerUserId;
 }
 
+function isProviderParty(actor: Actor, resource: ResourceFacts): boolean {
+  return (
+    actor.kind === "PROVIDER" &&
+    actor.id !== null &&
+    resource.providerUserId !== null &&
+    actor.id === resource.providerUserId
+  );
+}
+
 /**
  * Role-based + object-level policy table. Each entry is the single place the
  * rule for that action lives. Fail closed: unknown action denies.
@@ -115,7 +130,6 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
       : deny("Only an authenticated user may create a task"),
 
   [ACTIONS.taskView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view tasks");
     if (isOwner(actor, resource)) return allow("Task belongs to the actor");
     return deny("Task does not belong to the actor");
   },
@@ -130,9 +144,8 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
     isOwner(actor, resource) ? allow("Owner may answer") : deny("Only the owner may answer"),
 
   [ACTIONS.contractView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
     if (isOwner(actor, resource)) return allow("Contract belongs to actor");
-    if (actor.kind === "PROVIDER" && resource.providerId === actor.id) {
+    if (isProviderParty(actor, resource)) {
       return allow("Provider is a party to the contract");
     }
     return deny("Actor is not a party to the contract");
@@ -148,14 +161,12 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
   },
 
   [ACTIONS.providerSelectionView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
     if (isOwner(actor, resource)) return allow("Task owner may view");
     return deny("Provider selection is visible to the task owner");
   },
 
   [ACTIONS.submissionCreate]: (actor, resource) => {
-    if (actor.kind !== "PROVIDER") return deny("Only a provider may submit work");
-    if (resource.providerId !== actor.id) return deny("Not the assigned provider");
+    if (!isProviderParty(actor, resource)) return deny("Not the assigned provider");
     if (resource.status !== undefined && !["ACCEPTED", "IN_PROGRESS"].includes(resource.status)) {
       return deny(`Execution is not open for submission (status ${resource.status})`);
     }
@@ -163,29 +174,24 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
   },
 
   [ACTIONS.submissionView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
     if (isOwner(actor, resource)) return allow("Task owner may view");
-    if (actor.kind === "PROVIDER" && resource.providerId === actor.id) {
+    if (isProviderParty(actor, resource)) {
       return allow("Provider may view own submission");
     }
     return deny("Not a party to the submission");
   },
 
-  [ACTIONS.verificationView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
-    if (isOwner(actor, resource)) return allow("Task owner may view");
-    return deny("Verification is visible to the task owner and reviewers");
-  },
+  [ACTIONS.verificationView]: (actor, resource) =>
+    isOwner(actor, resource)
+      ? allow("Task owner may view")
+      : deny("Verification is visible to the task owner"),
 
-  [ACTIONS.verificationReview]: (actor) =>
-    actor.role === "admin_reviewer"
-      ? allow("Reviewer may review")
-      : deny("Only a reviewer may override verification"),
+  [ACTIONS.verificationReview]: () =>
+    deny("Independent review must use a scoped review engagement"),
 
   [ACTIONS.caseView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
     if (isOwner(actor, resource)) return allow("Task owner may view");
-    if (actor.kind === "PROVIDER" && resource.providerId === actor.id) {
+    if (isProviderParty(actor, resource)) {
       return allow("Provider may view own case");
     }
     return deny("Not a party to the case");
@@ -193,21 +199,20 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
 
   [ACTIONS.caseCreate]: (actor, resource) => {
     if (isOwner(actor, resource)) return allow("Owner may open a case");
-    if (actor.kind === "PROVIDER" && resource.providerId === actor.id) {
+    if (isProviderParty(actor, resource)) {
       return allow("Provider may open a case on own work");
     }
     return deny("Not a party to the task");
   },
 
   [ACTIONS.caseResolve]: (actor) =>
-    actor.role === "admin_reviewer"
-      ? allow("Reviewer may resolve")
-      : deny("Only a reviewer may resolve a case"),
+    actor.kind === "SYSTEM"
+      ? allow("System reconciliation may resolve an operational exception")
+      : deny("Humans cannot adjudicate a WorkPay case"),
 
   [ACTIONS.paymentView]: (actor, resource) => {
-    if (actor.role === "admin_reviewer") return allow("Reviewer may view");
     if (isOwner(actor, resource)) return allow("Task owner may view payment");
-    return deny("Payment is visible to the task owner and reviewers");
+    return deny("Payment is visible to the task owner");
   },
 
   [ACTIONS.paymentAuthorize]: (actor, resource) => {
@@ -224,12 +229,12 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
   },
 
   [ACTIONS.providerWorkView]: (actor, resource) =>
-    actor.kind === "PROVIDER" && resource.providerId === actor.id
+    isProviderParty(actor, resource)
       ? allow("Provider may view own work")
       : deny("Not the assigned provider"),
 
   [ACTIONS.providerWorkAccept]: (actor, resource) => {
-    if (actor.kind !== "PROVIDER" || resource.providerId !== actor.id) {
+    if (!isProviderParty(actor, resource)) {
       return deny("Not the assigned provider");
     }
     if (resource.status !== undefined && resource.status !== "ASSIGNED") {
@@ -239,7 +244,7 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
   },
 
   [ACTIONS.providerWorkStart]: (actor, resource) => {
-    if (actor.kind !== "PROVIDER" || resource.providerId !== actor.id) {
+    if (!isProviderParty(actor, resource)) {
       return deny("Not the assigned provider");
     }
     if (resource.status !== undefined && resource.status !== "ACCEPTED") {
@@ -253,7 +258,6 @@ const POLICIES: Partial<Record<Action, PolicyFn>> = {
 
   [ACTIONS.eventStream]: (actor, resource) => {
     if (isOwner(actor, resource)) return allow("Owner may stream");
-    if (actor.role === "admin_reviewer") return allow("Reviewer may stream");
     return deny("Not a party to the task");
   },
 };

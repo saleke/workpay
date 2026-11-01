@@ -70,8 +70,16 @@ export const providerTypeEnum = pgEnum("provider_type", ["HUMAN", "AGENT", "SERV
 export const providerStatusEnum = pgEnum("provider_status", ["ACTIVE", "SUSPENDED", "INACTIVE"]);
 export const providerSelectionStatusEnum = pgEnum("provider_selection_status", [
   "SELECTED",
+  "CANDIDATES_AVAILABLE",
   "FAILED",
   "EXPIRED",
+]);
+
+export const taskConversationStatusEnum = pgEnum("task_conversation_status", [
+  "CONTACT_PENDING",
+  "OPEN",
+  "DECLINED",
+  "CLOSED",
 ]);
 
 // Negotiation and agreement
@@ -311,6 +319,7 @@ export const aggregateTypeEnum = pgEnum("aggregate_type", [
   "VERIFICATION",
   "CASE",
   "AGENT",
+  "INDEPENDENT_REVIEW",
   "SYSTEM",
 ]);
 

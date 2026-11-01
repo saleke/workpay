@@ -64,6 +64,8 @@ export interface PaymentPolicyInput {
   blockingCase?: { id: string; category: string } | null;
   /** True when a SUCCEEDED capture already exists for this payment. */
   hasSucceededCapture?: boolean;
+  /** Accepted contract changes must be activated before capture can proceed. */
+  pendingContractChange?: { id: string } | null;
   /** Global emergency kill switch. */
   systemPaymentPaused?: boolean;
 }
@@ -130,6 +132,18 @@ function commonChecks(input: PaymentPolicyInput): PolicyCheck[] {
           paymentMinor: input.payment.amount.amountMinor,
           budgetMinor: input.contract.budget.amountMinor,
         }),
+  );
+  checks.push(
+    input.pendingContractChange
+      ? fail(
+          "contract.change_activation_pending",
+          "An agreed contract change must be activated before payment can proceed",
+          { changeRequestId: input.pendingContractChange.id },
+        )
+      : pass(
+          "contract.change_activation_pending",
+          "No agreed contract change is awaiting activation",
+        ),
   );
   return checks;
 }
@@ -271,6 +285,7 @@ export function evaluatePaymentPolicy(input: PaymentPolicyInput): PolicyDecision
       decisionContractVersion: input.acceptanceDecision?.contractVersion ?? null,
       blockingCaseId: input.blockingCase?.id ?? null,
       hasSucceededCapture: input.hasSucceededCapture,
+      pendingContractChangeId: input.pendingContractChange?.id ?? null,
       systemPaymentPaused: input.systemPaymentPaused,
     }),
   };

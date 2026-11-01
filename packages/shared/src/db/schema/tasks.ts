@@ -23,6 +23,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { clarificationStatusEnum, requirementSourceEnum, taskStatusEnum } from "../enums";
 import { users } from "./identity";
+import { intakeSessions } from "./intake";
 
 export const tasks = pgTable(
   "tasks",
@@ -42,6 +43,11 @@ export const tasks = pgTable(
     desiredDeadline: timestamp("desired_deadline", { withTimezone: true }),
     /** Which planner produced the active work specification. */
     plannerSource: varchar("planner_source", { length: 32 }),
+    /** Intake session that produced this task; one task per approved intake. */
+    sourceIntakeSessionId: varchar("source_intake_session_id", { length: 64 }).references(
+      () => intakeSessions.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -49,6 +55,7 @@ export const tasks = pgTable(
   },
   (t) => ({
     userIdx: index("tasks_user_idx").on(t.userId),
+    sourceIntakeUnique: uniqueIndex("tasks_source_intake_unique").on(t.sourceIntakeSessionId),
     statusIdx: index("tasks_status_idx").on(t.status),
     budgetCheck: check("tasks_budget_nonnegative", sql`${t.budgetMinor} >= 0`),
     currencyCheck: check("tasks_currency_usd", sql`${t.currency} = 'USD'`),

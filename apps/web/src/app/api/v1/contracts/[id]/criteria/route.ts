@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { getDb, jsonError, jsonOk, resolveActorAsync, withTransaction } from "@/lib/server/api";
+import { getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 import {
   acceptanceRules,
   contractRequirements,
@@ -32,7 +33,6 @@ export async function POST(
 ) {
   try {
     const { id: contractId } = await params;
-    const actor = await resolveActorAsync(req, "buyer");
     const body = await req.json();
     const parsed = modifyCriteriaSchema.parse(body);
     const db = getDb();
@@ -46,6 +46,7 @@ export async function POST(
     if (!contract) {
       throw notFound("Work Agreement");
     }
+    const { actor } = await requireTaskOwner(req, contract.taskId);
 
     if (contract.status !== "AWAITING_APPROVAL" && contract.status !== "DRAFT") {
       throw conflict(`Cannot modify completion criteria for an agreement with status ${contract.status}`);

@@ -13,7 +13,7 @@ import { getDb, withTransaction, type Database } from "@workpay/shared/db";
 import { idempotencyRecords } from "@workpay/shared/db/schema/infra";
 import { newCorrelationId, newId, type IdPrefix } from "@workpay/shared/platform";
 import { hashObject } from "@workpay/shared/platform";
-import { AppError, type ErrorCode } from "@workpay/shared/platform";
+import { AppError, authorizationError, type ErrorCode } from "@workpay/shared/platform";
 import type { Actor } from "@workpay/shared/domain";
 import { getSessionUser, SESSION_COOKIE_NAME } from "./session";
 
@@ -35,6 +35,8 @@ export function resolveActor(
   req: Request,
   defaultRole: "buyer" | "provider" | "admin_reviewer" = "buyer",
 ): Actor {
+  if (requiresAuthenticatedSession()) throw authorizationError();
+
   const userIdHeader = req.headers.get("x-user-id");
   const roleHeader = (req.headers.get("x-role") as Actor["role"]) ?? defaultRole;
 
@@ -94,6 +96,8 @@ export async function resolveActorAsync(
     }
   }
 
+  if (requiresAuthenticatedSession()) throw authorizationError();
+
   // 2. Explicit API header (for CLI, curl, automated testing)
   const userIdHeader = req.headers.get("x-user-id");
   const roleHeader = (req.headers.get("x-role") as Actor["role"]) ?? defaultRole;
@@ -112,8 +116,14 @@ export async function resolveActorAsync(
   return resolveActor(req, defaultRole);
 }
 
+function requiresAuthenticatedSession(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.WORKPAY_MODE === "production";
+}
+
 export function getCorrelationId(req: Request): string {
-  return req.headers.get("x-correlation-id") || req.headers.get("x-request-id") || newCorrelationId();
+  return (
+    req.headers.get("x-correlation-id") || req.headers.get("x-request-id") || newCorrelationId()
+  );
 }
 
 export function jsonOk<T>(data: T, status = 200): NextResponse {
@@ -198,7 +208,10 @@ export async function withIdempotency<T>(
   if (existing) {
     if (existing.requestHash !== requestHash) {
       return jsonError(
-        new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key reused with a different request payload"),
+        new AppError(
+          "IDEMPOTENCY_CONFLICT",
+          "Idempotency key reused with a different request payload",
+        ),
         409,
       );
     }

@@ -21,6 +21,7 @@ export const AGGREGATE_TYPES = [
   "VERIFICATION",
   "CASE",
   "AGENT",
+  "INDEPENDENT_REVIEW",
   "SYSTEM",
 ] as const;
 export type AggregateType = (typeof AGGREGATE_TYPES)[number];

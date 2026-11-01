@@ -44,6 +44,7 @@ export interface RuleOutcome {
   confidence: number;
   rationale: string;
   detail?: Record<string, unknown>;
+  advisoryOutcome?: "PASS" | "FAIL" | "UNCERTAIN";
 }
 
 export async function startVerification(
@@ -221,10 +222,17 @@ export async function evaluateRules(
         outcomes.push({
           requirementKey: requirement.key,
           method: "SEMANTIC",
-          outcome: assessment.outcome,
-          confidence: assessment.confidence,
-          rationale: assessment.rationale,
-          detail: { evidence: assessment.evidence },
+          outcome: "UNCERTAIN",
+          confidence: 0,
+          rationale:
+            "AI assessment is advisory evidence only and cannot determine acceptance. " +
+            assessment.rationale,
+          detail: {
+            advisoryOutcome: assessment.outcome,
+            advisoryConfidence: assessment.confidence,
+            evidence: assessment.evidence,
+          },
+          advisoryOutcome: assessment.outcome,
         });
       } catch (error) {
         logger.warn(
@@ -264,6 +272,31 @@ export interface VerificationOutcome {
 }
 
 /**
+ * Aggregate evidence without allowing semantic AI to decide acceptance.
+ * Deterministic checks can decide only the properties they actually test;
+ * semantic and human-review rules remain unresolved until the applicable
+ * human process is completed.
+ */
+export function aggregateVerificationOutcome(
+  results: RuleOutcome[],
+): "PASS" | "FAIL" | "UNCERTAIN" {
+  if (results.length === 0) return "UNCERTAIN";
+
+  const deterministicFailure = results.some(
+    (result) => result.method === "DETERMINISTIC" && result.outcome === "FAIL",
+  );
+  if (deterministicFailure) return "FAIL";
+
+  const unresolved = results.some(
+    (result) =>
+      result.method !== "DETERMINISTIC" ||
+      result.outcome === "UNCERTAIN" ||
+      result.outcome === "FAIL",
+  );
+  return unresolved ? "UNCERTAIN" : "PASS";
+}
+
+/**
  * Execute a verification run end to end and freeze the acceptance decision.
  * The caller transitions the task based on the returned outcome.
  */
@@ -284,8 +317,7 @@ export async function executeVerification(options: {
   const failed = results.filter((r) => r.outcome === "FAIL");
   const uncertain = results.filter((r) => r.outcome === "UNCERTAIN");
   const passed = results.filter((r) => r.outcome === "PASS");
-  const outcome: VerificationOutcome["outcome"] =
-    failed.length > 0 ? "FAIL" : uncertain.length > 0 ? "UNCERTAIN" : "PASS";
+  const outcome = aggregateVerificationOutcome(results);
 
   return withTransaction(async (tx) => {
     for (const result of results) {

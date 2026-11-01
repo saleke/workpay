@@ -1465,39 +1465,35 @@ No human case required
 
 # 40. MVP Scope
 
-The MVP should not attempt to build a sophisticated arbitration platform.
+WorkPay does not decide task quality or arbitrate party disputes. Cases record
+platform/payment exceptions and can keep payment fail-closed; they are not a
+substitute for an independent reviewer selected and agreed by the participants.
+Until the parties' independent process produces an actionable outcome, uncertain
+or disputed work must remain unresolved rather than receiving a WorkPay ruling.
 
-Implement only the cases necessary to demonstrate trustworthy automation:
-
-### 1. Verification uncertainty
-
-```text
-UNCERTAIN
-→ Human review
-```
-
-### 2. Verification dispute
+### 1. Verification uncertainty or dispute
 
 ```text
-Provider contests failure
-→ Review
+UNCERTAIN or contested
+→ Payment remains fail-closed
+→ Parties use their agreed independent-review/evidence process
 ```
 
-### 3. Scope change request
+### 2. Scope change request
 
 ```text
 Provider requests material change
-→ Amendment/review
+→ Parties negotiate and explicitly agree an amendment
 ```
 
-### 4. Payment exception
+### 3. Payment exception
 
 ```text
 PayPal/local state mismatch
 → Reconciliation
 ```
 
-### 5. Cancellation
+### 4. Cancellation
 
 ```text
 Task cancelled

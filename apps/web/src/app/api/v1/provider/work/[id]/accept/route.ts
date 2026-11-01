@@ -1,9 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   getCorrelationId,
   getDb,
   jsonError,
-  resolveActor,
   withIdempotency,
   withTransaction,
 } from "@/lib/server/api";
@@ -11,21 +10,21 @@ import { workExecutions } from "@workpay/shared/db/schema/execution";
 import { acceptAssignment } from "@workpay/shared/domain";
 import { buildProviderWorkDto } from "@/lib/server/provider";
 import { notFound } from "@workpay/shared/platform";
+import { requireProviderPrincipal } from "@/lib/server/conversation-auth";
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: executionId } = await params;
-    const actor = resolveActor(req, "provider");
+    const { actor, provider } = await requireProviderPrincipal(req);
     const correlationId = getCorrelationId(req);
     const db = getDb();
 
     const [execution] = await db
       .select()
       .from(workExecutions)
-      .where(eq(workExecutions.id, executionId))
+      .where(
+        and(eq(workExecutions.id, executionId), eq(workExecutions.providerId, provider.id)),
+      )
       .limit(1);
 
     if (!execution) throw notFound("Execution");
@@ -34,7 +33,7 @@ export async function POST(
       await withTransaction((tx) =>
         acceptAssignment(tx, {
           executionId,
-          providerId: execution.providerId,
+          providerId: provider.id,
           actor,
           correlationId,
         }),

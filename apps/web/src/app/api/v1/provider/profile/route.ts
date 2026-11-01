@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { getDb, jsonError, jsonOk, resolveActorAsync, withTransaction } from "@/lib/server/api";
+import { getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
+import { requireProviderUser } from "@/lib/server/conversation-auth";
 import { providers, capabilities, availability } from "@workpay/shared/db/schema/providers";
 import { newId } from "@workpay/shared/platform";
 
@@ -34,7 +35,7 @@ const updateProfileSchema = z.object({
   bio: z.string().trim().max(500).optional().nullable(),
   hourlyRateMinor: z.number().int().nonnegative().optional().nullable(),
   currency: z.literal("USD").default("USD"),
-  payoutEmail: z.string().trim().email(),
+  payoutEmail: z.string().trim().email().optional().nullable(),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   capabilities: z
     .array(
@@ -60,27 +61,27 @@ const DEFAULT_WORK_PREFERENCES = {
   minNoticeHours: 4,
   plannedUnavailability: null,
   pricingModel: "FIXED" as const,
-  targetRateMinor: 4500,
-  minCompensationMinor: 2500,
-  minAssignmentSizeMinor: 2000,
+  targetRateMinor: null,
+  minCompensationMinor: null,
+  minAssignmentSizeMinor: null,
   willingToNegotiate: true,
-  acceptedCategories: ["data-cleaning", "data-enrichment"],
+  acceptedCategories: [],
   declinedCategories: [],
   requireExplicitApproval: true,
-  aiRecommendationAllowed: true,
+  aiRecommendationAllowed: false,
   communicationPreference: "ASYNC" as const,
-  deliveryFormat: "Structured CSV or JSON deliverable",
+  deliveryFormat: null,
   updateFrequency: "CHECKPOINTS_ONLY" as const,
   notifyOnVerificationFail: true,
   notifyOnRevisionRequest: true,
   reviewSpecBeforeAccept: true,
-  toolsAndTechnologies: ["Python", "TypeScript", "PostgreSQL"],
+  toolsAndTechnologies: [],
   languages: ["English"],
 };
 
 export async function GET(req: Request) {
   try {
-    const actor = await resolveActorAsync(req, "provider");
+    const actor = await requireProviderUser(req);
     const db = getDb();
 
     const [provider] = await db
@@ -136,7 +137,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const actor = await resolveActorAsync(req, "provider");
+    const actor = await requireProviderUser(req);
     const body = await req.json();
     const parsed = updateProfileSchema.parse(body);
 
@@ -158,7 +159,7 @@ export async function PUT(req: Request) {
             bio: parsed.bio ?? null,
             hourlyRateMinor: parsed.hourlyRateMinor ?? null,
             currency: parsed.currency,
-            payoutEmail: parsed.payoutEmail,
+            payoutEmail: parsed.payoutEmail ?? null,
             status: parsed.status,
             workPreferences: parsed.workPreferences ?? existing.workPreferences,
             updatedAt: new Date(),
@@ -175,7 +176,7 @@ export async function PUT(req: Request) {
           bio: parsed.bio ?? null,
           hourlyRateMinor: parsed.hourlyRateMinor ?? null,
           currency: parsed.currency,
-          payoutEmail: parsed.payoutEmail,
+          payoutEmail: parsed.payoutEmail ?? null,
           workPreferences: parsed.workPreferences ?? DEFAULT_WORK_PREFERENCES,
         });
       }
@@ -235,7 +236,7 @@ export async function PUT(req: Request) {
         bio: parsed.bio ?? null,
         hourlyRateMinor: parsed.hourlyRateMinor ?? null,
         currency: parsed.currency,
-        payoutEmail: parsed.payoutEmail,
+        payoutEmail: parsed.payoutEmail ?? null,
         status: parsed.status,
         capabilities: parsed.capabilities,
         availability: {

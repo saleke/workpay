@@ -28,10 +28,16 @@ export * from "./planning/service.js";
 export * from "./contracts/compiler.js";
 export * from "./contracts/plan-snapshot.js";
 export * from "./contracts/service.js";
+export * from "./contracts/changes.js";
+export * from "./contracts/change-service.js";
 
 // Providers
 export * from "./providers/selection.js";
-export * from "./providers/service.js";
+export * from "./providers/discovery-service.js";
+export * from "./reviewers/recommendation.js";
+export * from "./reviewers/service.js";
+export * from "./reviewers/independent-review-service.js";
+export * from "./conversations/service.js";
 
 // Negotiation
 export * from "./negotiation/guardrails.js";

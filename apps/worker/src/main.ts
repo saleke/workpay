@@ -8,6 +8,7 @@
  * 4. Graceful termination on SIGINT/SIGTERM.
  */
 import { eq } from "drizzle-orm";
+import { createServer, type Server } from "node:http";
 import { getDb, withTransaction } from "@workpay/shared/db/client";
 import { events, notifications, outboxEvents } from "@workpay/shared/db/schema/infra";
 import { verificationRuns } from "@workpay/shared/db/schema/verification";
@@ -19,15 +20,103 @@ import {
 } from "@workpay/shared/events/outbox";
 import {
   agentVerifySubmission,
+  canTransition,
   captureIfAllowed,
   ensureAgent,
   getPaymentForTask,
+  systemActor,
   transitionTask,
 } from "@workpay/shared/domain";
 import { newId } from "@workpay/shared/platform";
 import { logger } from "@workpay/shared/platform";
 
 let isRunning = true;
+let healthServer: Server | null = null;
+
+async function startHealthServer(): Promise<Server> {
+  const port = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("WORKER_HEALTH_PORT must be a valid TCP port");
+  }
+  const server = createServer(async (request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    response.setHeader("Cache-Control", "no-store");
+    if (request.url === "/health") {
+      response.statusCode = isRunning ? 200 : 503;
+      response.end(JSON.stringify({ status: isRunning ? "ok" : "stopping", service: "workpay-worker" }));
+      return;
+    }
+    if (request.url === "/ready") {
+      try {
+        await getDb().select({ id: outboxEvents.id }).from(outboxEvents).limit(1);
+        response.statusCode = isRunning ? 200 : 503;
+        response.end(
+          JSON.stringify({
+            status: isRunning ? "ready" : "stopping",
+            service: "workpay-worker",
+            database: "reachable",
+          }),
+        );
+      } catch {
+        response.statusCode = 503;
+        response.end(
+          JSON.stringify({
+            status: "not_ready",
+            service: "workpay-worker",
+            database: "unreachable",
+          }),
+        );
+      }
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ status: "not_found" }));
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "0.0.0.0", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  logger.info({ port }, "Worker health server started");
+  return server;
+}
+
+async function captureAndCompleteIfAllowed(
+  taskId: string,
+  correlationId: string,
+): Promise<void> {
+  const db = getDb();
+  const payment = await getPaymentForTask(db, taskId);
+  if (payment?.status === "AUTHORIZED") {
+    await captureIfAllowed({
+      paymentId: payment.id,
+      actor: systemActor(),
+      correlationId,
+    });
+  }
+
+  const currentPayment = await getPaymentForTask(db, taskId);
+  if (currentPayment?.status !== "CAPTURED") return;
+  await withTransaction(async (tx) => {
+    const [currentTask] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .for("update")
+      .limit(1);
+    if (!currentTask || currentTask.status === "COMPLETED") return;
+    if (!canTransition(currentTask.status, "COMPLETED")) return;
+    await transitionTask(tx, {
+      taskId,
+      to: "COMPLETED",
+      actor: systemActor(),
+      correlationId,
+      patch: { completedAt: new Date() },
+    });
+  });
+}
 
 /**
  * Maps domain events into user-friendly notifications.
@@ -51,7 +140,7 @@ function getNotificationContent(
     case "CONTRACT_APPROVED":
       return {
         title: "Work agreement approved",
-        body: `Work agreement approved for "${taskTitle}". Agent is now searching for matching specialists.`,
+        body: `Work agreement approved for "${taskTitle}". You can now review available professionals; nobody has been contacted.`,
       };
     case "PROVIDER_SELECTED":
       return {
@@ -70,8 +159,8 @@ function getNotificationContent(
       };
     case "PAYMENT_AUTHORIZED":
       return {
-        title: "Payment hold secured",
-        body: `Payment authorization hold secured on PayPal for "${taskTitle}". Specialist has commenced work.`,
+        title: "Simulated authorization recorded",
+        body: `Payment-policy simulation recorded authorization for "${taskTitle}". No funds were held or moved.`,
       };
     case "WORK_STARTED":
       return {
@@ -91,20 +180,20 @@ function getNotificationContent(
           : outcome === "FAIL"
             ? "Revision requested"
             : outcome === "HUMAN_REVIEW"
-              ? "Arbitration required"
+              ? "Independent review may be needed"
               : `Verification ${outcome.toLowerCase()}`;
       const body =
         outcome === "PASS"
-          ? `All acceptance criteria confirmed for "${taskTitle}". Direct settlement approved.`
+          ? `All acceptance criteria confirmed for "${taskTitle}". The simulated capture path is eligible for policy review.`
           : outcome === "FAIL"
             ? `Deliverable did not meet all acceptance criteria for "${taskTitle}". Revision requested from specialist.`
-            : `Verification flagged an ambiguity on "${taskTitle}". Case routed to arbitration.`;
+            : `Verification flagged an ambiguity on "${taskTitle}". Payment remains blocked unless the parties use an agreed independent review process.`;
       return { title, body };
     }
     case "PAYMENT_CAPTURED":
       return {
-        title: "Payment settled",
-        body: `Payment captured from PayPal authorization hold and disbursed directly to specialist for "${taskTitle}".`,
+        title: "Simulated capture recorded",
+        body: `The policy simulation recorded capture for "${taskTitle}". No funds were charged or paid.`,
       };
     case "TASK_COMPLETED":
       return {
@@ -113,13 +202,13 @@ function getNotificationContent(
       };
     case "CASE_OPENED":
       return {
-        title: "Arbitration case opened",
-        body: `An arbitration review was opened for "${taskTitle}": ${String(payload.title || payload.category || "Verification review")}.`,
+        title: "Platform exception recorded",
+        body: `A blocking platform exception was recorded for "${taskTitle}": ${String(payload.title || payload.category || "Technical review")}.`,
       };
     case "CASE_RESOLVED":
       return {
-        title: "Arbitration ruling issued",
-        body: `The arbitration case for "${taskTitle}" has been resolved with outcome: ${String(payload.outcome || "ruling complete")}.`,
+        title: "Platform exception reconciled",
+        body: `The operational exception for "${taskTitle}" was reconciled with outcome: ${String(payload.outcome || "reconciliation complete")}.`,
       };
     default:
       return null;
@@ -177,7 +266,7 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
         }
 
         // 5. Handle event-specific workflows
-        if (ev.type === "WORK_SUBMITTED" && task) {
+        if (ev.type === "SUBMISSION_SUBMITTED" && task) {
           const submissionId = String(payload.submissionId || "");
           if (submissionId) {
             const existingRuns = await db
@@ -186,6 +275,7 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
               .where(eq(verificationRuns.submissionId, submissionId))
               .limit(1);
 
+            let verificationOutcome = existingRuns[0]?.outcome ?? null;
             if (existingRuns.length === 0) {
               logger.info({ taskId: task.id, submissionId }, "Triggering async verification for submission");
               const { actor: agentActor } = await ensureAgent({
@@ -199,31 +289,20 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
                 actor: agentActor,
                 correlationId: ev.correlationId,
               });
-
-              if (verResult.outcome === "PASS") {
-                const payment = await getPaymentForTask(db, task.id);
-                if (payment && payment.status === "AUTHORIZED") {
-                  const capResult = await captureIfAllowed({
-                    paymentId: payment.id,
-                    actor: agentActor,
-                    correlationId: ev.correlationId,
-                  });
-
-                  if (capResult.captured) {
-                    await withTransaction((tx) =>
-                      transitionTask(tx, {
-                        taskId: task.id,
-                        to: "COMPLETED",
-                        actor: agentActor,
-                        correlationId: ev.correlationId,
-                        patch: { completedAt: new Date() },
-                      }),
-                    );
-                  }
-                }
-              }
+              verificationOutcome = verResult.outcome;
+            }
+            if (verificationOutcome === "PASS") {
+              await captureAndCompleteIfAllowed(task.id, ev.correlationId);
             }
           }
+        }
+
+        if (
+          ev.type === "INDEPENDENT_REVIEW_REPORTED" &&
+          task &&
+          payload.outcome === "PASS"
+        ) {
+          await captureAndCompleteIfAllowed(task.id, ev.correlationId);
         }
       }
 
@@ -247,6 +326,7 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
  */
 async function main(): Promise<void> {
   logger.info("WorkPay background worker process started");
+  healthServer = await startHealthServer();
 
   const shutdown = () => {
     logger.info("Shutting down WorkPay background worker...");
@@ -270,6 +350,10 @@ async function main(): Promise<void> {
   }
 
   logger.info("WorkPay background worker terminated gracefully");
+  if (healthServer) {
+    await new Promise<void>((resolve) => healthServer?.close(() => resolve()));
+    healthServer = null;
+  }
 }
 
 if (process.env.NODE_ENV !== "test") {

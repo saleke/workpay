@@ -154,4 +154,10 @@ describe("payment policy (P1)", () => {
     input.agreement.status = "PENDING_AUTHORIZATION";
     expect(reasonFor(input)).toBe("agreement.active");
   });
+
+  it("DENYs capture while an accepted contract change awaits activation", () => {
+    const input = validCaptureInput();
+    input.pendingContractChange = { id: "chg_1" };
+    expect(reasonFor(input)).toBe("contract.change_activation_pending");
+  });
 });

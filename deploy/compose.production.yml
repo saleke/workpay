@@ -1,0 +1,126 @@
+name: workpay-production
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: workpay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: workpay
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workpay -d workpay"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 128mb
+    mem_limit: 768m
+    cpus: 0.6
+    networks: [private]
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    command: ["pnpm", "--filter", "@workpay/shared", "db:migrate"]
+    restart: "no"
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+      DATABASE_URL_POOLED: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    init: true
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+      DATABASE_URL_POOLED: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+      APP_URL: https://${WORKPAY_DOMAIN}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 1536m
+    cpus: 1.0
+    networks: [private]
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    init: true
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+      DATABASE_URL_POOLED: postgres://workpay:${POSTGRES_PASSWORD}@postgres:5432/workpay
+      APP_URL: https://${WORKPAY_DOMAIN}
+      WORKER_HEALTH_PORT: 3001
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 768m
+    cpus: 0.6
+    networks: [private]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      WORKPAY_DOMAIN: ${WORKPAY_DOMAIN:?Set WORKPAY_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.2
+    networks: [private]
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  private:
+    driver: bridge

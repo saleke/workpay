@@ -130,7 +130,7 @@ export function UserNav() {
     user.role === "provider"
       ? "Specialist"
       : user.role === "admin_reviewer"
-        ? "Arbitrator"
+        ? "Reviewer"
         : "Client";
 
   const initials = (user.name || user.username || user.email || "U")

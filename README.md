@@ -1,173 +1,170 @@
-# WorkPay: Autonomous Agent Milestone & Escrow Protocol
+# WorkPay
 
-WorkPay is a trustless milestone commitment and automated escrow protocol for autonomous software agents and human professionals.
+WorkPay is a user-led workspace for turning an informal request for professional work into clear,
+versioned terms and an observable delivery process.
 
-Autonomous AI agents can negotiate contracts, write code, and analyze datasets: but until now, they could not be trusted with money. Current systems either hallucinate approvals or force humans to micro-manage every single transaction. WorkPay solves this through a cryptographic three-phase lifecycle: **Commit -> Prove -> Settle**.
+AI helps interpret and organize what someone needs. It does **not** choose or contact a
+professional, create binding requirements, accept commercial terms, judge professional quality,
+or move money on a user's behalf.
 
-Funds are held in real payment escrow and are released only when deliverables satisfy verified, deterministic acceptance criteria.
-
----
-
-## The Three-Phase Protocol: Commit -> Prove -> Settle
-
-```mermaid
-flowchart LR
-    subgraph Phase 1: Commit
-        A[Buyer Request] --> B[AI Work Plan]
-        B --> C[Contract Draft]
-        C --> D[Cryptographic Freeze: SHA-256]
-        D --> E[Escrow Authorization Hold]
-    end
-
-    subgraph Phase 2: Prove
-        E --> F[Provider Submission]
-        F --> G{Verification Engine}
-        G -->|Defects Detected| H[Payment Capture Refused]
-        H -->|Structured Feedback| F
-        G -->|100% Verified| I[Proof Certified]
-    end
-
-    subgraph Phase 3: Settle
-        I --> J[PayPal Escrow Captured]
-        J --> K[Provider Paid & Task Completed]
-        G -->|Subjective / Uncertain| L[Admin Review Queue]
-    end
-```
-
-1. **Commit:** The buyer specifies a task and budget ceiling. The buyer agent structures the goal into discrete requirements and deterministic acceptance rules. Once approved, the contract terms are frozen into an immutable SHA-256 hash snapshot, and funds are authorized into escrow.
-2. **Prove:** Upon deliverable submission, the verification engine runs deterministic checks first (for example uniqueness, null checks, schema validation) followed by bounded semantic assessments. If any defects exist, payment capture is strictly refused.
-3. **Settle:** When all acceptance criteria pass with zero defects, escrow capture executes immediately without human latency. If a check is uncertain, funds remain locked and the case routes to human arbitration.
-
----
-
-## The Four Core Invariants
-
-WorkPay mathematically enforces four invariants that protect buyer capital and provider labor:
-
-| Invariant | Guarantee | Technical Implementation |
-| :--- | :--- | :--- |
-| **P1: Frozen Scope** | Approved contract terms cannot be secretly altered. | Full plan snapshot is hashed with SHA-256. Submissions must reference the exact contract version and hash. |
-| **P2: Zero-Defect Escrow** | No payout is ever released against a defective deliverable. | Gateway capture calls require proof of zero failures. Defective submissions immediately reject payment release. |
-| **P3: Budget Cap Bound** | Negotiated settlements can never exceed the buyer ceiling. | Agent negotiation policies reject counteroffers above the authorized budget. |
-| **P4: Dispute Escalation** | Uncertainty or unresolvable disputes never stall funds silently. | Submissions with uncertain checks route to the Human Review queue with complete cryptographic event logs. |
-
----
-
-## Execution Environments
-
-WorkPay ships with a hybrid runtime architecture designed for testing, integration, and production escrow deployments:
-
-### 1. Sandbox Environment (Default)
-- **Zero Friction Evaluation:** Evaluators and engineers can explore all protocol flows without mandatory account registration.
-- **Actor Perspectives:** Switch between **Alice (Client)**, **Bob (Specialist)**, and **Carol (Arbitrator)** with one click in the navigation header.
-- **Protocol State Reset:** Reset the database to clean protocol fixtures directly from the perspective menu.
-
-### 2. Live Production Escrow
-- **Protected Routes:** Next.js middleware guards `/tasks`, `/provider`, `/review`, and `/payments`, redirecting unauthenticated visitors to `/login`.
-- **Session Security:** Cryptographic session tokens stored in HTTP-only cookies, combined with scrypt password hashing for identity management.
-- **Activation:** Set `WORKPAY_MODE=production` and `NEXT_PUBLIC_DEMO_MODE=false` in `.env`, or toggle via the environment switch in the navigation header.
-
----
-
-## System Architecture & Tech Stack
-
-WorkPay is structured as a modular TypeScript monorepo managed with pnpm workspaces:
+## Product model
 
 ```text
-workpay/
-├── apps/
-│   ├── web/           # Next.js 15 App Router web application and REST API endpoints
-│   └── worker/        # Asynchronous background job worker (pg-boss queue)
-├── packages/
-│   └── shared/        # Core business domain, Drizzle ORM schemas, verification engine, AI adapters
-├── architecture/      # Detailed formal specifications and engineering constitution
-└── scripts/           # Live rehearsal harness and automation utilities
+Explain the work
+  → confirm the interpretation
+  → clarify material unknowns
+  → approve an exact brief and budget meaning
+  → review available professional profiles
+  → approve one recipient and the exact first message
+  → professional accepts or declines contact
+  → both parties agree any commercial terms or changes
+  → professional accepts and performs the assignment
+  → evaluate evidence against the agreed criteria
+  → optionally use a mutually agreed independent reviewer
+  → apply deterministic payment policy
 ```
 
-- **Frontend & API:** Next.js 15 (App Router, Server Actions, Route Handlers), React 19, Vanilla CSS design system.
-- **Database & Storage:** PostgreSQL 16, Drizzle ORM, S3-compatible local or cloud storage.
-- **Background Worker:** Node.js worker powered by pg-boss for durable job processing.
-- **AI Planning Engine:** Cloudflare Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) with automated schema validation and deterministic rule synthesis. Also supports Google Gemini, Groq, and OpenAI.
-- **Payment Gateway:** PayPal Sandbox API (`AUTHORIZE -> HOLD -> CAPTURE`) with fallback adapter for offline development.
-- **Public Connectivity:** Cloudflare Tunnel for secure, zero-config HTTPS public edge routing.
+No earlier step implies consent to a later one.
 
----
+## Why it exists
 
-## Quickstart & Local Setup
+Requests for work often begin with incomplete or ambiguous language. That creates risks for both
+the person requesting work and the person performing it:
 
-### 1. Prerequisites
+- an AI can invent requirements or infer a budget;
+- messages can be mistaken for contract changes;
+- a professional can be contacted without informed consent;
+- submitted work can be confused with accepted work;
+- subjective quality can be presented as an automated fact;
+- payment actions can be triggered from stale or uncertain state.
+
+WorkPay makes those boundaries explicit and records the evidence behind consequential decisions.
+
+## Core safeguards
+
+- **Source-grounded intake:** the original request is preserved and AI output carries exact-source
+  provenance.
+- **Explicit confirmation:** AI proposals remain nonbinding until the user confirms or edits them.
+- **Versioned terms:** approved briefs and contracts are bound to immutable versions and hashes.
+- **User-controlled contact:** profiles are shown without automatic selection or endorsement;
+  contact requires approval of the recipient, terms, and exact message.
+- **Mutual changes:** chat messages do not amend an agreement. Structured changes require the
+  other participant's acceptance and explicit activation.
+- **Scoped independent review:** a reviewer is optional, chosen by the parties, conflict-checked,
+  and limited to the agreed criteria and materials.
+- **Deterministic payment policy:** AI cannot authorize or capture payment. FAIL, UNCERTAIN, stale
+  versions, unresolved changes, and blocking exceptions fail closed.
+- **Recoverable external operations:** unknown external outcomes are reconciled rather than
+  guessed or blindly retried.
+
+## Payment status
+
+**Live money movement is intentionally disabled.**
+
+The current application uses a deterministic fake gateway to validate agreement amounts,
+authorization states, acceptance gates, idempotency, capture policy, and failure recovery. A
+displayed authorization or capture is a simulation; no funds are charged, held, captured, or paid.
+
+PayPal OAuth identity data is not treated as permission to charge an account, a payout mandate, or
+independent identity verification. A production payment integration requires a separately approved
+marketplace payment design and explicit buyer approval at the payment provider.
+
+WorkPay does not currently provide escrow, a wallet, merchant-of-record services, or arbitration.
+
+## Architecture
+
+WorkPay is a TypeScript modular monolith:
+
+```text
+apps/
+├── web/       Next.js 15 application, UI, and /api/v1 route handlers
+└── worker/    Long-running outbox, verification, and recovery processing
+
+packages/
+└── shared/    Domain services, Zod contracts, Drizzle schema, events, and integrations
+```
+
+- **Frontend/API:** Next.js 15, React 19, TypeScript, Tailwind, Radix-based components
+- **Database:** PostgreSQL 16 with Drizzle ORM
+- **Events:** transactional PostgreSQL outbox
+- **Files:** local or S3-compatible object storage with SHA-256 artifact identity
+- **AI intake:** Cloudflare Workers AI or Vercel AI Gateway, disabled by default
+- **Payments:** deterministic simulation only
+- **Tests:** Vitest; database-backed tests are opt-in
+
+PostgreSQL is authoritative. Browser state, AI context, realtime events, and external-provider
+responses are never accepted as authority without server-side validation.
+
+## Local setup
+
+### Requirements
+
 - Node.js 22+
 - pnpm 9+
-- PostgreSQL 16 (or Docker Compose)
+- Docker with Docker Compose
 
-### 2. Installation
+### Install and run
+
 ```bash
-git clone https://github.com/saleke/workpay.git
-cd workpay
 pnpm install
-```
-
-### 3. Environment Configuration
-Copy the sample environment file:
-```bash
 cp .env.example .env
+docker compose up -d
+pnpm db:migrate
+pnpm reset-demo
+pnpm worker
 ```
 
-Default configuration runs in Demo Mode with local PostgreSQL on port 5433 and Cloudflare Workers AI.
+In a second terminal:
 
-### 4. Database Setup
-Start PostgreSQL (if using Docker):
-```bash
-docker compose up -d postgres
-```
-
-Run database migrations and seed baseline fixtures:
-```bash
-pnpm --filter @workpay/shared db:migrate
-pnpm --filter @workpay/shared reset-demo
-```
-
-### 5. Running the Application
-Start the background worker in one terminal:
-```bash
-pnpm --filter @workpay/worker dev
-```
-
-Start the Next.js web application in a second terminal:
 ```bash
 pnpm dev
 ```
 
-The application will be live at `http://localhost:3000`.
+Open `http://localhost:3000`.
 
----
+The default environment uses demo identities, local PostgreSQL/object storage, disabled live intake
+AI, and simulated payments. Configure one of the supported intake AI providers only when testing
+model behavior; invalid output leaves the persisted draft unchanged.
 
-## Live End-to-End Rehearsal
-
-WorkPay includes an automated rehearsal harness that validates the complete fail-then-pass lifecycle:
+## Validation commands
 
 ```bash
-pnpm tsx scripts/rehearse-demo.ts
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
-What the rehearsal verifies:
-1. Creates a buyer task with a natural language specification and budget ceiling.
-2. Invokes AI planning to draft a contract with structured requirements.
-3. Approves the contract and freezes the SHA-256 hash snapshot.
-4. Matches an active provider, negotiates terms, and authorizes escrow hold.
-5. Uploads flawed deliverable v1 (7.2% duplicates) and proves payment capture is refused.
-6. Uploads clean deliverable v2 (0% duplicates), passes verification, and triggers PayPal capture.
+Database-backed tests reset the configured database. Run them only against a disposable test
+database:
 
----
+```bash
+RUN_DB_TESTS=1 DATABASE_URL=postgres://... pnpm --filter @workpay/shared test:integration
+```
 
-## Testing & Quality Assurance
+## Google Cloud test deployment
 
-- **Typecheck:** `pnpm typecheck` (Strict TypeScript across all workspaces)
-- **Unit & Integration Tests:** `pnpm test`
-- **Database Integration Tests:** `pnpm test:integration`
+The deployment in `deploy/` runs the web application, worker, and PostgreSQL on one Compute Engine
+VM behind Caddy. Task artifacts remain in a private S3-compatible bucket such as Cloudflare R2.
 
----
+1. Install and authenticate the `gcloud` CLI locally.
+2. Export `GCP_PROJECT_ID` and run `deploy/gcp/create-vm.sh`.
+3. Point the chosen test subdomain's A record to the printed static IP.
+4. Connect through IAP and run `deploy/gcp/bootstrap-vm.sh` with `sudo`.
+5. Clone this repository into `/opt/workpay`.
+6. Copy `deploy/.env.production.example` to `deploy/.env.production` and fill its secrets.
+7. Run `deploy/deploy.sh`.
+8. Run `deploy/seed-test-users.sh` once to create separate test identities.
 
-## License
+Do not expose PostgreSQL or the worker publicly. Keep the application-level basic-auth boundary
+enabled until browser-level authorization tests are complete. Schedule `deploy/backup-postgres.sh`
+daily and enable Compute Engine snapshot schedules before inviting testers.
 
-MIT License. Built for the autonomous agent economy.
+## Current maturity
+
+The versioned intake system is the most mature part of the product. Candidate contact,
+collaboration, amendments, independent review, execution, and payment-policy simulation are under
+active integration and require browser-level validation before release.
+
+See `architecture/ENGINEERING_PLAN.md` for the current product scope, invariants, and delivery
+gates. Older autonomous-agent and dataset-cleaning documents are historical context where they
+conflict with that plan.

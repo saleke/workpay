@@ -1,11 +1,11 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { getDb, jsonError, jsonOk, resolveActor } from "@/lib/server/api";
+import { getDb, jsonError, jsonOk, resolveActorAsync } from "@/lib/server/api";
 import { notifications } from "@workpay/shared/db/schema/infra";
 import type { NotificationDto } from "@/lib/api/types";
 
 export async function GET(req: Request) {
   try {
-    const actor = resolveActor(req, "buyer");
+    const actor = await resolveActorAsync(req, "buyer");
     const db = getDb();
 
     const rows = await db
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const actor = resolveActor(req, "buyer");
+    const actor = await resolveActorAsync(req, "buyer");
     const db = getDb();
     const body = (await req.json().catch(() => ({}))) as {
       id?: string;
@@ -47,12 +47,7 @@ export async function PATCH(req: Request) {
       await db
         .update(notifications)
         .set({ readAt: now })
-        .where(
-          and(
-            eq(notifications.userId, actor.id as string),
-            isNull(notifications.readAt),
-          ),
-        );
+        .where(and(eq(notifications.userId, actor.id as string), isNull(notifications.readAt)));
       return jsonOk({ ok: true, markedAll: true });
     }
 
@@ -60,12 +55,7 @@ export async function PATCH(req: Request) {
       await db
         .update(notifications)
         .set({ readAt: now })
-        .where(
-          and(
-            eq(notifications.id, body.id),
-            eq(notifications.userId, actor.id as string),
-          ),
-        );
+        .where(and(eq(notifications.id, body.id), eq(notifications.userId, actor.id as string)));
       return jsonOk({ ok: true, id: body.id });
     }
 

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { ArrowRight, Check, CircleHelp, LoaderCircle, RotateCcw, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   budgetMeaningSchema,
   intakeVersionSchema,
+  professionalBriefDraftSchema,
   type BudgetMeaning,
   type IntakeVersion,
 } from "@workpay/shared/domain/intake/model";
@@ -16,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createTaskFromApprovedIntake } from "@/lib/api/endpoints";
 
 const SESSION_STORAGE_KEY = "workpay:intake:last-session:v1";
 
@@ -34,6 +37,7 @@ const intakeResponseSchema = z.object({
 });
 
 type IntakeSession = z.infer<typeof intakeResponseSchema>["data"];
+type ProfessionalBriefDraft = z.infer<typeof professionalBriefDraftSchema>;
 type IntakeError = {
   message: string;
   code?: string;
@@ -47,9 +51,12 @@ type BusyAction =
   | "confirm"
   | "scope"
   | "options"
+  | "brief"
+  | "save-brief"
   | "answer"
   | "budget"
   | "approve"
+  | "task"
   | null;
 
 const stages = ["Your request", "Understanding", "Core details", "Budget", "Review and approve"];
@@ -150,6 +157,20 @@ function describeBudget(meaning: BudgetMeaning): string {
   }
 }
 
+function toProfessionalBriefDraft(
+  brief: NonNullable<IntakeVersion["professionalBrief"]>,
+): ProfessionalBriefDraft {
+  return {
+    title: brief.title.text,
+    goalAndContext: brief.goalAndContext.text,
+    deliverables: brief.deliverables.map(({ text }) => text),
+    requirements: brief.requirements.map(({ text }) => text),
+    boundaries: brief.boundaries.map(({ text }) => text),
+    inputsAndDependencies: brief.inputsAndDependencies.map(({ text }) => text),
+    timing: brief.timing?.text ?? "",
+  };
+}
+
 function getCurrentQuestion(version: IntakeVersion) {
   return version.scopeAssessment?.criticalUnknowns.find(({ id }) =>
     version.unresolvedCriticalUnknownIds.includes(id),
@@ -197,6 +218,7 @@ function blockerMessage(blocker: string): string {
 }
 
 export function IntakeWorkspace() {
+  const router = useRouter();
   const [session, setSession] = useState<IntakeSession | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [busy, setBusy] = useState<BusyAction>(null);
@@ -206,6 +228,9 @@ export function IntakeWorkspace() {
   const [showCorrection, setShowCorrection] = useState(false);
   const [answer, setAnswer] = useState("");
   const [showAnswerOptions, setShowAnswerOptions] = useState(false);
+  const [professionalBriefDraft, setProfessionalBriefDraft] =
+    useState<ProfessionalBriefDraft | null>(null);
+  const [editingProfessionalBrief, setEditingProfessionalBrief] = useState(false);
   const [budgetOption, setBudgetOption] = useState<BudgetOption>("proposal");
   const [editingBudget, setEditingBudget] = useState(false);
   const [currency, setCurrency] = useState("");
@@ -361,6 +386,30 @@ export function IntakeWorkspace() {
     void updateSession("scope", "/scope", { expectedVersion: session.version });
   };
 
+  const handleComposeProfessionalBrief = async () => {
+    if (!session) return;
+    const updated = await updateSession("brief", "/professional-brief", {
+      expectedVersion: session.version,
+    });
+    if (updated?.intake.professionalBrief) {
+      setProfessionalBriefDraft(toProfessionalBriefDraft(updated.intake.professionalBrief));
+      setEditingProfessionalBrief(false);
+    }
+  };
+
+  const handleSaveProfessionalBrief = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!session || !professionalBriefDraft) return;
+    const updated = await updateSession("save-brief", "/professional-brief/edit", {
+      expectedVersion: session.version,
+      brief: professionalBriefDraft,
+    });
+    if (updated?.intake.professionalBrief) {
+      setProfessionalBriefDraft(toProfessionalBriefDraft(updated.intake.professionalBrief));
+      setEditingProfessionalBrief(false);
+    }
+  };
+
   const handleSuggestAnswerOptions = async () => {
     if (!session || !currentQuestion) return;
     const updated = await updateSession(
@@ -460,6 +509,22 @@ export function IntakeWorkspace() {
   const handleApprove = () => {
     if (!session) return;
     void updateSession("approve", "/approve", { expectedVersion: session.version });
+  };
+
+  const handleContinueToTask = async () => {
+    if (!session || busy) return;
+    setBusy("task");
+    setError(null);
+    const result = await createTaskFromApprovedIntake(session.sessionId);
+    setBusy(null);
+    if (result.error || !result.data) {
+      setError({
+        message: result.error?.message ?? "Could not create the task from this approved brief.",
+        ...(result.error?.code ? { code: result.error.code } : {}),
+      });
+      return;
+    }
+    router.push(`/tasks/${encodeURIComponent(result.data.taskId)}`);
   };
 
   const forgetLocalSession = () => {
@@ -652,11 +717,27 @@ export function IntakeWorkspace() {
                 <CardTitle className="text-lg">Your brief is approved</CardTitle>
                 <CardDescription>
                   The approved version is saved. No professional has been selected or contacted.
-                  Candidate selection and outreach are not enabled in this phase.
+                  Continue to review the resulting work terms before browsing profiles.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {version && <BriefSummary version={version} />}
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Review the work terms and budget next. This will not select or contact a
+                  professional, and it will not authorize a PayPal payment.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void handleContinueToTask()}
+                  disabled={busy !== null}
+                >
+                  {busy === "task" ? (
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                  )}
+                  Continue to contract review
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -1113,10 +1194,15 @@ export function IntakeWorkspace() {
               {version && version.budget.confirmationSourceId && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Review the brief before approval</CardTitle>
+                    <CardTitle className="text-lg">
+                      {version.approvedAt
+                        ? "Approved professional-facing brief"
+                        : "Prepare the professional-facing brief"}
+                    </CardTitle>
                     <CardDescription>
-                      Approval saves this exact version. It does not select or contact a
-                      professional.
+                      WorkPay organizes your confirmed details into a clear task brief instead of
+                      sending professionals an intake question-and-answer transcript. Review and
+                      edit it before approval. This does not select or contact anyone.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1133,24 +1219,109 @@ export function IntakeWorkspace() {
                         </ul>
                       </div>
                     )}
-                    <BriefSummary version={version} />
-                    <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs text-[var(--wp-text-secondary)]">
-                        You can still change your interpretation or budget before approval.
-                      </p>
-                      <Button
-                        type="button"
-                        onClick={handleApprove}
-                        disabled={busy !== null || !session.readiness.ready}
-                      >
-                        {busy === "approve" ? (
-                          <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Check className="mr-2 h-4 w-4" />
+                    {version.professionalBrief ? (
+                      <form className="space-y-4" onSubmit={handleSaveProfessionalBrief}>
+                        <ProfessionalBriefEditor
+                          brief={
+                            professionalBriefDraft ??
+                            toProfessionalBriefDraft(version.professionalBrief)
+                          }
+                          budget={version.budget.meaning}
+                          disabled={
+                            !editingProfessionalBrief ||
+                            version.approvedAt !== null ||
+                            busy !== null
+                          }
+                          onChange={setProfessionalBriefDraft}
+                        />
+                        {version.approvedAt === null && (
+                          <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4">
+                            {editingProfessionalBrief ? (
+                              <div className="flex flex-wrap gap-2">
+                                <Button type="submit" disabled={busy !== null}>
+                                  {busy === "save-brief" ? (
+                                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : null}
+                                  Save brief edits
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  disabled={busy !== null}
+                                  onClick={() => {
+                                    setProfessionalBriefDraft(
+                                      version.professionalBrief
+                                        ? toProfessionalBriefDraft(version.professionalBrief)
+                                        : null,
+                                    );
+                                    setEditingProfessionalBrief(false);
+                                  }}
+                                >
+                                  Discard edits
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="text-xs text-[var(--wp-text-secondary)]">
+                                  Approval records this exact brief for possible later discovery. It
+                                  does not start discovery or contact anyone.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setEditingProfessionalBrief(true)}
+                                    disabled={busy !== null}
+                                  >
+                                    Edit brief
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    onClick={handleApprove}
+                                    disabled={
+                                      busy !== null ||
+                                      !session.readiness.ready ||
+                                      editingProfessionalBrief
+                                    }
+                                  >
+                                    {busy === "approve" ? (
+                                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Check className="mr-2 h-4 w-4" />
+                                    )}
+                                    Approve this brief
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        Approve this brief
-                      </Button>
-                    </div>
+                      </form>
+                    ) : version.approvedAt !== null ? (
+                      <BriefSummary version={version} />
+                    ) : (
+                      <>
+                        <BriefSummary version={version} />
+                        <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs text-[var(--wp-text-secondary)]">
+                            First compose a professional-facing brief from the details you
+                            confirmed. Nothing will be sent.
+                          </p>
+                          <Button
+                            type="button"
+                            onClick={handleComposeProfessionalBrief}
+                            disabled={busy !== null || !session.readiness.ready}
+                          >
+                            {busy === "brief" ? (
+                              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="mr-2 h-4 w-4" />
+                            )}
+                            {busy === "brief" ? "Preparing brief..." : "Prepare professional brief"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -1189,6 +1360,139 @@ function ConfirmedBudget({ version }: { version: IntakeVersion }) {
     <div className="rounded-lg border border-[var(--wp-border)] p-4">
       <h2 className="text-sm font-semibold">Budget decision</h2>
       <p className="mt-2 text-sm">{describeBudget(version.budget.meaning)}</p>
+    </div>
+  );
+}
+
+function ProfessionalBriefEditor({
+  brief,
+  budget,
+  disabled,
+  onChange,
+}: {
+  brief: ProfessionalBriefDraft;
+  budget: BudgetMeaning;
+  disabled: boolean;
+  onChange: (brief: ProfessionalBriefDraft) => void;
+}) {
+  const updateLines = (
+    field: "deliverables" | "requirements" | "boundaries" | "inputsAndDependencies",
+    value: string,
+  ) => {
+    onChange({
+      ...brief,
+      [field]: value
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 rounded-lg border border-[var(--wp-border)] p-4">
+        <Label htmlFor="professional-brief-title">Task title</Label>
+        <Input
+          id="professional-brief-title"
+          value={brief.title}
+          disabled={disabled}
+          required
+          onChange={(event) => onChange({ ...brief, title: event.target.value })}
+        />
+        <Label htmlFor="professional-brief-goal">Goal and context</Label>
+        <Textarea
+          id="professional-brief-goal"
+          value={brief.goalAndContext}
+          rows={3}
+          disabled={disabled}
+          required
+          onChange={(event) => onChange({ ...brief, goalAndContext: event.target.value })}
+        />
+      </div>
+      <ProfessionalBriefList
+        id="professional-brief-deliverables"
+        title="Requested deliverables"
+        hint="One item per line."
+        value={brief.deliverables.join("\n")}
+        disabled={disabled}
+        required
+        onChange={(value) => updateLines("deliverables", value)}
+      />
+      <ProfessionalBriefList
+        id="professional-brief-requirements"
+        title="Confirmed requirements"
+        hint="Only include requirements that were stated or confirmed."
+        value={brief.requirements.join("\n")}
+        disabled={disabled}
+        onChange={(value) => updateLines("requirements", value)}
+      />
+      <ProfessionalBriefList
+        id="professional-brief-boundaries"
+        title="Boundaries and exclusions"
+        hint="One item per line."
+        value={brief.boundaries.join("\n")}
+        disabled={disabled}
+        onChange={(value) => updateLines("boundaries", value)}
+      />
+      <ProfessionalBriefList
+        id="professional-brief-inputs"
+        title="Inputs and dependencies"
+        hint="Materials or access the requester said they can provide."
+        value={brief.inputsAndDependencies.join("\n")}
+        disabled={disabled}
+        onChange={(value) => updateLines("inputsAndDependencies", value)}
+      />
+      <div className="space-y-2 rounded-lg border border-[var(--wp-border)] p-4">
+        <Label htmlFor="professional-brief-timing">Timing</Label>
+        <Textarea
+          id="professional-brief-timing"
+          value={brief.timing}
+          placeholder="No timing details provided."
+          rows={2}
+          disabled={disabled}
+          onChange={(event) => onChange({ ...brief, timing: event.target.value })}
+        />
+      </div>
+      <div className="rounded-lg border border-[var(--wp-border)] p-4">
+        <h3 className="text-sm font-semibold">Requester’s stated budget</h3>
+        <p className="mt-2 text-sm">{describeBudget(budget)}</p>
+        <p className="mt-1 text-xs text-[var(--wp-text-secondary)]">
+          This is the requester’s budget context, not an agreed price or offer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ProfessionalBriefList({
+  id,
+  title,
+  hint,
+  value,
+  disabled,
+  required = false,
+  onChange,
+}: {
+  id: string;
+  title: string;
+  hint: string;
+  value: string;
+  disabled: boolean;
+  required?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-[var(--wp-border)] p-4">
+      <Label htmlFor={id}>{title}</Label>
+      <Textarea
+        id={id}
+        value={value}
+        rows={Math.min(5, Math.max(2, value.split("\n").length))}
+        disabled={disabled}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <p className="text-xs text-[var(--wp-text-secondary)]">{hint}</p>
     </div>
   );
 }

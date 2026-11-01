@@ -5,9 +5,12 @@ import {
   getDb,
   jsonError,
   jsonOk,
-  resolveActor,
   withTransaction,
 } from "@/lib/server/api";
+import {
+  requireProviderPrincipal,
+  requireTaskOwner,
+} from "@/lib/server/conversation-auth";
 import { getActiveContractForTask, getTaskById } from "@workpay/shared/domain";
 import { workExecutions } from "@workpay/shared/db/schema/execution";
 import { events, notifications } from "@workpay/shared/db/schema/infra";
@@ -22,12 +25,10 @@ const submitAuditCheckinSchema = z.object({
   percentComplete: z.number().min(0).max(100).optional(),
 });
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: taskId } = await params;
+    await requireTaskOwner(req, taskId);
     const db = getDb();
     const task = await getTaskById(db, taskId);
 
@@ -114,16 +115,13 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: taskId } = await params;
     const body = await req.json();
     const parsed = submitAuditCheckinSchema.parse(body);
     const correlationId = getCorrelationId(req);
-    const actor = resolveActor(req, "provider");
+    const { actor, provider } = await requireProviderPrincipal(req);
     const db = getDb();
 
     const task = await getTaskById(db, taskId);
@@ -134,7 +132,9 @@ export async function POST(
     const [execution] = await db
       .select()
       .from(workExecutions)
-      .where(eq(workExecutions.taskId, taskId))
+      .where(
+        and(eq(workExecutions.taskId, taskId), eq(workExecutions.providerId, provider.id)),
+      )
       .limit(1);
 
     if (!execution) {

@@ -1294,8 +1294,43 @@ function SettingsContent() {
             </div>
           )}
 
-          {/* TAB 3: PAYMENTS (PayPal Account Binding) */}
+          {/* TAB 3: PAYMENT VALIDATION */}
           {activeTab === "paypal" && (
+            <div className="grid gap-6 animate-in fade-in-50 duration-150">
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)]">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Payment integration is in validation
+                  </CardTitle>
+                  <CardDescription>
+                    WorkPay currently tests agreement amounts, authorization states, evidence gates,
+                    idempotency, and failure recovery without moving money.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
+                  <p>
+                    PayPal account linking, authorization holds, captures, and professional payouts
+                    are disabled. Existing profile details are not treated as permission to charge an
+                    account or pay a professional.
+                  </p>
+                  <div className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-amber-900">
+                    <strong className="block text-sm">No funds move in this environment</strong>
+                    <span className="mt-1 block text-xs leading-relaxed">
+                      Live payments require a separately approved marketplace payment design with
+                      explicit buyer approval and correctly onboarded professional recipients.
+                    </span>
+                  </div>
+                  <Button asChild variant="outline" size="sm" className="text-xs">
+                    <Link href="/payments">View policy simulation records</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Retained temporarily for migration reference; intentionally unreachable. */}
+          {Boolean(0) && activeTab === "paypal" && (
             <div className="grid gap-6 animate-in fade-in-50 duration-150">
               {/* PayPal Account Binding Card */}
               <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
@@ -1626,7 +1661,7 @@ function SettingsContent() {
                         Dispute Updates
                       </span>
                       <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Alerts if a task enters dispute review or an arbitrator releases payment.
+                        Alerts when a task is disputed or a payment-related case changes.
                       </span>
                     </div>
                     <input

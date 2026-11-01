@@ -16,11 +16,12 @@
  * partial unique index allows at most one SUCCEEDED capture per payment, so a
  * retry (or a race) cannot double-spend.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { withTransaction } from "../../db/client.js";
 import { cases } from "../../db/schema/cases.js";
 import { workContracts } from "../../db/schema/contracts.js";
+import { contractChangeRequests } from "../../db/schema/contract-changes.js";
 import { commercialAgreements } from "../../db/schema/negotiation.js";
 import { providers } from "../../db/schema/providers.js";
 import { users } from "../../db/schema/identity.js";
@@ -32,17 +33,27 @@ import {
   payments,
 } from "../../db/schema/payments.js";
 import { tasks } from "../../db/schema/tasks.js";
+import { workExecutions } from "../../db/schema/execution.js";
 import { acceptanceDecisions } from "../../db/schema/verification.js";
 import { appendEvent } from "../../events/outbox.js";
 import { getPaymentGateway } from "../../integrations/payments/index.js";
+import { paypalRequestId } from "../../integrations/payments/idempotency.js";
 import { getEnv } from "../../platform/env.js";
 import { hashObject } from "../../platform/hashing.js";
 import { logger } from "../../platform/logger.js";
 import { money, type Money } from "../../platform/money.js";
 import { newId } from "../../platform/ids.js";
-import { conflict, notFound } from "../../platform/errors.js";
+import {
+  authorizationError,
+  conflict,
+  externalUnknown,
+  notFound,
+  policyDenied,
+} from "../../platform/errors.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
+import { assignExecution } from "../execution/service.js";
+import { transitionTask } from "../tasks/service.js";
 import {
   evaluatePaymentPolicy,
   type PaymentAction,
@@ -96,11 +107,13 @@ async function evaluateAndRecord(
   decision: PolicyDecision;
   decisionId: string;
   payment: typeof payments.$inferSelect;
+  agreementContractVersion: number;
 }> {
   const [payment] = await tx
     .select()
     .from(payments)
     .where(eq(payments.id, options.paymentId))
+    .for("update")
     .limit(1);
   if (!payment) throw notFound("Payment");
 
@@ -129,6 +142,22 @@ async function evaluateAndRecord(
     .select()
     .from(cases)
     .where(and(eq(cases.taskId, payment.taskId), eq(cases.blocksPaymentCapture, true)))
+    .limit(1);
+
+  const [pendingContractChange] = await tx
+    .select({ id: contractChangeRequests.id })
+    .from(contractChangeRequests)
+    .where(
+      and(
+        eq(contractChangeRequests.taskId, payment.taskId),
+        inArray(contractChangeRequests.status, [
+          "ACCEPTED_PENDING_ACTIVATION",
+          "ACTIVATING",
+          "ACTIVATION_RECONCILIATION_REQUIRED",
+          "CANCELLATION_PENDING",
+        ]),
+      ),
+    )
     .limit(1);
 
   const [succeededCapture] = await tx
@@ -179,6 +208,7 @@ async function evaluateAndRecord(
       : null,
     blockingCase: blockingCaseOpen,
     hasSucceededCapture: Boolean(succeededCapture),
+    pendingContractChange: pendingContractChange ?? null,
     systemPaymentPaused: getEnv().SYSTEM_PAYMENT_PAUSE,
   };
 
@@ -225,7 +255,7 @@ async function evaluateAndRecord(
     },
   });
 
-  return { decision, decisionId, payment };
+  return { decision, decisionId, payment, agreementContractVersion: agreement.contractVersion };
 }
 
 export interface PolicyOutcome {
@@ -247,7 +277,7 @@ export async function authorizePayment(options: {
   actor: Actor;
   correlationId: string;
 }): Promise<PolicyOutcome> {
-  const { decision, decisionId, payment } = await withTransaction((tx) =>
+  const { decision, decisionId, payment, agreementContractVersion } = await withTransaction((tx) =>
     evaluateAndRecord(tx, {
       paymentId: options.paymentId,
       action: "AUTHORIZE",
@@ -261,7 +291,10 @@ export async function authorizePayment(options: {
   }
 
   const amount = money(payment.amountMinor, payment.currency as Money["currency"]);
-  const idempotencyKey = `auth:${payment.id}`;
+  const idempotencyKey = paypalRequestId(
+    "payment-authorize",
+    `${payment.id}:v${agreementContractVersion}`,
+  );
 
   await withTransaction(async (tx) => {
     await tx
@@ -371,6 +404,190 @@ export async function authorizePayment(options: {
 }
 
 /**
+ * Run the validation-only payment authorization and create an assignment.
+ *
+ * This is an explicit buyer action after both parties have agreed commercial
+ * terms. It cannot run against a live gateway: the current product validates
+ * lifecycle and policy behavior without charging, holding, or paying funds.
+ */
+export async function simulateAuthorizationAndAssign(options: {
+  taskId: string;
+  actor: Actor;
+  correlationId: string;
+}): Promise<{ paymentId: string; executionId: string; alreadyPrepared: boolean }> {
+  if (getEnv().PAYMENT_GATEWAY !== "fake") {
+    throw conflict("Live payment execution is disabled during lifecycle validation.");
+  }
+
+  const prepared = await withTransaction(async (tx) => {
+    const [task] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, options.taskId))
+      .for("update")
+      .limit(1);
+    if (!task || options.actor.kind !== "USER" || options.actor.id !== task.userId) {
+      throw authorizationError("Only the task owner may start the payment simulation.");
+    }
+
+    const [agreement] = await tx
+      .select()
+      .from(commercialAgreements)
+      .where(eq(commercialAgreements.taskId, task.id))
+      .for("update")
+      .limit(1);
+    if (!agreement) throw conflict("Both parties must agree commercial terms first.");
+
+    const [contract] = await tx
+      .select()
+      .from(workContracts)
+      .where(eq(workContracts.id, agreement.contractId))
+      .limit(1);
+    if (
+      !contract ||
+      contract.status !== "ACTIVE" ||
+      contract.version !== agreement.contractVersion
+    ) {
+      throw conflict("The commercial agreement is not bound to the current active contract.");
+    }
+
+    const [existingExecution] = await tx
+      .select()
+      .from(workExecutions)
+      .where(eq(workExecutions.taskId, task.id))
+      .limit(1);
+    const [existingPayment] = await tx
+      .select()
+      .from(payments)
+      .where(eq(payments.taskId, task.id))
+      .limit(1);
+    if (existingExecution && existingPayment?.status === "AUTHORIZED") {
+      return {
+        agreement,
+        contract,
+        paymentId: existingPayment.id,
+        executionId: existingExecution.id,
+        alreadyPrepared: true,
+        needsAuthorization: false,
+      };
+    }
+    if (existingExecution) {
+      throw conflict("A work assignment already exists without a confirmed simulated authorization.");
+    }
+    if (task.status !== "AGREEMENT_READY") {
+      throw conflict("The task is not ready for payment-policy validation.", {
+        taskStatus: task.status,
+      });
+    }
+
+    await transitionTask(tx, {
+      taskId: task.id,
+      to: "PAYMENT_AUTHORIZATION",
+      actor: options.actor,
+      correlationId: options.correlationId,
+    });
+    const payment = await ensurePaymentForAgreement(tx, {
+      taskId: task.id,
+      agreementId: agreement.id,
+      actor: options.actor,
+      correlationId: options.correlationId,
+    });
+    return {
+      agreement,
+      contract,
+      paymentId: payment.id,
+      executionId: null,
+      alreadyPrepared: false,
+      needsAuthorization: payment.status !== "AUTHORIZED",
+    };
+  });
+
+  if (prepared.alreadyPrepared && prepared.executionId) {
+    return {
+      paymentId: prepared.paymentId,
+      executionId: prepared.executionId,
+      alreadyPrepared: true,
+    };
+  }
+
+  if (prepared.needsAuthorization) {
+    const outcome = await authorizePayment({
+      paymentId: prepared.paymentId,
+      actor: options.actor,
+      correlationId: options.correlationId,
+    });
+    if (outcome.decision.result === "DENY") {
+      await withTransaction(async (tx) => {
+        const [task] = await tx
+          .select()
+          .from(tasks)
+          .where(eq(tasks.id, options.taskId))
+          .for("update")
+          .limit(1);
+        if (task?.status === "PAYMENT_AUTHORIZATION") {
+          await transitionTask(tx, {
+            taskId: task.id,
+            to: "AGREEMENT_READY",
+            actor: options.actor,
+            correlationId: options.correlationId,
+          });
+        }
+      });
+      throw policyDenied(
+        outcome.decision.reasonCode,
+        "The payment-policy simulation refused authorization.",
+      );
+    }
+  }
+
+  return withTransaction(async (tx) => {
+    const [payment] = await tx
+      .select()
+      .from(payments)
+      .where(eq(payments.id, prepared.paymentId))
+      .for("update")
+      .limit(1);
+    if (!payment) throw notFound("Payment");
+    if (payment.status === "UNKNOWN" || payment.status === "AUTHORIZATION_REQUESTED") {
+      throw externalUnknown(
+        "The simulated authorization outcome is uncertain and must be reconciled before assignment.",
+        { paymentId: payment.id },
+      );
+    }
+    if (payment.status !== "AUTHORIZED") {
+      throw conflict("The simulated authorization did not complete successfully.", {
+        paymentStatus: payment.status,
+      });
+    }
+    const [existingExecution] = await tx
+      .select()
+      .from(workExecutions)
+      .where(eq(workExecutions.taskId, options.taskId))
+      .limit(1);
+    if (existingExecution) {
+      return {
+        paymentId: payment.id,
+        executionId: existingExecution.id,
+        alreadyPrepared: true,
+      };
+    }
+    const execution = await assignExecution(tx, {
+      taskId: options.taskId,
+      contractId: prepared.contract.id,
+      contractVersion: prepared.contract.version,
+      contractHash: prepared.contract.contractHash,
+      agreementId: prepared.agreement.id,
+      providerId: prepared.agreement.providerId,
+    });
+    return {
+      paymentId: payment.id,
+      executionId: execution.id,
+      alreadyPrepared: false,
+    };
+  });
+}
+
+/**
  * Request capture: evaluate policy and, on ALLOW, create the capture command.
  * The command is the only thing that can trigger a gateway capture.
  */
@@ -393,7 +610,7 @@ export async function requestCapture(options: {
 
     const amount = money(payment.amountMinor, payment.currency as Money["currency"]);
     const captureCommandId = newId("pcmd");
-    const idempotencyKey = `cap:${payment.id}`;
+    const idempotencyKey = paypalRequestId("payment-capture", payment.id);
     await tx.insert(paymentCommands).values({
       id: captureCommandId,
       paymentId: payment.id,
@@ -567,7 +784,11 @@ export async function executeCapture(options: {
         let targetEmail = provider?.payoutEmail;
         if (!targetEmail && provider?.userId) {
           const [user] = await withTransaction((tx) =>
-            tx.select({ email: users.email }).from(users).where(eq(users.id, provider.userId!)).limit(1),
+            tx
+              .select({ email: users.email })
+              .from(users)
+              .where(eq(users.id, provider.userId!))
+              .limit(1),
           );
           targetEmail = user?.email;
         }
@@ -576,7 +797,7 @@ export async function executeCapture(options: {
             recipientEmail: targetEmail,
             amount,
             note: `WorkPay settlement for deliverable on task ${payment.taskId}`,
-            idempotencyKey: `${command.idempotencyKey}:payout`,
+            idempotencyKey: paypalRequestId("payment-payout", command.idempotencyKey),
           });
           logger.info(
             { payoutResult, targetEmail, taskId: payment.taskId },

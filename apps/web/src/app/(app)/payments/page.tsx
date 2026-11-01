@@ -86,16 +86,16 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Header with clear non-custodial notice */}
+      {/* 1. Header with explicit simulation notice */}
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            PayPal Settlement Ledger
+            Payment policy simulation
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-            Immutable record of PayPal authorization holds and cryptographically verified captures.
-            WorkPay does not operate a wallet; funds remain held externally on PayPal until
-            deliverables pass verifiable checks.
+            Review how agreed amounts, authorization states, acceptance evidence, and capture
+            policy behave before live payments are introduced. No entry on this page represents
+            money charged, held, captured, or paid.
           </p>
         </div>
 
@@ -113,27 +113,27 @@ export default function PaymentsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>PayPal Authorization Holds</span>
+            <span>Simulated authorizations</span>
             <Lock className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {summary.heldStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Authorized with PayPal. Awaiting completed deliverables and cryptographic verification.
+            Policy states awaiting completion evidence. No funds are on hold.
           </p>
         </div>
 
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Captured on Verified Proof</span>
+            <span>Simulated captures</span>
             <CheckCircle2 className="h-4 w-4 text-[var(--green)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {summary.capturedStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Released to specialists following policy validation and verified proof.
+            Capture paths accepted by policy. No professional was paid.
           </p>
         </div>
 
@@ -173,7 +173,7 @@ export default function PaymentsPage() {
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
           }`}
         >
-          Authorized Holds
+          Simulated authorizations
         </button>
         <button
           type="button"
@@ -184,7 +184,7 @@ export default function PaymentsPage() {
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
           }`}
         >
-          Captured & Settled
+          Simulated captures
         </button>
       </div>
 
@@ -196,7 +196,7 @@ export default function PaymentsPage() {
             No payment receipts match this filter
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            When you sign a contract, an external PayPal authorization ticket appears here.
+            Simulation records appear only after the parties agree terms and a payment test is explicitly started.
           </p>
         </div>
       ) : (
@@ -224,13 +224,13 @@ export default function PaymentsPage() {
               : "Recent";
 
             let badgeBg = "bg-amber-100 text-amber-800";
-            let badgeText = "PayPal Authorization Hold";
+            let badgeText = "Simulated authorization";
             if (isCaptured) {
               badgeBg = "bg-emerald-100 text-emerald-800";
-              badgeText = "Captured on Verified Proof";
+              badgeText = "Simulated capture";
             } else if (isRefunded) {
               badgeBg = "bg-gray-100 text-gray-700";
-              badgeText = "Voided to Task Owner";
+              badgeText = "Simulation voided";
             }
 
             return (
@@ -267,10 +267,10 @@ export default function PaymentsPage() {
 
                     <div className="text-right">
                       <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                        Specialist Destination
+                        Environment
                       </div>
                       <div className="text-xs font-medium text-[var(--charcoal)]">
-                        {p.payoutEmail || "Assigned specialist"}
+                        Validation only
                       </div>
                     </div>
                   </div>
@@ -287,9 +287,9 @@ export default function PaymentsPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[var(--text-muted)] block">PayPal Auth ID:</span>
+                      <span className="text-[var(--text-muted)] block">Authorization reference:</span>
                       <span className="font-mono font-medium text-[var(--charcoal)] truncate block">
-                        {p.paypalAuthorizationId || "AUTH-EXT-SIMULATED"}
+                        {p.paypalAuthorizationId || "Not created"}
                       </span>
                     </div>
 
@@ -318,8 +318,8 @@ export default function PaymentsPage() {
                   <div className="pt-2 flex items-center justify-between">
                     <span className="text-[11px] text-[var(--text-muted)]">
                       {isCaptured
-                        ? "Settlement confirmed via PayPal"
-                        : "Held until 100% criteria proven"}
+                        ? "Policy simulation recorded capture"
+                        : "No funds are held or moved"}
                     </span>
 
                     <Link

@@ -1,21 +1,29 @@
 import { apiFetch, apiUpload, type ApiResponse } from "./client";
+import type { ContractChangePatch } from "@workpay/shared/domain";
 import type {
   AcceptInvitationInput,
   ActivityEntryDto,
   ApprovalResultDto,
   AuditCheckinDto,
-  CaseDto,
   ContractDto,
+  ContractChangeRequestDto,
+  IndependentReviewEngagementDto,
+  IndependentReviewReportDto,
   NotificationDto,
   PaymentDto,
   ProviderSelectionDto,
   ProviderWorkDto,
+  ReviewerProfileDto,
+  ReviewerProfileInputDto,
+  TaskReviewerRecommendationsDto,
   SubmissionDto,
   TaskAuditStatusDto,
   TaskDto,
   TaskInvitationDto,
+  TaskConversationDto,
   TaskRoomDto,
   VerificationDto,
+  VerificationOutcome,
   WorkSpecificationDto,
 } from "./types";
 
@@ -42,6 +50,14 @@ export function createTask(
     method: "POST",
     body: input,
     idempotencyKey,
+  });
+}
+
+export function createTaskFromApprovedIntake(
+  intakeSessionId: string,
+): Promise<ApiResponse<{ taskId: string; contractId: string | null; created: boolean }>> {
+  return apiFetch(`${BASE}/intake/sessions/${intakeSessionId}/task`, {
+    method: "POST",
   });
 }
 
@@ -90,9 +106,125 @@ export function getTaskPayment(taskId: string): Promise<ApiResponse<PaymentDto |
   return apiFetch<PaymentDto | null>(`${BASE}/tasks/${taskId}/payment`);
 }
 
+export function simulatePaymentAuthorization(
+  taskId: string,
+  idempotencyKey: string,
+): Promise<
+  ApiResponse<{ paymentId: string; executionId: string; alreadyPrepared: boolean }>
+> {
+  return apiFetch(`${BASE}/tasks/${taskId}/payment/simulate-authorization`, {
+    method: "POST",
+    idempotencyKey,
+  });
+}
+
 /** B's endpoints (ENGINEERING_PLAN Appendix C). */
 export function getTaskRoom(taskId: string): Promise<ApiResponse<TaskRoomDto>> {
   return apiFetch<TaskRoomDto>(`${BASE}/tasks/${taskId}/task-room`);
+}
+
+export function getTaskConversations(taskId: string): Promise<ApiResponse<TaskConversationDto[]>> {
+  return apiFetch<TaskConversationDto[]>(`${BASE}/tasks/${taskId}/conversations`);
+}
+
+export function startTaskConversation(
+  taskId: string,
+  input: {
+    providerId: string;
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    initialMessage: string;
+    clientMessageId: string;
+  },
+): Promise<ApiResponse<{ conversationId: string; status: "CONTACT_PENDING" }>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/conversations`, { method: "POST", body: input });
+}
+
+export function listProviderConversations(): Promise<ApiResponse<TaskConversationDto[]>> {
+  return apiFetch<TaskConversationDto[]>(`${BASE}/provider/conversations`);
+}
+
+export function respondToTaskConversation(
+  conversationId: string,
+  response: "accept" | "decline",
+): Promise<ApiResponse<{ id: string; status: TaskConversationDto["status"] }>> {
+  return apiFetch(`${BASE}/provider/conversations/${conversationId}/respond`, {
+    method: "POST",
+    body: { response },
+  });
+}
+
+export function sendTaskConversationMessage(
+  conversationId: string,
+  input: { clientMessageId: string; body: string },
+): Promise<ApiResponse<TaskConversationDto["messages"][number]>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function getTaskConversationMessages(
+  conversationId: string,
+  afterSequence?: number,
+): Promise<ApiResponse<TaskConversationDto>> {
+  const search = afterSequence === undefined ? "" : `?after=${afterSequence}`;
+  return apiFetch<TaskConversationDto>(`${BASE}/conversations/${conversationId}/messages${search}`);
+}
+
+export function listContractChangeRequests(
+  conversationId: string,
+): Promise<ApiResponse<ContractChangeRequestDto[]>> {
+  return apiFetch<ContractChangeRequestDto[]>(`${BASE}/conversations/${conversationId}/changes`);
+}
+
+export function proposeContractChange(
+  conversationId: string,
+  input: {
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    reason: string;
+    patch: ContractChangePatch;
+  },
+): Promise<ApiResponse<ContractChangeRequestDto>> {
+  return apiFetch<ContractChangeRequestDto>(`${BASE}/conversations/${conversationId}/changes`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function decideContractChange(
+  conversationId: string,
+  changeRequestId: string,
+  decision: "accept" | "decline" | "withdraw" | "request-cancellation" | "confirm-cancellation",
+  note?: string,
+): Promise<ApiResponse<ContractChangeRequestDto>> {
+  return apiFetch<ContractChangeRequestDto>(
+    `${BASE}/conversations/${conversationId}/changes/${changeRequestId}/decision`,
+    {
+      method: "PATCH",
+      body: { decision, ...(note ? { note } : {}) },
+    },
+  );
+}
+
+export function activateContractChange(
+  conversationId: string,
+  changeRequestId: string,
+): Promise<
+  ApiResponse<{
+    changeRequest: ContractChangeRequestDto;
+    contractId: string;
+    contractVersion: number;
+    contractHash: string;
+    paymentAdjustment: ContractChangeRequestDto["paymentAdjustmentPlan"];
+    status: "ACTIVATED";
+  }>
+> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/changes/${changeRequestId}/activate`, {
+    method: "POST",
+    body: {},
+  });
 }
 
 export function requestPlanning(taskId: string): Promise<ApiResponse<WorkSpecificationDto>> {
@@ -111,26 +243,88 @@ export function startProviderSearch(taskId: string): Promise<ApiResponse<Provide
   });
 }
 
+export function getReviewerProfile(): Promise<ApiResponse<{ profile: ReviewerProfileDto | null }>> {
+  return apiFetch(`${BASE}/provider/reviewer-profile`);
+}
+
+export function saveReviewerProfile(input: ReviewerProfileInputDto) {
+  return apiFetch<{ profile: ReviewerProfileDto }>(`${BASE}/provider/reviewer-profile`, {
+    method: "PUT",
+    body: input,
+  });
+}
+
+export function getTaskReviewerRecommendations(
+  taskId: string,
+  additionalDomains: string[],
+): Promise<ApiResponse<TaskReviewerRecommendationsDto>> {
+  const query = additionalDomains.length > 0
+    ? `?domains=${encodeURIComponent(additionalDomains.join(","))}`
+    : "";
+  return apiFetch(`${BASE}/tasks/${taskId}/reviewers${query}`);
+}
+
+export function listIndependentReviewEngagements(
+  conversationId: string,
+): Promise<ApiResponse<IndependentReviewEngagementDto[]>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/independent-reviews`);
+}
+
+export function proposeIndependentReview(
+  conversationId: string,
+  proposal: {
+    reviewerUserId: string;
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    requirementKeys: string[];
+    domains: string[];
+    feeMinor: number | null;
+    feeCurrency: "USD";
+    feePayer: "BUYER" | "PROVIDER" | "SHARED" | "DIRECT";
+  },
+): Promise<ApiResponse<IndependentReviewEngagementDto>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/independent-reviews`, {
+    method: "POST",
+    body: proposal,
+  });
+}
+
+export function decideIndependentReview(
+  conversationId: string,
+  engagementId: string,
+  body: { decision: "accept" | "decline"; confirmNoConflict?: boolean },
+): Promise<ApiResponse<IndependentReviewEngagementDto>> {
+  return apiFetch(
+    `${BASE}/conversations/${conversationId}/independent-reviews/${engagementId}/decision`,
+    { method: "PATCH", body },
+  );
+}
+
+export function submitIndependentReviewReport(
+  conversationId: string,
+  engagementId: string,
+  report: {
+    submissionId: string;
+    contractVersion: number;
+    contractHash: string;
+    rationale: string;
+    findings: IndependentReviewReportDto["findings"];
+  },
+): Promise<ApiResponse<{ report: IndependentReviewReportDto; outcome: VerificationOutcome }>> {
+  return apiFetch(
+    `${BASE}/conversations/${conversationId}/independent-reviews/${engagementId}/reports`,
+    { method: "POST", body: report },
+  );
+}
+
+export function listReviewerEngagements(): Promise<ApiResponse<IndependentReviewEngagementDto[]>> {
+  return apiFetch(`${BASE}/reviewer/engagements`);
+}
+
 export function getSubmissionVerification(
   submissionId: string,
 ): Promise<ApiResponse<VerificationDto>> {
   return apiFetch<VerificationDto>(`${BASE}/submissions/${submissionId}/verification`);
-}
-
-export function listCases(): Promise<ApiResponse<CaseDto[]>> {
-  return apiFetch<CaseDto[]>(`${BASE}/cases`);
-}
-
-export function resolveCase(
-  caseId: string,
-  body: { outcome: string; note?: string },
-  idempotencyKey: string,
-): Promise<ApiResponse<CaseDto>> {
-  return apiFetch<CaseDto>(`${BASE}/cases/${caseId}/resolve`, {
-    method: "POST",
-    body,
-    idempotencyKey,
-  });
 }
 
 export function listNotifications(): Promise<ApiResponse<NotificationDto[]>> {
@@ -244,19 +438,17 @@ export function getProviderProfile(): Promise<ApiResponse<ProviderProfileRespons
   return apiFetch<ProviderProfileResponse>(`${BASE}/provider/profile`);
 }
 
-export function updateProviderProfile(
-  body: {
-    displayName: string;
-    bio?: string | null;
-    hourlyRateMinor?: number | null;
-    currency?: string;
-    payoutEmail: string;
-    status: "ACTIVE" | "INACTIVE";
-    capabilities: Array<{ tag: string; proficiency: number }>;
-    availability?: { available: boolean; capacity: number };
-    workPreferences?: Partial<WorkPreferencesDto>;
-  },
-): Promise<ApiResponse<ProviderProfileResponse>> {
+export function updateProviderProfile(body: {
+  displayName: string;
+  bio?: string | null;
+  hourlyRateMinor?: number | null;
+  currency?: string;
+  payoutEmail?: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  capabilities: Array<{ tag: string; proficiency: number }>;
+  availability?: { available: boolean; capacity: number };
+  workPreferences?: Partial<WorkPreferencesDto>;
+}): Promise<ApiResponse<ProviderProfileResponse>> {
   return apiFetch<ProviderProfileResponse>(`${BASE}/provider/profile`, {
     method: "PUT",
     body,
@@ -287,7 +479,11 @@ export function getTaskAuditStatus(taskId: string): Promise<ApiResponse<TaskAudi
 
 export function submitAuditCheckin(
   taskId: string,
-  input: { status: "ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED"; notes?: string; percentComplete?: number },
+  input: {
+    status: "ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED";
+    notes?: string;
+    percentComplete?: number;
+  },
 ): Promise<ApiResponse<AuditCheckinDto>> {
   return apiFetch<AuditCheckinDto>(`${BASE}/tasks/${taskId}/audit-checkin`, {
     method: "POST",
@@ -297,4 +493,3 @@ export function submitAuditCheckin(
 
 export { apiFetch };
 export type { ContractDto };
-

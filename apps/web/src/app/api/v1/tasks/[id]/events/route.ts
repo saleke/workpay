@@ -1,14 +1,13 @@
-import { asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/server/api";
 import { events } from "@workpay/shared/db/schema/infra";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: taskId } = await params;
+  await requireTaskOwner(req, taskId);
   const url = new URL(req.url);
   const since = url.searchParams.get("since") || req.headers.get("last-event-id") || null;
   const db = getDb();
@@ -21,7 +20,7 @@ export async function GET(
         let query = db
           .select()
           .from(events)
-          .where(eq(events.taskId, taskId))
+          .where(and(eq(events.taskId, taskId), eq(events.visibility, "USER")))
           .orderBy(asc(events.recordedAt));
 
         const rows = await query;

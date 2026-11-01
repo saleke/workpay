@@ -47,7 +47,11 @@ export default function LoginPage() {
         const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
         const from = searchParams?.get("from");
         const defaultHome =
-          user.role === "provider" ? "/provider" : user.role === "admin_reviewer" ? "/review" : "/tasks";
+          user.role === "provider"
+            ? "/provider"
+            : user.role === "admin_reviewer"
+              ? "/reviewer/engagements"
+              : "/tasks";
         const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : defaultHome;
         router.push(targetUrl);
         router.refresh();

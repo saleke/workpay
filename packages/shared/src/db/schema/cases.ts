@@ -3,9 +3,9 @@
  * decide alone: verification is uncertain, a party disputes the outcome, or a
  * payment exception occurs.
  *
- * Cases are the human escape hatch. They never bypass the money rules: a case
- * can block capture, and resolving a case still goes through the deterministic
- * policy engine before any money moves.
+ * WorkPay operations must not adjudicate task quality or party disputes.
+ * Blocking cases keep payment fail-closed; operational resolutions still go
+ * through the deterministic policy engine before money moves.
  */
 import { relations } from "drizzle-orm";
 import {

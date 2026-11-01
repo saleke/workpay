@@ -20,7 +20,7 @@
 import { desc, eq } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { withTransaction } from "../../db/client.js";
-import { tasks, workSpecifications } from "../../db/schema/tasks.js";
+import { tasks } from "../../db/schema/tasks.js";
 import { workContracts } from "../../db/schema/contracts.js";
 import { offers, commercialAgreements } from "../../db/schema/negotiation.js";
 import { agentRuns } from "../../db/schema/agent.js";
@@ -28,11 +28,8 @@ import { payments } from "../../db/schema/payments.js";
 import { isTerminal, type TaskStatus } from "../tasks/state.js";
 import { transitionTask } from "../tasks/service.js";
 import { planTask } from "../planning/service.js";
-import { extractPlanSnapshot } from "../contracts/plan-snapshot.js";
 import { draftContract } from "../contracts/service.js";
-import { runProviderSelection } from "../providers/service.js";
 import {
-  startNegotiation,
   prepareBuyerOffer,
   submitBuyerAgentOffer,
   acceptOffer,
@@ -174,94 +171,30 @@ export async function agentPlanAndDraftContract(options: {
 }
 
 /**
- * Select a provider and start a negotiation. Requires an ACTIVE contract, so
- * the buyer must have approved it first.
+ * Provider discovery and outreach require an explicit buyer decision.
+ *
+ * The buyer selects a professional from the verified candidate list and only then
+ * do we start a negotiation round. The agent cannot auto-pick a provider on the
+ * buyer's behalf in this flow, so the default branch requires a human decision.
  */
+type AgentProviderSelectionResult =
+  | {
+      ok: true;
+      providerId: string;
+      negotiationId: string;
+    }
+  | {
+      ok: false;
+      reasonCode: string;
+    };
+
 export async function agentSelectProviderAndNegotiate(options: {
   taskId: string;
   actor: Actor;
   correlationId: string;
-}) {
-  return withTransaction(async (tx) => {
-    const task = await loadTask(tx, options.taskId);
-    if (task.status !== "APPROVED") {
-      return { ok: false as const, reasonCode: "agent.task_not_approved" };
-    }
-    const [contract] = await tx
-      .select()
-      .from(workContracts)
-      .where(eq(workContracts.taskId, task.id))
-      .orderBy(desc(workContracts.version))
-      .limit(1);
-    if (!contract || contract.status !== "ACTIVE") {
-      return { ok: false as const, reasonCode: "agent.contract_not_active" };
-    }
-
-    const decision = await authorized(tx, {
-      agentRunId: options.actor.id as string,
-      taskId: task.id,
-      userId: task.userId,
-      actionType: "SELECT_PROVIDER",
-      status: task.status,
-      budgetMinor: task.budgetMinor,
-      committedMinor: 0,
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-    if (!decision.allowed) return { ok: false as const, reasonCode: decision.reasonCode };
-
-    await transitionTask(tx, {
-      taskId: task.id,
-      to: "PROVIDER_SEARCH",
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-
-    const [latestSpec] = await tx
-      .select()
-      .from(workSpecifications)
-      .where(eq(workSpecifications.taskId, task.id))
-      .orderBy(desc(workSpecifications.version))
-      .limit(1);
-    const requiredTags = latestSpec ? extractPlanSnapshot(latestSpec).capabilityTags : [];
-
-    const selection = await runProviderSelection(tx, {
-      taskId: task.id,
-      contractId: contract.id,
-      requiredTags,
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-
-    if (!selection.selection.selected) {
-      return {
-        ok: false as const,
-        reasonCode: "agent.no_provider",
-        selectionId: selection.selectionId,
-      };
-    }
-
-    const negotiationId = await startNegotiation(tx, {
-      taskId: task.id,
-      contractId: contract.id,
-      providerId: selection.selection.selected.providerId,
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-    await transitionTask(tx, {
-      taskId: task.id,
-      to: "NEGOTIATION",
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-
-    return {
-      ok: true as const,
-      selection,
-      negotiationId,
-      providerId: selection.selection.selected.providerId,
-    };
-  });
+}): Promise<AgentProviderSelectionResult> {
+  void options;
+  return { ok: false as const, reasonCode: "agent.user_selection_required" };
 }
 
 /** The agent sends its opening offer. */

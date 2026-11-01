@@ -34,10 +34,12 @@ import {
   getTaskRoom,
   getSubmissionVerification,
   modifyContractCriteria,
-  requestPlanning,
-  resolveCase,
+  simulatePaymentAuthorization,
 } from "@/lib/api/endpoints";
 import type { ContractDto, TaskRoomDto, VerificationDto } from "@/lib/api/types";
+import { TaskConversationsPanel } from "./task-conversations-panel";
+import { PaymentPanel } from "./payment-panel";
+import { Button } from "@/components/ui/button";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -67,8 +69,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const [newRequirementText, setNewRequirementText] = useState("");
   const [isModifying, setIsModifying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [resolvingCase, setResolvingCase] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [simulatingPayment, setSimulatingPayment] = useState(false);
 
   const refresh = useCallback(() => {
     room.reload();
@@ -95,15 +97,11 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     async (contract: ContractDto) => {
       setSigning(true);
       setActionError(null);
-      const res = await approveContract(
-        contract.id,
-        contract.contractHash,
-        newIdempotencyKey(),
-      );
+      const res = await approveContract(contract.id, contract.contractHash, newIdempotencyKey());
       setSigning(false);
       if (res.error) {
         setActionError(
-          "This contract changed since you reviewed it. Please review the updated terms."
+          "This contract changed since you reviewed it. Please review the updated terms.",
         );
         return;
       }
@@ -145,28 +143,25 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     debouncedRefresh();
   };
 
-  const handleResolveCase = async (caseId: string, outcome: string, note: string) => {
-    setResolvingCase(true);
-    setActionError(null);
-    const res = await resolveCase(
-      caseId,
-      { outcome, note },
-      newIdempotencyKey(),
-    );
-    setResolvingCase(false);
-    if (res.error) {
-      setActionError("Could not record decision. Please try again.");
-      return;
-    }
-    refresh();
-  };
-
   const handleCopyId = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(taskId);
       setCopiedId(true);
       setTimeout(() => setCopiedId(false), 2000);
     }
+  };
+
+  const beginPaymentSimulation = async () => {
+    setSimulatingPayment(true);
+    setActionError(null);
+    const result = await simulatePaymentAuthorization(taskId, newIdempotencyKey());
+    setSimulatingPayment(false);
+    if (result.error) {
+      setActionError(result.error.message);
+      return;
+    }
+    setActiveTab("payment");
+    refresh();
   };
 
   if (room.loading && !room.data) {
@@ -199,7 +194,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     );
   }
 
-  const { task, activeContract, workSpecification, providerSelection, execution, cases } = room.data;
+  const { task, activeContract, workSpecification, providerSelection, execution } = room.data;
   const isPaid = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
   const moneyAmount = formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency });
 
@@ -215,7 +210,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
   const verificationResults = verification.data?.results ?? [];
   const resultsByKey = new Map(verificationResults.map((r) => [r.requirementKey, r]));
-  const humanReviewCase = cases?.find((c) => c.status === "OPEN" && c.type === "HUMAN_REVIEW");
   const providerName = providerSelection?.provider?.displayName || "Assigned specialist";
 
   // Derive status presentation
@@ -245,7 +239,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
         <div className="space-y-2 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass}`}>
+            <span
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass}`}
+            >
               {statusText}
             </span>
 
@@ -256,7 +252,11 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               title="Copy task ID"
             >
               <span>{taskId.slice(0, 12)}</span>
-              {copiedId ? <Check className="h-3 w-3 text-[var(--green)]" /> : <Copy className="h-3 w-3" />}
+              {copiedId ? (
+                <Check className="h-3 w-3 text-[var(--green)]" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
             </button>
           </div>
 
@@ -278,7 +278,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               disabled={signing}
               className="inline-flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
             >
-              <span>{signing ? "Signing..." : "Sign and authorize PayPal payment hold"}</span>
+              <span>{signing ? "Approving..." : "Approve scope and budget"}</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           )}
@@ -286,11 +286,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           {task.status === "HUMAN_REVIEW" && (
             <button
               type="button"
-              onClick={() => setActiveTab("verification")}
+              onClick={() => {
+                window.location.href = `/reviewers?taskId=${encodeURIComponent(taskId)}`;
+              }}
               className="inline-flex items-center gap-1.5 bg-amber-600 text-white hover:bg-amber-700 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
             >
               <AlertTriangle className="h-4 w-4" />
-              <span>Inspect Review Decision</span>
+              <span>Find an Independent Reviewer</span>
             </button>
           )}
 
@@ -362,10 +364,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             4. Settlement
           </div>
           <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
-            {isPaid ? "Captured to Specialist" : isDraftOrAwaiting ? "Authorization Needed" : "Authorization Held"}
+            {payment.data?.status === "CAPTURED" || isPaid
+              ? "Simulated capture recorded"
+              : payment.data?.status === "AUTHORIZED"
+                ? "Simulated authorization active"
+                : payment.data?.status === "UNKNOWN"
+                  ? "Authorization status unknown"
+                  : payment.data?.status === "FAILED"
+                    ? "Authorization failed"
+                    : "Not authorized"}
           </div>
           <div className="text-[11px] text-[var(--text-muted)]">
-            {moneyAmount} via PayPal
+            {payment.data ? `${moneyAmount} policy test` : "No payment simulation started"}
           </div>
         </div>
       </div>
@@ -375,6 +385,52 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           {actionError}
         </div>
       )}
+
+      <TaskConversationsPanel
+        taskId={taskId}
+        buyerUserId={task.userId}
+        contract={activeContract}
+        selection={providerSelection}
+        onSelectionChanged={() => room.reload()}
+        onTaskChanged={refresh}
+      />
+
+      {task.status === "AGREEMENT_READY" ? (
+        <section className="workpay-card space-y-3 p-5" aria-labelledby="payment-simulation-title">
+          <div>
+            <h2 id="payment-simulation-title" className="text-base font-semibold text-[var(--charcoal)]">
+              Terms agreed — validate the next stage
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Start the payment-policy simulation and create the professional assignment. This will
+              not charge, hold, capture, or pay funds. The professional must still accept the
+              assignment and explicitly start work.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => void beginPaymentSimulation()}
+            disabled={simulatingPayment}
+          >
+            {simulatingPayment ? "Running policy simulation…" : "Simulate authorization and create assignment"}
+          </Button>
+        </section>
+      ) : null}
+
+      <Link
+        href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
+        className="workpay-card flex flex-col gap-1 p-4 transition-colors hover:border-[var(--border-strong)] sm:flex-row sm:items-center sm:justify-between"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-[var(--charcoal)]">
+            Find an independent reviewer
+          </span>
+          <span className="mt-1 block text-xs text-[var(--text-muted)]">
+            Compare domain fit and reviewer-supplied evidence. You choose whether to contact anyone.
+          </span>
+        </span>
+        <span className="text-sm font-medium text-[var(--charcoal)]">Explore reviewers →</span>
+      </Link>
 
       {/* 3. Five-Tab Navigation (Section 9) */}
       <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] pb-2 overflow-x-auto text-xs sm:text-sm font-medium">
@@ -474,7 +530,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
             <div>
               <p className="text-xs text-[var(--text-muted)] font-medium mb-3">
-                Payment is captured via PayPal only when every observable criterion below is cryptographically proven:
+                Payment is captured via PayPal only when every observable criterion below is
+                cryptographically proven:
               </p>
 
               <div className="space-y-2.5">
@@ -536,7 +593,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   <span>WorkPay Authority Boundaries</span>
                 </div>
                 <p className="text-emerald-800 leading-relaxed">
-                  WorkPay may negotiate with verified specialists within your limit ({moneyAmount}), request revisions, and verify cryptographic deliverables.
+                  WorkPay will not choose or contact a professional on your behalf. You approve each exact
+                  contact request. Approving these terms does not authorize or capture a payment.
                 </p>
               </div>
 
@@ -546,7 +604,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   <span>Restricted Actions</span>
                 </div>
                 <p className="text-rose-800 leading-relaxed">
-                  WorkPay cannot exceed your {moneyAmount} ceiling, alter approved criteria without consent, or capture funds without cryptographic proof.
+                  WorkPay cannot change these approved criteria without consent or authorize or
+                  capture funds during this terms-approval step.
                 </p>
               </div>
             </div>
@@ -555,7 +614,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             {isDraftOrAwaiting && activeContract && (
               <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="text-xs text-[var(--text-muted)]">
-                  By signing, you authorize external PayPal payment hold up to {moneyAmount}.
+                  Approving records the current work scope and budget. No payment is authorized or
+                  captured at this step.
                 </div>
 
                 <button
@@ -564,7 +624,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   disabled={signing}
                   className="bg-[var(--charcoal)] text-white hover:bg-black px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm self-start sm:self-auto"
                 >
-                  {signing ? "Authorizing with PayPal..." : "Sign contract and authorize PayPal payment hold"}
+                  {signing ? "Approving terms..." : "Approve scope and budget"}
                 </button>
               </div>
             )}
@@ -598,7 +658,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
                 <div className="pt-2 flex items-center gap-6 text-xs text-[var(--text-soft)]">
                   <span>
-                    <strong>{providerSelection.provider.firstPassAcceptancePct ?? 98}%</strong> first-pass pass rate
+                    <strong>{providerSelection.provider.firstPassAcceptancePct ?? 98}%</strong>{" "}
+                    first-pass pass rate
                   </span>
                   <span>
                     <strong>100%</strong> policy compliance
@@ -607,7 +668,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               </div>
             ) : (
               <div className="p-6 text-center text-sm text-[var(--text-muted)]">
-                Provider discovery is in progress. Specialist matching occurs upon contract sign-off.
+                Provider discovery is in progress. Specialist matching occurs upon contract
+                sign-off.
               </div>
             )}
 
@@ -620,7 +682,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               <div className="space-y-2 text-xs sm:text-sm">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
                   <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
-                  <span className="font-medium text-[var(--charcoal)]">1. Intent Synthesized & Criteria Structured</span>
+                  <span className="font-medium text-[var(--charcoal)]">
+                    1. Intent Synthesized & Criteria Structured
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
@@ -629,16 +693,23 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   ) : (
                     <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
                   )}
-                  <span className="font-medium text-[var(--charcoal)]">2. Contract Signed &amp; PayPal Payment Hold Authorized</span>
+                  <span className="font-medium text-[var(--charcoal)]">
+                    2. Professional Chosen &amp; Terms Agreed
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
-                  {task.status === "WORK_IN_PROGRESS" || task.status === "SUBMITTED" || task.status === "VERIFYING" || isPaid ? (
+                  {task.status === "WORK_IN_PROGRESS" ||
+                  task.status === "SUBMITTED" ||
+                  task.status === "VERIFYING" ||
+                  isPaid ? (
                     <CheckCircle2 className="h-4 w-4 text-[var(--green)] shrink-0" />
                   ) : (
                     <Clock className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
                   )}
-                  <span className="font-medium text-[var(--charcoal)]">3. Deliverables Produced & Submitted</span>
+                  <span className="font-medium text-[var(--charcoal)]">
+                    3. Deliverables Produced & Submitted
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-subtle)]">
@@ -647,7 +718,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   ) : (
                     <Clock className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
                   )}
-                  <span className="font-medium text-[var(--charcoal)]">4. Cryptographic Proof Verified & Settlement Captured</span>
+                  <span className="font-medium text-[var(--charcoal)]">
+                    4. Evidence & Acceptance
+                  </span>
                 </div>
               </div>
             </div>
@@ -664,7 +737,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 Deliverables & Requirement-by-Requirement Proofs
               </h2>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                Each individual acceptance criterion is evaluated against cryptographic evidence and verifiable tests.
+                Each individual acceptance criterion is evaluated against cryptographic evidence and
+                verifiable tests.
               </p>
             </div>
 
@@ -736,48 +810,25 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             </div>
 
             {/* Human Review Decision Surface (Section 11) */}
-            {task.status === "HUMAN_REVIEW" && humanReviewCase && (
+            {task.status === "HUMAN_REVIEW" && (
               <div className="p-5 rounded-xl border border-amber-300 bg-amber-50/40 space-y-3">
                 <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span>Human Review Decision Required</span>
+                  <span>Independent review needed</span>
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  Automated checking could not conclusively confirm every criterion. Funds ({moneyAmount}) remain safely secured in PayPal authorization hold until you make a ruling.
+                  Automated checks and AI cannot determine whether this work is professionally
+                  satisfactory. WorkPay does not provide an arbitrator or judge this result. Use
+                  the agreed review criteria and contact an independent reviewer. Any PayPal
+                  authorization remains subject to its actual status; this screen does not promise
+                  that funds are held.
                 </p>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleResolveCase(humanReviewCase.id, "RELEASE_PAYMENT", "Accepted by task owner upon manual review")
-                    }
-                    disabled={resolvingCase}
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
-                  >
-                    Accept Work &amp; Authorize Capture
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleResolveCase(humanReviewCase.id, "REQUEST_REVISION", "Revision requested with feedback")
-                    }
-                    disabled={resolvingCase}
-                    className="bg-amber-600 text-white hover:bg-amber-700 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
-                  >
-                    Request Revision from Specialist
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleResolveCase(humanReviewCase.id, "DISPUTE", "Formal dispute opened")
-                    }
-                    disabled={resolvingCase}
-                    className="bg-gray-700 text-white hover:bg-black px-4 py-2 rounded-xl text-xs font-medium transition-colors"
-                  >
-                    Escalate to Dispute Arbitration
-                  </button>
-                </div>
+                <Link
+                  href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
+                  className="inline-flex rounded-lg bg-amber-700 px-4 py-2 text-xs font-medium text-white hover:bg-amber-800"
+                >
+                  Find an independent reviewer
+                </Link>
               </div>
             )}
           </div>
@@ -785,7 +836,10 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       )}
 
       {/* 7. Tab 4: PayPal Settlement Ledger (The Physical Voucher Ticket Card) */}
-      {activeTab === "payment" && (
+      {activeTab === "payment" && <PaymentPanel payment={payment.data ?? null} />}
+
+      {/* Legacy payment receipt retained temporarily for migration reference. */}
+      {false && activeTab === "payment" && (
         <div className="space-y-6">
           <div className="receipt-ticket">
             {/* Upper Voucher Section */}
@@ -825,7 +879,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     Specialist Payout Destination
                   </div>
                   <div className="text-sm font-semibold text-[var(--charcoal)]">
-                    {payment.data?.payoutEmail || providerSelection?.provider?.displayName || "Assigned specialist"}
+                    {payment.data?.payoutEmail ||
+                      providerSelection?.provider?.displayName ||
+                      "Assigned specialist"}
                   </div>
                 </div>
               </div>
@@ -871,7 +927,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               </div>
 
               <div className="pt-2 text-xs text-[var(--text-muted)] leading-relaxed border-t border-[var(--border-subtle)]">
-                * Note on custody: WorkPay does not operate a wallet or store funds. Payments are secured via external PayPal authorization holds and captured only upon verified proof completion.
+                * Note on custody: WorkPay does not operate a wallet or store funds. Payments are
+                secured via external PayPal authorization holds and captured only upon verified
+                proof completion.
               </div>
             </div>
           </div>
@@ -891,13 +949,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               });
 
               return (
-                <div key={entry.id} className="p-4 flex items-baseline justify-between gap-4 text-xs sm:text-sm">
+                <div
+                  key={entry.id}
+                  className="p-4 flex items-baseline justify-between gap-4 text-xs sm:text-sm"
+                >
                   <div className="flex items-start gap-3">
                     <span className="h-2 w-2 rounded-full bg-[var(--amber)] shrink-0 mt-2" />
                     <div>
                       <span className="font-semibold text-[var(--charcoal)]">{entry.title}</span>
                       {entry.description && (
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{entry.description}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                          {entry.description}
+                        </p>
                       )}
                     </div>
                   </div>
