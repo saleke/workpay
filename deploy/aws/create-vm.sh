@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+: "${AWS_REGION:?Set AWS_REGION to the fixed Region shown in AWS Settings > Project > Additional Info (for example eu-north-1)}"
 INSTANCE_NAME="${INSTANCE_NAME:-workpay-test}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
 S3_BUCKET="${S3_BUCKET:?Set a globally unique S3_BUCKET name}"
@@ -10,8 +10,17 @@ PROFILE_NAME="${PROFILE_NAME:-workpay-test-instance-profile}"
 SECURITY_GROUP_NAME="${SECURITY_GROUP_NAME:-workpay-test-web}"
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-VPC_ID="$(aws ec2 describe-vpcs --region "$AWS_REGION" \
-  --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"
+if ! VPC_ID="$(aws ec2 describe-vpcs --region "$AWS_REGION" \
+  --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"; then
+  cat >&2 <<EOF
+EC2 access failed in $AWS_REGION.
+
+AWS's managed Free Plan permits regional resources only in the project's fixed Region.
+Find it at: https://settings.aws.com > Project > Additional Info > Region
+Then export that exact region and run this script again.
+EOF
+  exit 1
+fi
 if [[ -z "$VPC_ID" || "$VPC_ID" == "None" ]]; then
   echo "A default VPC is required in $AWS_REGION." >&2
   exit 1

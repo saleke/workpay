@@ -148,7 +148,10 @@ behind Caddy. Task artifacts and off-VM database backups use a private S3 bucket
 instance role; no long-lived AWS access keys are stored by WorkPay.
 
 1. Create an AWS Free Plan account and install/authenticate AWS CLI v2 locally.
-2. Export a globally unique `S3_BUCKET` name and run `deploy/aws/create-vm.sh`.
+2. In AWS Settings, open **Project → Additional Info** and copy the project's fixed Region. Export
+   that exact `AWS_REGION` plus a globally unique `S3_BUCKET`, then run
+   `deploy/aws/create-vm.sh`. Managed Free Plan projects deny regional API calls outside this fixed
+   Region.
 3. Point the chosen test subdomain's A record to the printed static IP.
 4. Connect through AWS Systems Manager Session Manager and run `deploy/aws/bootstrap-vm.sh` with `sudo`.
 5. Clone this repository into `/opt/workpay`.
