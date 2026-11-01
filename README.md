@@ -141,15 +141,16 @@ database:
 RUN_DB_TESTS=1 DATABASE_URL=postgres://... pnpm --filter @workpay/shared test:integration
 ```
 
-## Google Cloud test deployment
+## AWS Free Plan test deployment
 
-The deployment in `deploy/` runs the web application, worker, and PostgreSQL on one Compute Engine
-VM behind Caddy. Task artifacts remain in a private S3-compatible bucket such as Cloudflare R2.
+The deployment in `deploy/` runs the web application, worker, and PostgreSQL on one EC2 instance
+behind Caddy. Task artifacts and off-VM database backups use a private S3 bucket through the EC2
+instance role; no long-lived AWS access keys are stored by WorkPay.
 
-1. Install and authenticate the `gcloud` CLI locally.
-2. Export `GCP_PROJECT_ID` and run `deploy/gcp/create-vm.sh`.
+1. Create an AWS Free Plan account and install/authenticate AWS CLI v2 locally.
+2. Export a globally unique `S3_BUCKET` name and run `deploy/aws/create-vm.sh`.
 3. Point the chosen test subdomain's A record to the printed static IP.
-4. Connect through IAP and run `deploy/gcp/bootstrap-vm.sh` with `sudo`.
+4. Connect through AWS Systems Manager Session Manager and run `deploy/aws/bootstrap-vm.sh` with `sudo`.
 5. Clone this repository into `/opt/workpay`.
 6. Copy `deploy/.env.production.example` to `deploy/.env.production` and fill its secrets.
 7. Run `deploy/deploy.sh`.
@@ -157,7 +158,7 @@ VM behind Caddy. Task artifacts remain in a private S3-compatible bucket such as
 
 Do not expose PostgreSQL or the worker publicly. Keep the application-level basic-auth boundary
 enabled until browser-level authorization tests are complete. Schedule `deploy/backup-postgres.sh`
-daily and enable Compute Engine snapshot schedules before inviting testers.
+daily and create an EBS snapshot before destructive test resets or migration experiments.
 
 ## Current maturity
 

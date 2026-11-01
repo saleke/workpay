@@ -14,10 +14,10 @@ import { AppError } from "../../platform/errors.js";
 import type { ObjectStorage, PutObjectInput, StoredObject } from "./types.js";
 
 export interface S3StorageOptions {
-  endpoint: string;
+  endpoint?: string;
   region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
   bucket: string;
   forcePathStyle: boolean;
 }
@@ -30,13 +30,17 @@ export class S3ObjectStorage implements ObjectStorage {
   constructor(options: S3StorageOptions) {
     this.bucket = options.bucket;
     this.client = new S3Client({
-      endpoint: options.endpoint,
+      ...(options.endpoint ? { endpoint: options.endpoint } : {}),
       region: options.region,
       forcePathStyle: options.forcePathStyle,
-      credentials: {
-        accessKeyId: options.accessKeyId,
-        secretAccessKey: options.secretAccessKey,
-      },
+      ...(options.accessKeyId && options.secretAccessKey
+        ? {
+            credentials: {
+              accessKeyId: options.accessKeyId,
+              secretAccessKey: options.secretAccessKey,
+            },
+          }
+        : {}),
     });
   }
 

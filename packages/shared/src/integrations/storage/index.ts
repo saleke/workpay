@@ -14,10 +14,14 @@ export function getObjectStorage(): ObjectStorage {
   const env = getEnv();
   if (env.STORAGE_DRIVER === "s3") {
     cached = new S3ObjectStorage({
-      endpoint: env.S3_ENDPOINT,
+      ...(env.S3_ENDPOINT ? { endpoint: env.S3_ENDPOINT } : {}),
       region: env.S3_REGION,
-      accessKeyId: env.S3_ACCESS_KEY_ID,
-      secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+      ...(env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
+        ? {
+            accessKeyId: env.S3_ACCESS_KEY_ID,
+            secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+          }
+        : {}),
       bucket: env.S3_BUCKET,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     });

@@ -85,10 +85,10 @@ export const envSchema = z
 
     STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
     STORAGE_LOCAL_DIR: z.string().default(".workpay-storage"),
-    S3_ENDPOINT: z.string().default("http://localhost:9000"),
+    S3_ENDPOINT: optionalString,
     S3_REGION: z.string().default("us-east-1"),
-    S3_ACCESS_KEY_ID: z.string().default("workpay"),
-    S3_SECRET_ACCESS_KEY: z.string().default("workpay-secret"),
+    S3_ACCESS_KEY_ID: optionalString,
+    S3_SECRET_ACCESS_KEY: optionalString,
     S3_BUCKET: z.string().default("workpay-artifacts"),
     S3_FORCE_PATH_STYLE: booleanish.default(true),
 
@@ -163,6 +163,17 @@ export const envSchema = z
           message: "CLOUDFLARE_API_TOKEN is required when INTAKE_AI_PROVIDER=cloudflare",
         });
       }
+    }
+    if (
+      env.STORAGE_DRIVER === "s3" &&
+      Boolean(env.S3_ACCESS_KEY_ID) !== Boolean(env.S3_SECRET_ACCESS_KEY)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["S3_ACCESS_KEY_ID"],
+        message:
+          "S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be provided together, or both omitted to use the AWS default credential provider chain.",
+      });
     }
   });
 

@@ -18,3 +18,11 @@ chmod 600 "$TARGET"
 find "$BACKUP_DIR" -type f -name 'workpay-*.sql.gz' -mtime "+$RETENTION_DAYS" -delete
 
 echo "Created $TARGET"
+
+S3_BUCKET="$(sed -n 's/^S3_BUCKET=//p' "$ENV_FILE" | tail -1)"
+S3_REGION="$(sed -n 's/^S3_REGION=//p' "$ENV_FILE" | tail -1)"
+if [[ -n "$S3_BUCKET" ]] && command -v aws >/dev/null 2>&1; then
+  aws s3 cp "$TARGET" "s3://$S3_BUCKET/backups/$(basename "$TARGET")" \
+    --region "${S3_REGION:-us-east-1}" --only-show-errors
+  echo "Uploaded encrypted-at-rest backup to s3://$S3_BUCKET/backups/"
+fi
