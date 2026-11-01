@@ -49,7 +49,7 @@ describeDb("independent review engagement (integration)", () => {
     await db.update(providers).set({ userId: providerUser.id }).where(eq(providers.id, provider.id));
 
     const buyer: Actor = { kind: "USER", id: buyerUser.id, role: "buyer" };
-    const professional: Actor = { kind: "PROVIDER", id: providerUser.id, role: "provider" };
+    const professional: Actor = { kind: "USER", id: providerUser.id, role: "provider" };
     const reviewer: Actor = {
       kind: "REVIEWER",
       id: reviewerUser.id,

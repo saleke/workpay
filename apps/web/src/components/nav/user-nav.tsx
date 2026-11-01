@@ -126,12 +126,7 @@ export function UserNav() {
     );
   }
 
-  const roleLabel =
-    user.role === "provider"
-      ? "Specialist"
-      : user.role === "admin_reviewer"
-        ? "Reviewer"
-        : "Client";
+  const roleLabel = "Member";
 
   const initials = (user.name || user.username || user.email || "U")
     .slice(0, 2)

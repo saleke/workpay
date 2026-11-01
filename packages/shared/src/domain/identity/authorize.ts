@@ -112,7 +112,7 @@ function isOwner(actor: Actor, resource: ResourceFacts): boolean {
 
 function isProviderParty(actor: Actor, resource: ResourceFacts): boolean {
   return (
-    actor.kind === "PROVIDER" &&
+    (actor.kind === "USER" || actor.kind === "PROVIDER") &&
     actor.id !== null &&
     resource.providerUserId !== null &&
     actor.id === resource.providerUserId

@@ -86,12 +86,8 @@ export async function resolveActorAsync(
   if (sessionToken) {
     const authUser = await getSessionUser(sessionToken);
     if (authUser) {
-      if (authUser.role === "provider") {
-        return { kind: "PROVIDER", id: authUser.id };
-      }
-      if (authUser.role === "admin_reviewer") {
-        return { kind: "REVIEWER", id: authUser.id, role: "admin_reviewer" };
-      }
+      // A human account has one identity. Buyer, professional, and reviewer are
+      // task relationships/capabilities, not mutually exclusive actor kinds.
       return { kind: "USER", id: authUser.id, role: authUser.role };
     }
   }

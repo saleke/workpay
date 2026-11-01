@@ -35,7 +35,7 @@ async function requireProviderProfileActor(
   providerId: string,
   actor: Actor,
 ): Promise<void> {
-  if (actor.kind !== "PROVIDER" || !actor.id) {
+  if ((actor.kind !== "USER" && actor.kind !== "PROVIDER") || !actor.id) {
     throw authorizationError("Only the assigned professional may perform this action.");
   }
   const [provider] = await tx

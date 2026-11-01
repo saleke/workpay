@@ -3,7 +3,7 @@ import { ACTIONS, authorize, requireAuthorized, type Actor } from "./authorize.j
 
 const buyer: Actor = { kind: "USER", id: "user_buyer", role: "buyer" };
 const otherBuyer: Actor = { kind: "USER", id: "user_other", role: "buyer" };
-const provider: Actor = { kind: "PROVIDER", id: "user_provider_1", role: "provider" };
+const provider: Actor = { kind: "USER", id: "user_provider_1", role: "provider" };
 const reviewer: Actor = { kind: "USER", id: "user_reviewer", role: "admin_reviewer" };
 const system: Actor = { kind: "SYSTEM", id: null };
 const agent: Actor = {
@@ -70,7 +70,7 @@ describe("authorize (Component 13)", () => {
     const notStarted = { ...execution, status: "ASSIGNED" };
     expect(authorize(provider, ACTIONS.submissionCreate, notStarted).allowed).toBe(false);
 
-    const wrongProvider: Actor = { kind: "PROVIDER", id: "user_provider_2", role: "provider" };
+    const wrongProvider: Actor = { kind: "USER", id: "user_provider_2", role: "provider" };
     expect(authorize(wrongProvider, ACTIONS.submissionCreate, execution).allowed).toBe(false);
   });
 

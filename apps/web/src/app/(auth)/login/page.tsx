@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Github, Lock, Mail } from "lucide-react";
+import { BriefcaseBusiness, Github, Lock, Mail, SearchCheck, UserRoundSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,46 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [evaluationEnabled, setEvaluationEnabled] = useState(false);
+  const [evaluationLoading, setEvaluationLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetch("/api/v1/evaluation/session", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => setEvaluationEnabled(payload.enabled === true))
+      .catch(() => setEvaluationEnabled(false));
+  }, []);
+
+  const enterEvaluation = async (
+    perspective: "requester" | "professional" | "reviewer",
+  ) => {
+    setError(null);
+    setEvaluationLoading(perspective);
+    try {
+      const response = await fetch("/api/v1/evaluation/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ perspective }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.error?.message || "Evaluator access could not be started.");
+        return;
+      }
+      const user = payload.data?.user;
+      if (!user) throw new Error("Evaluator session returned no user.");
+      window.localStorage.setItem("workpay_auth_user", JSON.stringify(user));
+      window.localStorage.removeItem("workpay_persona");
+      window.localStorage.removeItem("workpay_signed_out");
+      window.dispatchEvent(new Event("workpay_auth_change"));
+      router.push(payload.data.redirect || "/tasks");
+      router.refresh();
+    } catch {
+      setError("Evaluator access could not be started. Please try again.");
+    } finally {
+      setEvaluationLoading(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +86,7 @@ export default function LoginPage() {
 
         const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
         const from = searchParams?.get("from");
-        const defaultHome =
-          user.role === "provider"
-            ? "/provider"
-            : user.role === "admin_reviewer"
-              ? "/reviewer/engagements"
-              : "/tasks";
+        const defaultHome = "/tasks";
         const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : defaultHome;
         router.push(targetUrl);
         router.refresh();
@@ -80,7 +115,70 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="space-y-2">
+        {evaluationEnabled ? (
+          <section className="space-y-2 rounded-xl border border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]/60 p-3">
+            <div>
+              <div className="text-xs font-semibold text-foreground">Explore the hackathon beta</div>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                Start from a task perspective. These are not exclusive account roles—every WorkPay
+                member may request work, maintain a professional profile, and accept an independent
+                review engagement.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto justify-start gap-3 p-3 text-left"
+                disabled={evaluationLoading !== null}
+                onClick={() => void enterEvaluation("requester")}
+              >
+                <UserRoundSearch className="h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block text-xs font-semibold">Request work</span>
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    Confirm intent, approve terms, and choose who to contact.
+                  </span>
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto justify-start gap-3 p-3 text-left"
+                disabled={evaluationLoading !== null}
+                onClick={() => void enterEvaluation("professional")}
+              >
+                <BriefcaseBusiness className="h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block text-xs font-semibold">Perform work</span>
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    Respond to contact, agree terms, and manage delivery.
+                  </span>
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto justify-start gap-3 p-3 text-left"
+                disabled={evaluationLoading !== null}
+                onClick={() => void enterEvaluation("reviewer")}
+              >
+                <SearchCheck className="h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block text-xs font-semibold">Review independently</span>
+                  <span className="block text-[10px] font-normal text-muted-foreground">
+                    Inspect version-bound review engagements and evidence.
+                  </span>
+                </span>
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Payment states are simulated. No funds are charged, held, captured, or paid.
+            </p>
+          </section>
+        ) : null}
+
+        {!evaluationEnabled ? <div className="space-y-2">
           <Button
             type="button"
             variant="outline"
@@ -109,12 +207,12 @@ export default function LoginPage() {
             </svg>
             Continue with Google
           </Button>
-        </div>
+        </div> : null}
 
         <div className="flex items-center gap-3 my-1">
           <div className="h-px flex-1 bg-border/70" />
           <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-            Or sign in with email
+            {evaluationEnabled ? "Or use an existing account" : "Or sign in with email"}
           </span>
           <div className="h-px flex-1 bg-border/70" />
         </div>
@@ -139,12 +237,14 @@ export default function LoginPage() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="password" className="text-xs">Password</Label>
-              <Link
-                href="/forgot-password"
-                className="text-[11px] font-medium text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
+              {!evaluationEnabled ? (
+                <Link
+                  href="/forgot-password"
+                  className="text-[11px] font-medium text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              ) : null}
             </div>
             <div className="relative">
               <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -166,12 +266,14 @@ export default function LoginPage() {
         </form>
       </CardContent>
 
-      <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
-        <span>Don&apos;t have an account? </span>
-        <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
-          Sign Up
-        </Link>
-      </CardFooter>
+      {!evaluationEnabled ? (
+        <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
+          <span>Don&apos;t have an account? </span>
+          <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
+            Sign Up
+          </Link>
+        </CardFooter>
+      ) : null}
     </Card>
   );
 }

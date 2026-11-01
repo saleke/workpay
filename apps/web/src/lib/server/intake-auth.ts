@@ -4,7 +4,7 @@ import { getEnv } from "@workpay/shared/platform";
 import { getSessionUser, SESSION_COOKIE_NAME } from "./session";
 import { resolveActorAsync } from "./api";
 
-export type IntakeBuyerActor = Actor & { kind: "USER"; id: string; role: "buyer" };
+export type IntakeBuyerActor = Actor & { kind: "USER"; id: string };
 
 export async function requireIntakeBuyer(req: Request): Promise<IntakeBuyerActor> {
   const env = getEnv();
@@ -21,29 +21,21 @@ export async function requireIntakeBuyer(req: Request): Promise<IntakeBuyerActor
     }
     const user = await getSessionUser(token);
     if (!user) {
-      throw new AppError("AUTHORIZATION_ERROR", "Sign in with a buyer account to use task intake.");
+      throw new AppError("AUTHORIZATION_ERROR", "Sign in to use task intake.");
     }
     actor = { kind: "USER", id: user.id, role: user.role };
   } else {
     actor = await resolveActorAsync(req, "buyer");
   }
 
-  if (
-    !actor.id ||
-    actor.kind !== "USER" ||
-    actor.role === "provider" ||
-    actor.role === "admin_reviewer"
-  ) {
-    throw new AppError(
-      "AUTHORIZATION_ERROR",
-      "Only buyer accounts can create or access intake sessions.",
-    );
+  if (!actor.id || actor.kind !== "USER") {
+    throw new AppError("AUTHORIZATION_ERROR", "Sign in to create or access intake sessions.");
   }
 
   const buyerActor: IntakeBuyerActor = {
     kind: "USER",
     id: actor.id,
-    role: "buyer",
+    role: actor.role,
   };
   return buyerActor;
 }

@@ -107,7 +107,7 @@ describeDb("provider execution authorization (integration)", () => {
       contractHash,
     });
 
-    const otherActor: Actor = { kind: "PROVIDER", id: otherUser.id, role: "provider" };
+    const otherActor: Actor = { kind: "USER", id: otherUser.id, role: "provider" };
     await expect(
       withTransaction((tx) =>
         acceptAssignment(tx, {
@@ -126,7 +126,7 @@ describeDb("provider execution authorization (integration)", () => {
     expect(unchanged?.status).toBe("ASSIGNED");
 
     const assignedActor: Actor = {
-      kind: "PROVIDER",
+      kind: "USER",
       id: assignedUser.id,
       role: "provider",
     };

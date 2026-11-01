@@ -6,6 +6,7 @@ out/
 build/
 coverage/
 *.log
+*.swp
 .env
 .env.*
 !.env.example

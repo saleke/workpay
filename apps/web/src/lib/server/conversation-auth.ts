@@ -25,11 +25,7 @@ export async function resolveConversationActor(req: Request): Promise<Actor> {
   if (!user) {
     throw new AppError("AUTHORIZATION_ERROR", "Sign in to access task conversations.");
   }
-  if (user.role === "provider") return { kind: "PROVIDER", id: user.id, role: "provider" };
-  if (user.role === "admin_reviewer") {
-    return { kind: "REVIEWER", id: user.id, role: "admin_reviewer" };
-  }
-  return { kind: "USER", id: user.id, role: "buyer" };
+  return { kind: "USER", id: user.id, role: user.role };
 }
 
 export async function requireTaskOwner(
@@ -49,27 +45,27 @@ export async function requireTaskOwner(
 
 export async function requireBuyerActor(
   req: Request,
-): Promise<Actor & { kind: "USER"; id: string; role: "buyer" }> {
+): Promise<Actor & { kind: "USER"; id: string }> {
   const actor = await resolveConversationActor(req);
-  if (actor.kind !== "USER" || !actor.id || actor.role !== "buyer") {
-    throw new AppError("AUTHORIZATION_ERROR", "Sign in with a buyer account.");
+  if (actor.kind !== "USER" || !actor.id) {
+    throw new AppError("AUTHORIZATION_ERROR", "Sign in to access your workspace.");
   }
-  return actor as Actor & { kind: "USER"; id: string; role: "buyer" };
+  return actor as Actor & { kind: "USER"; id: string };
 }
 
 export interface ProviderPrincipal {
-  actor: Actor & { kind: "PROVIDER"; id: string };
+  actor: Actor & { kind: "USER"; id: string };
   provider: typeof providers.$inferSelect;
 }
 
 export async function requireProviderUser(
   req: Request,
-): Promise<Actor & { kind: "PROVIDER"; id: string; role: "provider" }> {
+): Promise<Actor & { kind: "USER"; id: string }> {
   const actor = await resolveConversationActor(req);
-  if (actor.kind !== "PROVIDER" || !actor.id || actor.role !== "provider") {
-    throw new AppError("AUTHORIZATION_ERROR", "Sign in with a professional account.");
+  if (actor.kind !== "USER" || !actor.id) {
+    throw new AppError("AUTHORIZATION_ERROR", "Sign in to access your professional profile.");
   }
-  return actor as Actor & { kind: "PROVIDER"; id: string; role: "provider" };
+  return actor as Actor & { kind: "USER"; id: string };
 }
 
 export async function requireProviderPrincipal(req: Request): Promise<ProviderPrincipal> {
@@ -85,11 +81,11 @@ export async function requireProviderPrincipal(req: Request): Promise<ProviderPr
       "A professional profile is required to access professional work.",
     );
   }
-  return { actor: actor as Actor & { kind: "PROVIDER"; id: string }, provider };
+  return { actor, provider };
 }
 
 export async function requireProviderActor(
   req: Request,
-): Promise<Actor & { kind: "PROVIDER"; id: string }> {
+): Promise<Actor & { kind: "USER"; id: string }> {
   return (await requireProviderPrincipal(req)).actor;
 }

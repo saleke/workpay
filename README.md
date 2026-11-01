@@ -26,6 +26,11 @@ Explain the work
 
 No earlier step implies consent to a later one.
 
+Buyer, performing professional, and independent reviewer are relationships within a task—not
+exclusive account roles. A WorkPay member may request work, maintain a professional profile, and
+accept an independent-review engagement, while task-level ownership, conflict, and consent checks
+remain authoritative.
+
 ## Why it exists
 
 Requests for work often begin with incomplete or ambiguous language. That creates risks for both

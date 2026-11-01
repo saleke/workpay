@@ -54,6 +54,7 @@ export const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     WORKPAY_MODE: z.enum(["demo", "production"]).default("demo"),
     NEXT_PUBLIC_DEMO_MODE: booleanish.default(true),
+    EVALUATION_MODE: booleanish.default(false),
     APP_URL: z.string().url().default("http://localhost:3000"),
 
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
