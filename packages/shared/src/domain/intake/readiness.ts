@@ -8,6 +8,7 @@ export type IntakeReadinessBlocker =
   | "scope_assessment_missing"
   | "budget_not_confirmed"
   | "budget_not_provided"
+  | "budget_undecided"
   | "budget_ambiguous"
   | "critical_unknowns_unresolved";
 
@@ -44,6 +45,9 @@ export function evaluateIntakeReadiness(version: IntakeVersion): IntakeReadiness
   }
   if (version.budget.meaning.state === "not_provided") {
     blockers.push("budget_not_provided");
+  }
+  if (version.budget.meaning.state === "undecided") {
+    blockers.push("budget_undecided");
   }
   if (version.budget.meaning.state === "ambiguous") {
     blockers.push("budget_ambiguous");

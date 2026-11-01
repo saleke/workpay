@@ -1,5 +1,6 @@
 import { getEnv } from "@workpay/shared/platform";
 import { isEmailDeliveryConfigured } from "@workpay/shared/integrations";
+import { BETA_CONTRACT_CURRENCY } from "@workpay/shared/domain/intake";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ export async function GET() {
       ),
       livePayments: false,
       paymentMode: "SIMULATED",
+      contractCurrencies: [BETA_CONTRACT_CURRENCY],
+      automaticCurrencyConversion: false,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

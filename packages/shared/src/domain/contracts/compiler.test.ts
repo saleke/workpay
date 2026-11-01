@@ -58,16 +58,6 @@ describe("contract compiler", () => {
     expect(a.contractHash).not.toBe(b.contractHash);
   });
 
-  it("preserves a supported non-USD task budget", () => {
-    const input = baseInput();
-    input.budgetMinor = 1_000_000;
-    input.currency = "NGN";
-    expect(compileContract(input).budget).toEqual({
-      amountMinor: 1_000_000,
-      currency: "NGN",
-    });
-  });
-
   it("rejects duplicate requirement keys", () => {
     const input = baseInput();
     input.requirements.push({

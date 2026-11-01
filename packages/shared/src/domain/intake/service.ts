@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { intakeSessions, intakeVersions } from "../../db/schema/intake.js";
+import { tasks } from "../../db/schema/tasks.js";
 import { conflict, notFound, validationError } from "../../platform/errors.js";
 import { newId } from "../../platform/ids.js";
 import { evaluateIntakeReadiness } from "./readiness.js";
@@ -81,6 +82,7 @@ export async function appendIntakeVersion(
     userId: string;
     expectedVersion: number;
     snapshot: IntakeVersion;
+    allowApprovedReopen?: boolean;
   },
 ): Promise<OwnedIntakeSession> {
   const snapshot = validateIntakeVersion(input.snapshot);
@@ -102,8 +104,11 @@ export async function appendIntakeVersion(
         currentVersion: session.currentVersion,
       });
     }
-    if (session.status === "APPROVED") {
+    if (session.status === "APPROVED" && !input.allowApprovedReopen) {
       throw conflict("An approved brief is frozen and cannot be edited.");
+    }
+    if (input.allowApprovedReopen && session.status !== "APPROVED") {
+      throw conflict("Only an approved intake can be reopened.");
     }
 
     const [previous] = await tx
@@ -119,6 +124,23 @@ export async function appendIntakeVersion(
     if (!previous) throw new Error("Intake session points to a missing version");
 
     const priorSnapshot = validateIntakeVersion(previous.snapshot);
+    if (input.allowApprovedReopen) {
+      if (
+        priorSnapshot.approvedAt === null ||
+        snapshot.approvedAt !== null ||
+        snapshot.approvalSourceId !== null
+      ) {
+        throw conflict("The approved intake was not safely reopened.");
+      }
+      const [existingTask] = await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.sourceIntakeSessionId, session.id))
+        .limit(1);
+      if (existingTask) {
+        throw conflict("A task already exists for this approved intake and its budget is frozen.");
+      }
+    }
     if (snapshot.sources.length < priorSnapshot.sources.length) {
       throw conflict("Intake source history cannot be removed.");
     }

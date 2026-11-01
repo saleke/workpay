@@ -70,6 +70,12 @@ The current application uses a deterministic fake gateway to validate agreement 
 authorization states, acceptance gates, idempotency, capture policy, and failure recovery. A
 displayed authorization or capture is a simulation; no funds are charged, held, captured, or paid.
 
+Beta contracts use USD as their single authoritative currency. Intake preserves a requester-stated
+local currency as source evidence, but WorkPay does not silently convert it, invent an exchange
+rate, or combine amounts across currencies. A requester must explicitly confirm a USD target,
+ceiling, or range before contract review. Display currency and eventual PayPal payout currency are
+separate concerns and are not implemented as conversion promises.
+
 PayPal OAuth identity data is not treated as permission to charge an account, a payout mandate, or
 independent identity verification. A production payment integration requires a separately approved
 marketplace payment design and explicit buyer approval at the payment provider.

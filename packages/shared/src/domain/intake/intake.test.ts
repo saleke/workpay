@@ -19,6 +19,7 @@ import {
   recordCommunicationStylePreference,
   recordIntentInterpretation,
   recordInterpretationDecision,
+  reopenApprovedIntakeBudget,
   recordScopeAssessment,
   saveProfessionalBriefEdits,
   resolveCommunicationStyle,
@@ -36,12 +37,12 @@ function readyVersion(): IntakeVersion {
       {
         id: "request",
         kind: "original_request",
-        content: "Create a report. Budget is undecided.",
+        content: "Create a report. My target budget is USD 100.",
       },
       {
         id: "confirm",
         kind: "user_message",
-        content: "I confirm the report summary and that my budget is undecided.",
+        content: "I confirm the report summary and a USD 100 target budget.",
       },
     ],
     interpretation: {
@@ -63,8 +64,8 @@ function readyVersion(): IntakeVersion {
     correctionContext: null,
     scopeAssessment: {
       budget: {
-        meaning: { state: "undecided" },
-        evidence: [{ sourceId: "request", quote: "Budget is undecided" }],
+        meaning: { state: "target", amount: { amountMinor: 10_000, currency: "USD" } },
+        evidence: [{ sourceId: "request", quote: "target budget is USD 100" }],
       },
       criticalUnknowns: [],
     },
@@ -74,8 +75,8 @@ function readyVersion(): IntakeVersion {
     interpretationConfirmationSourceId: "confirm",
     communicationStylePreference: null,
     budget: {
-      meaning: { state: "undecided" },
-      evidence: [{ sourceId: "request", quote: "Budget is undecided" }],
+      meaning: { state: "target", amount: { amountMinor: 10_000, currency: "USD" } },
+      evidence: [{ sourceId: "request", quote: "target budget is USD 100" }],
       confirmationSourceId: "confirm",
     },
     unresolvedCriticalUnknownIds: [],
@@ -173,7 +174,10 @@ describe("general-purpose intake model", () => {
       scopeOperation,
     );
     expect(refreshed.clarificationAnswers).toEqual(answeredDeadline.clarificationAnswers);
-    const budgetConfirmed = recordBudgetDecision(refreshed, { state: "undecided" });
+    const budgetConfirmed = recordBudgetDecision(refreshed, {
+      state: "target",
+      amount: { amountMinor: 10_000, currency: "USD" },
+    });
     expect(evaluateIntakeReadiness(budgetConfirmed).ready).toBe(true);
 
     const briefOperation = {
@@ -264,6 +268,54 @@ describe("general-purpose intake model", () => {
     ).toBe(true);
     expect(answered.unresolvedCriticalUnknownIds).toEqual([]);
     expect(answered.clarificationAnswers[0]?.answer).not.toContain("Compare plans");
+  });
+
+  it("requires an explicit USD contract budget and can safely reopen an approved legacy budget", () => {
+    const version = readyVersion();
+    expect(() =>
+      recordBudgetDecision(version, {
+        state: "target",
+        amount: { amountMinor: 1_000_000, currency: "NGN" },
+      }),
+    ).toThrow(/USD only/);
+
+    const composed = recordProfessionalBriefProposal(
+      version,
+      professionalBriefSchema.parse({
+        title: {
+          text: "Create a report",
+          evidence: [{ sourceId: "request", quote: "Create a report" }],
+        },
+        goalAndContext: {
+          text: "Create a report.",
+          evidence: [{ sourceId: "request", quote: "Create a report." }],
+        },
+        deliverables: [
+          {
+            text: "A report",
+            evidence: [{ sourceId: "request", quote: "report" }],
+          },
+        ],
+        requirements: [],
+        boundaries: [],
+        inputsAndDependencies: [],
+        timing: null,
+      }),
+      {
+        operation: "compose_professional_brief",
+        provider: "test",
+        model: "test",
+        promptVersion: "test",
+        recordedAt: new Date().toISOString(),
+      },
+    );
+    const approved = approveIntakeBrief(composed);
+    const reopened = reopenApprovedIntakeBudget(approved);
+    expect(reopened.approvedAt).toBeNull();
+    expect(reopened.approvalSourceId).toBeNull();
+    expect(reopened.professionalBrief).toBeNull();
+    expect(reopened.budget.confirmationSourceId).toBeNull();
+    expect(reopened.scopeAssessment).toEqual(approved.scopeAssessment);
   });
 
   it("persists generated answer options without treating them as user choices", () => {
@@ -931,6 +983,12 @@ describe("general-purpose intake model", () => {
         budget: { ...version.budget, meaning: { state: "not_provided" } },
       }).blockers,
     ).toContain("budget_not_provided");
+    expect(
+      evaluateIntakeReadiness({
+        ...version,
+        budget: { ...version.budget, meaning: { state: "undecided" } },
+      }).blockers,
+    ).toContain("budget_undecided");
     expect(
       evaluateIntakeReadiness({
         ...version,

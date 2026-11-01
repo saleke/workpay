@@ -9,11 +9,8 @@
  * contract/agreement, never from the LLM and never from the browser.
  */
 
-/**
- * ISO 4217 currency code validated at runtime. USD remains the default, but
- * confirmed task budgets are preserved in their stated currency.
- */
-export type Currency = string;
+export const CURRENCIES = ["USD"] as const;
+export type Currency = (typeof CURRENCIES)[number];
 
 export interface Money {
   /** Integer minor units. $135.00 => 13500 (USD cents). */
@@ -41,27 +38,9 @@ function assertIntegerMinor(amountMinor: number, currency: Currency): void {
   if (amountMinor < 0) {
     throw new Error(`Money.amountMinor must be >= 0, got ${amountMinor}`);
   }
-  if (!isSupportedCurrency(currency)) {
+  if (!CURRENCIES.includes(currency)) {
     throw new Error(`Unsupported currency: ${currency}`);
   }
-}
-
-export function isSupportedCurrency(currency: string): currency is Currency {
-  if (!/^[A-Z]{3}$/.test(currency)) return false;
-  try {
-    new Intl.NumberFormat("en-US", { style: "currency", currency });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function currencyFractionDigits(currency: Currency): number {
-  if (!isSupportedCurrency(currency)) throw new Error(`Unsupported currency: ${currency}`);
-  return (
-    new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
-      .maximumFractionDigits ?? 2
-  );
 }
 
 export function assertSameCurrency(a: Money, b: Money): void {
@@ -92,12 +71,12 @@ export function withinBudget(a: Money, b: Money): boolean {
 
 /** Human display ONLY. Never use the result for further money math. */
 export function formatMoney(value: Money): string {
-  assertIntegerMinor(value.amountMinor, value.currency);
-  const fractionDigits = currencyFractionDigits(value.currency);
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: value.currency,
-  }).format(value.amountMinor / 10 ** fractionDigits);
+  const sign = value.amountMinor < 0 ? "-" : "";
+  const abs = Math.abs(value.amountMinor);
+  const major = Math.trunc(abs / 100);
+  const minor = abs % 100;
+  const symbol = value.currency === "USD" ? "$" : "";
+  return `${sign}${symbol}${major}.${String(minor).padStart(2, "0")}`;
 }
 
 /**
@@ -106,19 +85,16 @@ export function formatMoney(value: Money): string {
  * budgets. Rejects anything that is not an exact number of minor units.
  */
 export function parseMoneyInput(input: string, currency: Currency = "USD"): Money {
-  const fractionDigits = currencyFractionDigits(currency);
   const cleaned = input.trim().replace(/^\$/, "").replace(/,/g, "");
   if (cleaned === "") throw new Error("Empty money input");
-  const amountPattern =
-    fractionDigits === 0 ? /^-?\d+$/ : new RegExp(`^-?\\d+(\\.\\d{1,${fractionDigits}})?$`);
-  if (!amountPattern.test(cleaned)) {
+  if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) {
     throw new Error(`Invalid money input: ${input}`);
   }
   const negative = cleaned.startsWith("-");
   const unsigned = negative ? cleaned.slice(1) : cleaned;
   const [whole, fraction = ""] = unsigned.split(".");
-  const fractionPadded = (fraction + "0".repeat(fractionDigits)).slice(0, fractionDigits);
-  const minor = Number(whole) * 10 ** fractionDigits + Number(fractionPadded || "0");
+  const fractionPadded = (fraction + "00").slice(0, 2);
+  const minor = Number(whole) * 100 + Number(fractionPadded);
   if (!Number.isSafeInteger(minor)) throw new Error(`Money input out of range: ${input}`);
   if (negative) throw new Error("Money amounts must not be negative");
   return money(minor, currency);

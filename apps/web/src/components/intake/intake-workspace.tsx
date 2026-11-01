@@ -6,8 +6,11 @@ import { ArrowRight, Check, CircleHelp, LoaderCircle, RotateCcw, Sparkles } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BETA_CONTRACT_CURRENCY,
+  budgetUsesBetaContractCurrency,
   budgetMeaningSchema,
   intakeVersionSchema,
+  isPricedBetaContractBudget,
   professionalBriefDraftSchema,
   type BudgetMeaning,
   type IntakeVersion,
@@ -56,6 +59,7 @@ type BusyAction =
   | "answer"
   | "budget"
   | "approve"
+  | "reopen-budget"
   | "task"
   | null;
 
@@ -208,6 +212,8 @@ function blockerMessage(blocker: string): string {
       return "Choose or confirm a budget state.";
     case "budget_not_provided":
       return "The budget is still missing. You can set an amount or explicitly say it is undecided.";
+    case "budget_undecided":
+      return "A specific USD target, ceiling, or range is required before contract review.";
     case "budget_ambiguous":
       return "The budget details conflict. Choose the budget you want to use.";
     case "critical_unknowns_unresolved":
@@ -233,7 +239,7 @@ export function IntakeWorkspace() {
   const [editingProfessionalBrief, setEditingProfessionalBrief] = useState(false);
   const [budgetOption, setBudgetOption] = useState<BudgetOption>("proposal");
   const [editingBudget, setEditingBudget] = useState(false);
-  const [currency, setCurrency] = useState("");
+  const [currency] = useState(BETA_CONTRACT_CURRENCY);
   const [minimum, setMinimum] = useState("");
   const [maximum, setMaximum] = useState("");
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
@@ -301,6 +307,9 @@ export function IntakeWorkspace() {
     version.unresolvedCriticalUnknownIds.length === 0,
   );
   const suggestedBudget = version?.scopeAssessment?.budget.meaning ?? null;
+  const suggestedBudgetCanFundBetaContract = Boolean(
+    suggestedBudget && isPricedBetaContractBudget(suggestedBudget),
+  );
   const stageIndex = session ? getStageIndex(session) : 0;
   const progress = session
     ? session.status === "APPROVED"
@@ -453,9 +462,7 @@ export function IntakeWorkspace() {
   const selectedBudget = useMemo((): BudgetMeaning | null => {
     if (!suggestedBudget) return null;
     if (budgetOption === "proposal") {
-      return ["ceiling", "target", "range", "undecided"].includes(suggestedBudget.state)
-        ? suggestedBudget
-        : null;
+      return isPricedBetaContractBudget(suggestedBudget) ? suggestedBudget : null;
     }
     if (budgetOption === "undecided") return { state: "undecided" };
 
@@ -490,6 +497,23 @@ export function IntakeWorkspace() {
     return budgetMeaningSchema.safeParse(candidate).success ? candidate : null;
   }, [budgetOption, currency, maximum, minimum, suggestedBudget]);
 
+  useEffect(() => {
+    if (
+      budgetOption !== "proposal" ||
+      !suggestedBudget ||
+      isPricedBetaContractBudget(suggestedBudget)
+    ) {
+      return;
+    }
+    setBudgetOption(
+      suggestedBudget.state === "ceiling" ||
+        suggestedBudget.state === "target" ||
+        suggestedBudget.state === "range"
+        ? suggestedBudget.state
+        : "target",
+    );
+  }, [budgetOption, suggestedBudget]);
+
   const handleBudget = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!session || !selectedBudget) {
@@ -509,6 +533,18 @@ export function IntakeWorkspace() {
   const handleApprove = () => {
     if (!session) return;
     void updateSession("approve", "/approve", { expectedVersion: session.version });
+  };
+
+  const handleReopenBudget = async () => {
+    if (!session) return;
+    const updated = await updateSession("reopen-budget", "/reopen-budget", {
+      expectedVersion: session.version,
+    });
+    if (updated) {
+      setEditingBudget(true);
+      setProfessionalBriefDraft(null);
+      setEditingProfessionalBrief(false);
+    }
   };
 
   const handleContinueToTask = async () => {
@@ -722,22 +758,48 @@ export function IntakeWorkspace() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {version && <BriefSummary version={version} />}
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Review the work terms and budget next. This will not select or contact a
-                  professional, and it will not authorize a PayPal payment.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => void handleContinueToTask()}
-                  disabled={busy !== null}
-                >
-                  {busy === "task" ? (
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                  )}
-                  Continue to contract review
-                </Button>
+                {version && isPricedBetaContractBudget(version.budget.meaning) ? (
+                  <>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                      Review the work terms and USD budget next. This will not select or contact a
+                      professional, and it will not authorize a PayPal payment.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => void handleContinueToTask()}
+                      disabled={busy !== null}
+                    >
+                      {busy === "task" ? (
+                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                      )}
+                      Continue to contract review
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                    <p className="text-sm font-semibold">Confirm a USD contract budget</p>
+                    <p className="text-sm text-[var(--wp-text-secondary)]">
+                      Your original currency remains in the intake record, but this beta creates
+                      contracts in USD only. WorkPay will not convert the amount or choose an
+                      exchange rate for you.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleReopenBudget()}
+                      disabled={busy !== null}
+                    >
+                      {busy === "reopen-budget" ? (
+                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                      )}
+                      Reopen budget step
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -1061,8 +1123,8 @@ export function IntakeWorkspace() {
                   <CardHeader>
                     <CardTitle className="text-lg">Confirm the budget state</CardTitle>
                     <CardDescription>
-                      WorkPay will not invent a price. Confirm what it understood, set an amount, or
-                      say that your budget is undecided.
+                      WorkPay preserves the currency you stated, but beta contracts use USD. Enter a
+                      USD amount explicitly; WorkPay will not choose an exchange rate for you.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1088,25 +1150,32 @@ export function IntakeWorkspace() {
                             ? describeBudget(suggestedBudget)
                             : "No budget details yet."}
                         </p>
+                        {suggestedBudget && !budgetUsesBetaContractCurrency(suggestedBudget) && (
+                          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                            <p className="font-semibold">Your original currency is preserved</p>
+                            <p className="mt-1 text-[var(--wp-text-secondary)]">
+                              The amount above cannot be used as the beta contract budget. Enter the
+                              USD target, ceiling, or range you explicitly accept. No automatic
+                              conversion will be applied.
+                            </p>
+                          </div>
+                        )}
                         <form className="space-y-4" onSubmit={handleBudget}>
                           <fieldset className="space-y-2">
                             <legend className="text-sm font-medium">
                               What budget should we use?
                             </legend>
                             <div className="grid gap-2 sm:grid-cols-2">
-                              {suggestedBudget &&
-                                ["ceiling", "target", "range", "undecided"].includes(
-                                  suggestedBudget.state,
-                                ) && (
-                                  <BudgetChoice
-                                    checked={budgetOption === "proposal"}
-                                    label={`Use what I said: ${describeBudget(suggestedBudget)}`}
-                                    onSelect={() => setBudgetOption("proposal")}
-                                  />
-                                )}
+                              {suggestedBudget && suggestedBudgetCanFundBetaContract && (
+                                <BudgetChoice
+                                  checked={budgetOption === "proposal"}
+                                  label={`Use what I said: ${describeBudget(suggestedBudget)}`}
+                                  onSelect={() => setBudgetOption("proposal")}
+                                />
+                              )}
                               <BudgetChoice
                                 checked={budgetOption === "undecided"}
-                                label="I have not decided yet"
+                                label="Keep this as a draft without a contract budget"
                                 onSelect={() => setBudgetOption("undecided")}
                               />
                               <BudgetChoice
@@ -1134,16 +1203,11 @@ export function IntakeWorkspace() {
                                 <Input
                                   id="budget-currency"
                                   value={currency}
-                                  onChange={(event) =>
-                                    setCurrency(event.target.value.toUpperCase().slice(0, 3))
-                                  }
-                                  placeholder="For example, USD"
-                                  autoComplete="off"
-                                  required
+                                  readOnly
+                                  aria-readonly="true"
                                 />
                                 <p className="text-xs text-[var(--wp-text-secondary)]">
-                                  Enter the three-letter code shown by your bank or payment
-                                  provider.
+                                  USD is the only contract currency enabled in this beta.
                                 </p>
                               </div>
                               <div className="space-y-2">

@@ -7,7 +7,7 @@ import { conflict, money, newId } from "@workpay/shared/platform";
 import { appendEvent } from "@workpay/shared/events";
 import { getCorrelationId, getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
 import { requireIntakeBuyer } from "@/lib/server/intake-auth";
-import { getIntakeSession } from "@workpay/shared/domain/intake";
+import { BETA_CONTRACT_CURRENCY, getIntakeSession } from "@workpay/shared/domain/intake";
 
 function approvedBudgetAmount(version: Awaited<ReturnType<typeof getIntakeSession>>["version"]) {
   const meaning = version.budget.meaning;
@@ -26,6 +26,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const budget = approvedBudgetAmount(current.version);
+    if (budget.currency !== BETA_CONTRACT_CURRENCY) {
+      throw conflict(
+        "This beta creates contracts in USD only. Reopen the budget step and explicitly confirm a USD amount before continuing.",
+      );
+    }
     const brief = current.version.professionalBrief;
     if (!brief) throw conflict("The approved intake is missing its professional-facing brief.");
 
@@ -63,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         actor,
         title: brief.title.text,
         rawRequest: session.originalRequest,
-        budget: money(budget.amountMinor, budget.currency),
+        budget: money(budget.amountMinor, BETA_CONTRACT_CURRENCY),
         correlationId,
       });
       await tx

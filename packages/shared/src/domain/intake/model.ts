@@ -441,6 +441,31 @@ export type ScopeAssessmentOutput = z.infer<typeof scopeAssessmentOutputSchema>;
 export type IntakeAIOperation = z.infer<typeof intakeAIOperationSchema>;
 export type IntakeVersion = z.infer<typeof intakeVersionSchema>;
 
+export const BETA_CONTRACT_CURRENCY = "USD" as const;
+
+export function budgetUsesBetaContractCurrency(meaning: BudgetMeaning): boolean {
+  if (meaning.state === "ceiling" || meaning.state === "target") {
+    return meaning.amount.currency === BETA_CONTRACT_CURRENCY;
+  }
+  if (meaning.state === "range") {
+    return (
+      meaning.minimum.currency === BETA_CONTRACT_CURRENCY &&
+      meaning.maximum.currency === BETA_CONTRACT_CURRENCY
+    );
+  }
+  if (meaning.state === "ambiguous") {
+    return meaning.mentionedAmounts.every(({ currency }) => currency === BETA_CONTRACT_CURRENCY);
+  }
+  return true;
+}
+
+export function isPricedBetaContractBudget(meaning: BudgetMeaning): boolean {
+  return (
+    (meaning.state === "ceiling" || meaning.state === "target" || meaning.state === "range") &&
+    budgetUsesBetaContractCurrency(meaning)
+  );
+}
+
 export function createInitialIntakeVersion(originalRequest: string): IntakeVersion {
   const source: IntakeSource = {
     id: "source_original",

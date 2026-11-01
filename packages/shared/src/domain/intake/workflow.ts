@@ -11,6 +11,8 @@ import {
   type ProfessionalBrief,
   type ProfessionalBriefEdit,
   type ScopeAssessmentOutput,
+  budgetUsesBetaContractCurrency,
+  isPricedBetaContractBudget,
   validateIntakeVersion,
 } from "./model.js";
 import { evaluateIntakeReadiness } from "./readiness.js";
@@ -363,6 +365,11 @@ export function recordBudgetDecision(
   if (version.scopeAssessment === null) {
     throw conflict("Assess the task scope before confirming a budget decision.");
   }
+  if (!budgetUsesBetaContractCurrency(meaning)) {
+    throw conflict(
+      "This beta creates contracts in USD only. Enter a USD amount you explicitly accept; WorkPay will not convert another currency automatically.",
+    );
+  }
   const content = `Budget decision selected by the user: ${JSON.stringify(meaning)}`;
   const { source, sources } = appendUserSource(version, "user_message", content);
   const evidence =
@@ -405,6 +412,11 @@ export function approveIntakeBrief(version: IntakeVersion): IntakeVersion {
   if (!readiness.ready) {
     throw conflict("The brief is not ready for approval.", { blockers: readiness.blockers });
   }
+  if (!isPricedBetaContractBudget(version.budget.meaning)) {
+    throw conflict(
+      "Confirm a specific USD target, ceiling, or range before approving the brief for contract review.",
+    );
+  }
 
   const { source, sources } = appendUserSource(
     version,
@@ -417,5 +429,36 @@ export function approveIntakeBrief(version: IntakeVersion): IntakeVersion {
     sources,
     approvedAt: new Date().toISOString(),
     approvalSourceId: source.id,
+  });
+}
+
+export function reopenApprovedIntakeBudget(version: IntakeVersion): IntakeVersion {
+  if (version.approvedAt === null || version.approvalSourceId === null) {
+    throw conflict("Only an approved intake can be reopened for a budget correction.");
+  }
+  const proposedBudget = version.scopeAssessment?.budget;
+  const { sources } = appendUserSource(
+    version,
+    "user_message",
+    "I reopened this approved intake to explicitly confirm a supported contract budget.",
+  );
+  return validateIntakeVersion({
+    ...version,
+    version: version.version + 1,
+    sources,
+    professionalBrief: null,
+    budget: proposedBudget
+      ? {
+          meaning: proposedBudget.meaning,
+          evidence: proposedBudget.evidence,
+          confirmationSourceId: null,
+        }
+      : {
+          meaning: { state: "not_provided" },
+          evidence: [],
+          confirmationSourceId: null,
+        },
+    approvedAt: null,
+    approvalSourceId: null,
   });
 }
