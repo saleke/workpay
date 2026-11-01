@@ -113,10 +113,19 @@ export async function apiFetch<T = unknown>(
     }
 
     if (!res.ok) {
-      const err = new ApiError(res.statusText || "Request failed", res.status, {
-        requestId: res.headers.get("x-request-id") ?? undefined,
-        details: data,
-      });
+      const envelope =
+        typeof data === "object" && data !== null && "error" in data
+          ? (data as { error?: { code?: string; message?: string; details?: unknown } }).error
+          : undefined;
+      const err = new ApiError(
+        envelope?.message || res.statusText || "Request failed",
+        res.status,
+        {
+          code: envelope?.code,
+          requestId: res.headers.get("x-request-id") ?? undefined,
+          details: envelope?.details ?? data,
+        },
+      );
       return { data: null, error: err, status: res.status };
     }
     return { data, error: null, status: res.status };

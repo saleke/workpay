@@ -26,9 +26,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const budget = approvedBudgetAmount(current.version);
-    if (budget.currency !== "USD") {
-      throw conflict("Task creation currently supports USD budgets only.");
-    }
     const brief = current.version.professionalBrief;
     if (!brief) throw conflict("The approved intake is missing its professional-facing brief.");
 
@@ -66,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         actor,
         title: brief.title.text,
         rawRequest: session.originalRequest,
-        budget: money(budget.amountMinor, "USD"),
+        budget: money(budget.amountMinor, budget.currency),
         correlationId,
       });
       await tx

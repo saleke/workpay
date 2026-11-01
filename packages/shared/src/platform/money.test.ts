@@ -28,6 +28,15 @@ describe("money", () => {
     expect(formatMoney(money(5))).toBe("$0.05");
   });
 
+  it("preserves supported non-USD currencies and their minor units", () => {
+    expect(money(1_000_000, "NGN")).toEqual({ amountMinor: 1_000_000, currency: "NGN" });
+    expect(formatMoney(money(1_000_000, "NGN"))).toMatch(/NGN.*10,000\.00/);
+    expect(parseMoneyInput("10000", "NGN")).toEqual({
+      amountMinor: 1_000_000,
+      currency: "NGN",
+    });
+  });
+
   it("parses human input into exact minor units", () => {
     expect(parseMoneyInput("$135.00").amountMinor).toBe(13500);
     expect(parseMoneyInput("150").amountMinor).toBe(15000);
