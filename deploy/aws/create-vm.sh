@@ -3,7 +3,7 @@ set -euo pipefail
 
 : "${AWS_REGION:?Set AWS_REGION to the fixed Region shown in AWS Settings > Project > Additional Info (for example eu-north-1)}"
 INSTANCE_NAME="${INSTANCE_NAME:-workpay-test}"
-INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
+INSTANCE_TYPE="${INSTANCE_TYPE:-c7i-flex.large}"
 S3_BUCKET="${S3_BUCKET:?Set a globally unique S3_BUCKET name}"
 ROLE_NAME="${ROLE_NAME:-workpay-test-ec2-role}"
 PROFILE_NAME="${PROFILE_NAME:-workpay-test-instance-profile}"
@@ -23,6 +23,17 @@ EOF
 fi
 if [[ -z "$VPC_ID" || "$VPC_ID" == "None" ]]; then
   echo "A default VPC is required in $AWS_REGION." >&2
+  exit 1
+fi
+
+FREE_TIER_ELIGIBLE="$(aws ec2 describe-instance-types --region "$AWS_REGION" \
+  --instance-types "$INSTANCE_TYPE" --query 'InstanceTypes[0].FreeTierEligible' --output text)"
+if [[ "$FREE_TIER_ELIGIBLE" != "True" ]]; then
+  echo "$INSTANCE_TYPE is not eligible for this account's Free Tier in $AWS_REGION." >&2
+  echo "Eligible instance types:" >&2
+  aws ec2 describe-instance-types --region "$AWS_REGION" \
+    --filters Name=free-tier-eligible,Values=true \
+    --query 'InstanceTypes[].InstanceType' --output text >&2
   exit 1
 fi
 
