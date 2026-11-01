@@ -266,14 +266,12 @@ export default function LoginPage() {
         </form>
       </CardContent>
 
-      {!evaluationEnabled ? (
-        <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
-          <span>Don&apos;t have an account? </span>
-          <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
-            Sign Up
-          </Link>
-        </CardFooter>
-      ) : null}
+      <CardFooter className="flex justify-center border-t border-border/60 py-3 text-xs text-muted-foreground">
+        <span>{evaluationEnabled ? "Want your own beta account? " : "Don't have an account? "}</span>
+        <Link href="/register" className="ml-1 font-semibold text-primary hover:underline">
+          {evaluationEnabled ? "Create Account" : "Sign Up"}
+        </Link>
+      </CardFooter>
     </Card>
   );
 }
