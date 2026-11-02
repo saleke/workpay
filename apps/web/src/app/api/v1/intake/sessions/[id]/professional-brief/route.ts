@@ -5,13 +5,10 @@ import {
   getIntakeSession,
   recordProfessionalBriefProposal,
 } from "@workpay/shared/domain/intake";
-import {
-  getIntakeAIClient,
-  INTAKE_PROFESSIONAL_BRIEF_PROMPT_VERSION,
-} from "@workpay/shared/integrations/ai";
 import { conflict } from "@workpay/shared/platform";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { requireIntakeBuyer } from "@/lib/server/intake-auth";
+import { composeProfessionalBriefProposal } from "@/lib/server/professional-brief";
 import {
   assertExpectedIntakeVersion,
   parseIntakeRequest,
@@ -32,29 +29,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       );
     }
 
-    const { interpretation, scopeAssessment } = current.version;
-    if (!interpretation || !scopeAssessment) {
-      throw conflict(
-        "Confirm the task interpretation and assess its scope before composing a brief.",
-      );
-    }
-    const client = getIntakeAIClient();
-    const proposal = await client.composeProfessionalBrief({
-      sources: current.version.sources,
-      confirmedIntent: interpretation,
-      clarificationAnswers: current.version.clarificationAnswers.map(({ question, answer }) => ({
-        question,
-        answer,
-      })),
-      budget: current.version.budget.meaning,
-    });
-    const snapshot = recordProfessionalBriefProposal(current.version, proposal, {
-      operation: "compose_professional_brief",
-      provider: client.name,
-      model: client.modelId,
-      promptVersion: INTAKE_PROFESSIONAL_BRIEF_PROMPT_VERSION,
-      recordedAt: new Date().toISOString(),
-    });
+    const { proposal, operation } = await composeProfessionalBriefProposal(current.version);
+    const snapshot = recordProfessionalBriefProposal(current.version, proposal, operation);
     const result = await appendIntakeVersion(db, {
       sessionId: id,
       userId: actor.id,

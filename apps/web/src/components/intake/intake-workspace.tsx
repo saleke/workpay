@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { z } from "zod";
-import { ArrowRight, Check, CircleHelp, LoaderCircle, RotateCcw, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  CircleHelp,
+  FileText,
+  LoaderCircle,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -63,7 +71,7 @@ type BusyAction =
   | "task"
   | null;
 
-const stages = ["Your request", "Understanding", "Core details", "Budget", "Review and approve"];
+const stages = ["Describe task", "Clarify details", "Review summary", "Approve", "Contract review"];
 
 class IntakeRequestError extends Error {
   constructor(
@@ -184,15 +192,9 @@ function getCurrentQuestion(version: IntakeVersion) {
 function getStageIndex(session: IntakeSession): number {
   const { intake, status } = session;
   if (status === "APPROVED") return 4;
-  if (
-    intake.scopeAssessment &&
-    intake.scopeAssessment.criticalUnknowns.length === 0 &&
-    intake.unresolvedCriticalUnknownIds.length === 0
-  ) {
-    return intake.budget.confirmationSourceId ? 4 : 3;
-  }
-  if (intake.interpretationConfirmationSourceId) return 2;
-  if (intake.interpretation) return 1;
+  if (intake.professionalBrief) return 3;
+  if (session.readiness.ready) return 2;
+  if (intake.interpretationConfirmationSourceId) return 1;
   return 0;
 }
 
@@ -311,11 +313,6 @@ export function IntakeWorkspace() {
     suggestedBudget && isPricedContractBudget(suggestedBudget),
   );
   const stageIndex = session ? getStageIndex(session) : 0;
-  const progress = session
-    ? session.status === "APPROVED"
-      ? 100
-      : Math.round((stageIndex / stages.length) * 100)
-    : 0;
 
   const updateSession = async (
     action: Exclude<BusyAction, "restore" | "create" | null>,
@@ -584,7 +581,7 @@ export function IntakeWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-16">
+    <div className="mx-auto max-w-6xl space-y-6 pb-16">
       <header className="space-y-2 border-b border-[var(--wp-border)] pb-5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--wp-accent)]">
           <Sparkles className="h-4 w-4" />
@@ -708,30 +705,45 @@ export function IntakeWorkspace() {
                       : "Draft"}
                 </Badge>
               </div>
-              <progress
-                className="h-2 w-full accent-[var(--wp-accent)]"
-                max={100}
-                value={progress}
-                aria-label={`Intake progress ${session.status === "APPROVED" ? 100 : progress}%`}
-              />
-              <ol className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+              <ol
+                className="grid grid-cols-5 pt-2"
+                aria-label={`Task creation progress: step ${stageIndex + 1} of ${stages.length}`}
+              >
                 {stages.map((stage, index) => {
-                  const complete = index < stageIndex || session.status === "APPROVED";
-                  const active = index === stageIndex && session.status !== "APPROVED";
+                  const complete = index < stageIndex;
+                  const active = index === stageIndex;
                   return (
                     <li
                       key={stage}
                       aria-current={active ? "step" : undefined}
-                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 ${
-                        complete || active
-                          ? "border-[var(--wp-accent)]/30 bg-[var(--wp-accent)]/5 text-[var(--wp-text-primary)]"
-                          : "border-[var(--wp-border)] text-[var(--wp-text-secondary)]"
-                      }`}
+                      className="relative flex min-w-0 flex-col items-center px-1 text-center"
                     >
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]">
-                        {complete ? <Check className="h-3 w-3" /> : index + 1}
+                      {index < stages.length - 1 ? (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-4 h-0.5 ${
+                            index < stageIndex ? "bg-[var(--wp-accent)]" : "bg-[var(--wp-border)]"
+                          }`}
+                        />
+                      ) : null}
+                      <span
+                        className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
+                          complete || active
+                            ? "border-[var(--wp-accent)] bg-[var(--wp-accent)] text-white"
+                            : "border-[var(--wp-border-strong)] bg-[var(--wp-surface)] text-[var(--wp-text-secondary)]"
+                        }`}
+                      >
+                        {complete ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
                       </span>
-                      <span>{stage}</span>
+                      <span
+                        className={`mt-2 text-[10px] font-semibold leading-tight sm:text-xs ${
+                          complete || active
+                            ? "text-[var(--wp-text-primary)]"
+                            : "text-[var(--wp-text-secondary)]"
+                        }`}
+                      >
+                        {stage}
+                      </span>
                     </li>
                   );
                 })}
@@ -757,7 +769,14 @@ export function IntakeWorkspace() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {version && <BriefSummary version={version} />}
+                {version?.professionalBrief ? (
+                  <ProfessionalBriefSummary
+                    brief={toProfessionalBriefDraft(version.professionalBrief)}
+                    budget={version.budget.meaning}
+                  />
+                ) : version ? (
+                  <BriefSummary version={version} />
+                ) : null}
                 {version && isPricedContractBudget(version.budget.meaning) ? (
                   <>
                     <p className="text-sm text-[var(--text-secondary)]">
@@ -988,102 +1007,128 @@ export function IntakeWorkspace() {
                         Check what else matters
                       </Button>
                     ) : currentQuestion ? (
-                      <form className="space-y-3" onSubmit={handleAnswer}>
-                        <div className="rounded-lg border border-[var(--wp-border)] p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
-                            One detail that could affect the work
-                          </p>
-                          <h2 className="mt-2 text-base font-semibold">
-                            {currentQuestion.question}
-                          </h2>
-                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
-                            Why this matters
-                          </p>
-                          <p className="mt-1 text-sm leading-6 text-[var(--wp-text-secondary)]">
+                      <form
+                        className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]"
+                        onSubmit={handleAnswer}
+                      >
+                        <div className="space-y-5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface)] p-5 shadow-xs sm:p-6">
+                          <div className="flex items-start gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--wp-accent)] text-sm font-bold text-white">
+                              {version.clarificationAnswers.length + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[var(--wp-accent)]">
+                                Clarify one important detail
+                              </p>
+                              <h2 className="mt-1 text-lg font-semibold leading-7 text-slate-950 sm:text-xl">
+                                {currentQuestion.question}
+                              </h2>
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-emerald-50/80 px-4 py-3 text-sm leading-6 text-emerald-950">
+                            <span className="font-semibold">Why it matters: </span>
                             {currentQuestion.whyItMatters}
-                          </p>
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-sm leading-6 text-slate-600">
+                              Choose a suggested answer or describe exactly what you need.
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              aria-expanded={showAnswerOptions}
+                              aria-controls="scope-answer-options"
+                              disabled={busy !== null}
+                              onClick={handleHelpMeChoose}
+                            >
+                              {busy === "options" ? (
+                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                              ) : null}
+                              {busy === "options"
+                                ? "Preparing options..."
+                                : showAnswerOptions
+                                  ? "Hide options"
+                                  : "Show suggested answers"}
+                            </Button>
+                            {showAnswerOptions && currentQuestion.answerOptions.length > 0 && (
+                              <fieldset id="scope-answer-options" className="space-y-2">
+                                <legend className="text-sm font-semibold text-slate-800">
+                                  Suggested answers
+                                </legend>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {currentQuestion.answerOptions.map((option, index) => {
+                                    const label =
+                                      typeof option === "string" ? option : option.label;
+                                    const explanation =
+                                      typeof option === "string" ? null : option.explanation;
+                                    return (
+                                      <Button
+                                        key={`${label}-${index}`}
+                                        type="button"
+                                        variant={answer === label ? "secondary" : "outline"}
+                                        aria-pressed={answer === label}
+                                        disabled={busy !== null}
+                                        className={`h-auto min-h-16 justify-start whitespace-normal rounded-xl p-4 text-left transition-all ${
+                                          answer === label
+                                            ? "border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm hover:bg-emerald-50"
+                                            : "border-slate-200 bg-white text-slate-900 hover:border-emerald-300 hover:bg-emerald-50/40"
+                                        }`}
+                                        onClick={() => setAnswer(label)}
+                                      >
+                                        <span className="flex flex-col items-start gap-1">
+                                          <span className="font-semibold leading-5">{label}</span>
+                                          {explanation && (
+                                            <span className="text-xs font-normal leading-5 text-slate-600">
+                                              {explanation}
+                                            </span>
+                                          )}
+                                        </span>
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              </fieldset>
+                            )}
+                          </div>
+                          <div className="space-y-2 border-t border-[var(--wp-border)] pt-4">
+                            <Label
+                              htmlFor="scope-answer"
+                              className="text-sm font-semibold text-slate-900"
+                            >
+                              {showAnswerOptions ? "Or tell us in your own words" : "Your answer"}
+                            </Label>
+                            <Textarea
+                              id="scope-answer"
+                              value={answer}
+                              onChange={(event) => setAnswer(event.target.value)}
+                              rows={4}
+                              maxLength={5_000}
+                              required
+                              className="resize-y rounded-xl border-slate-200 bg-white text-base leading-6 text-slate-950 placeholder:text-slate-400 focus-visible:ring-emerald-500"
+                              placeholder="Add the exact detail the professional should understand…"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs leading-5 text-slate-500">
+                              Your answer is added to the project specification immediately.
+                            </p>
+                            <Button
+                              type="submit"
+                              className="min-w-40 rounded-xl"
+                              disabled={busy !== null || !answer.trim()}
+                            >
+                              {busy === "answer" || busy === "scope" ? (
+                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                              ) : null}
+                              Save and continue
+                              {busy !== "answer" && busy !== "scope" ? (
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              ) : null}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-[var(--wp-text-secondary)]">
-                            Not sure? WorkPay can suggest a few possibilities and briefly explain
-                            each one. You decide whether any fits.
-                          </p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            aria-expanded={showAnswerOptions}
-                            aria-controls="scope-answer-options"
-                            disabled={busy !== null}
-                            onClick={handleHelpMeChoose}
-                          >
-                            {busy === "options" ? (
-                              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                            ) : null}
-                            {busy === "options"
-                              ? "Preparing options..."
-                              : showAnswerOptions
-                                ? "Hide options"
-                                : "Help me choose"}
-                          </Button>
-                          {showAnswerOptions && currentQuestion.answerOptions.length > 0 && (
-                            <fieldset id="scope-answer-options" className="space-y-2">
-                              <legend className="text-sm font-medium">
-                                Choose an option, or write your own
-                              </legend>
-                              <div className="grid gap-2 sm:grid-cols-2">
-                                {currentQuestion.answerOptions.map((option, index) => {
-                                  const label = typeof option === "string" ? option : option.label;
-                                  const explanation =
-                                    typeof option === "string" ? null : option.explanation;
-                                  return (
-                                    <Button
-                                      key={`${label}-${index}`}
-                                      type="button"
-                                      variant={answer === label ? "secondary" : "outline"}
-                                      aria-pressed={answer === label}
-                                      disabled={busy !== null}
-                                      className="h-auto min-h-16 justify-start whitespace-normal p-3 text-left"
-                                      onClick={() => setAnswer(label)}
-                                    >
-                                      <span className="flex flex-col items-start gap-1">
-                                        <span className="font-medium">{label}</span>
-                                        {explanation && (
-                                          <span className="text-xs font-normal text-[var(--wp-text-secondary)]">
-                                            {explanation}
-                                          </span>
-                                        )}
-                                      </span>
-                                    </Button>
-                                  );
-                                })}
-                              </div>
-                            </fieldset>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="scope-answer">
-                            {showAnswerOptions ? "Or tell us in your own words" : "Your answer"}
-                          </Label>
-                          <Textarea
-                            id="scope-answer"
-                            value={answer}
-                            onChange={(event) => setAnswer(event.target.value)}
-                            rows={3}
-                            maxLength={5_000}
-                            required
-                          />
-                        </div>
-                        <Button type="submit" disabled={busy !== null || !answer.trim()}>
-                          {busy === "answer" || busy === "scope" ? (
-                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                          ) : null}
-                          Save answer
-                        </Button>
-                        <p className="text-xs text-[var(--wp-text-secondary)]">
-                          One question at a time. If an answer raises another important point,
-                          WorkPay will check again.
-                        </p>
+                        <ProjectSpecificationSnapshot version={version} compact />
                       </form>
                     ) : needsScopeRecheck ? (
                       <div className="space-y-3">
@@ -1418,11 +1463,53 @@ function BudgetChoice({
   );
 }
 
-function ConfirmedBudget({ version }: { version: IntakeVersion }) {
+function ProfessionalBriefSummary({
+  brief,
+  budget,
+}: {
+  brief: ProfessionalBriefDraft;
+  budget: BudgetMeaning;
+}) {
+  const sections = [
+    { title: "Deliverables", items: brief.deliverables },
+    { title: "Requirements", items: brief.requirements },
+    { title: "Boundaries and exclusions", items: brief.boundaries },
+    { title: "Inputs and dependencies", items: brief.inputsAndDependencies },
+  ].filter(({ items }) => items.length > 0);
+
   return (
-    <div className="rounded-lg border border-[var(--wp-border)] p-4">
-      <h2 className="text-sm font-semibold">Budget decision</h2>
-      <p className="mt-2 text-sm">{describeBudget(version.budget.meaning)}</p>
+    <div className="space-y-4">
+      <div className="rounded-lg border border-[var(--wp-border)] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
+          Task brief
+        </p>
+        <h2 className="mt-1 text-lg font-semibold">{brief.title}</h2>
+        <h3 className="mt-4 text-sm font-semibold">Task description</h3>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{brief.goalAndContext}</p>
+      </div>
+      {sections.map(({ title, items }) => (
+        <div key={title} className="rounded-lg border border-[var(--wp-border)] p-4">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6">
+            {items.map((item, index) => (
+              <li key={`${title}-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {brief.timing ? (
+        <div className="rounded-lg border border-[var(--wp-border)] p-4">
+          <h3 className="text-sm font-semibold">Timing</h3>
+          <p className="mt-2 text-sm leading-6">{brief.timing}</p>
+        </div>
+      ) : null}
+      <div className="rounded-lg border border-[var(--wp-border)] p-4">
+        <h3 className="text-sm font-semibold">Budget decision</h3>
+        <p className="mt-2 text-sm">{describeBudget(budget)}</p>
+        <p className="mt-1 text-xs text-[var(--wp-text-secondary)]">
+          This is budget context, not an agreed price or professional offer.
+        </p>
+      </div>
     </div>
   );
 }
@@ -1462,15 +1549,18 @@ function ProfessionalBriefEditor({
           required
           onChange={(event) => onChange({ ...brief, title: event.target.value })}
         />
-        <Label htmlFor="professional-brief-goal">Goal and context</Label>
+        <Label htmlFor="professional-brief-goal">Task description</Label>
         <Textarea
           id="professional-brief-goal"
           value={brief.goalAndContext}
-          rows={3}
+          rows={5}
           disabled={disabled}
           required
           onChange={(event) => onChange({ ...brief, goalAndContext: event.target.value })}
         />
+        <p className="text-xs text-[var(--wp-text-secondary)]">
+          A concise description of the outcome, audience, and confirmed context from your answers.
+        </p>
       </div>
       <ProfessionalBriefList
         id="professional-brief-deliverables"
@@ -1561,38 +1651,99 @@ function ProfessionalBriefList({
 }
 
 function BriefSummary({ version }: { version: IntakeVersion }) {
+  return <ProjectSpecificationSnapshot version={version} />;
+}
+
+function specificationDetailLabel(question: string): string | null {
+  const normalized = question.toLowerCase();
+  if (/\b(budget|price|cost)\b/.test(normalized)) return null;
+  if (/main goal|primary goal|objective/.test(normalized)) return "Goal";
+  if (/kind of business|business type|industry/.test(normalized)) return "Business context";
+  if (/deadline|when do you need|due date|complete by/.test(normalized)) return "Timing";
+  if (/target audience|who is .* for|intended audience/.test(normalized)) return "Target audience";
+  if (/how many|quantity|number of/.test(normalized)) return "Quantity";
+  if (/products? or services?|specific products?|what .* advertising/.test(normalized)) {
+    return "Products or services";
+  }
+  if (/format|type of (?:ad|file|output)|preferred medium/.test(normalized)) return "Format";
+  if (/graphics|visuals?/.test(normalized)) return "Visual direction";
+  if (/key message|message .* convey/.test(normalized)) return "Key message";
+  if (/how long|duration|length/.test(normalized)) return "Duration";
+  if (/animation|effects|style/.test(normalized)) return "Style";
+  if (/platform|broadcast|publish|channel/.test(normalized)) return "Distribution";
+  if (/access|credentials|permission/.test(normalized)) return "Access";
+  if (/provide|materials?|assets?|inputs?/.test(normalized)) return "Provided inputs";
+  return question.replace(/\?$/, "");
+}
+
+function ProjectSpecificationSnapshot({
+  version,
+  compact = false,
+}: {
+  version: IntakeVersion;
+  compact?: boolean;
+}) {
+  const details = new Map<string, string>();
+  for (const { question, answer } of version.clarificationAnswers) {
+    const label = specificationDetailLabel(question);
+    if (label) details.set(label, answer.trim());
+  }
+  const budgetMeaning = version.budget.confirmationSourceId
+    ? version.budget.meaning
+    : version.scopeAssessment?.budget.meaning;
+
   return (
-    <div className="space-y-3">
-      {version.interpretation && (
-        <div className="space-y-2 rounded-lg border border-[var(--wp-border)] p-4">
-          <h2 className="text-sm font-semibold">Intended outcome and requirements</h2>
-          <p className="whitespace-pre-wrap text-sm leading-6">{version.interpretation.summary}</p>
-          <ul className="space-y-2 pt-2">
-            {version.interpretation.facts.map((fact) => (
-              <li key={fact.id} className="text-sm">
-                <span className="mr-2 text-xs uppercase text-[var(--wp-text-secondary)]">
-                  {fact.category}
-                </span>
-                {fact.value}
-              </li>
-            ))}
-          </ul>
+    <aside
+      className={`overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface)] shadow-xs ${
+        compact ? "lg:sticky lg:top-4" : ""
+      }`}
+      aria-label="Current project specification"
+    >
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--wp-border)] p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+            <FileText className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="font-semibold text-slate-950">Project specification</h2>
+            <p className="text-xs text-slate-500">Updated as details are confirmed</p>
+          </div>
         </div>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+          {version.clarificationAnswers.length} confirmed
+        </span>
+      </div>
+
+      <div className="border-b border-[var(--wp-border)] p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Project overview
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-slate-800">
+          {version.interpretation?.summary ?? "The project description is still being prepared."}
+        </p>
+      </div>
+
+      {details.size > 0 ? (
+        <dl className="divide-y divide-[var(--wp-border)]">
+          {[...details.entries()].map(([label, value]) => (
+            <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
+              <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+              <dd className="text-sm font-medium leading-5 text-slate-900">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="p-4 text-sm leading-6 text-slate-500">
+          Confirmed scope, audience, format, timing, and other requirements will appear here.
+        </p>
       )}
-      <ConfirmedBudget version={version} />
-      {version.clarificationAnswers.length > 0 && (
-        <div className="rounded-lg border border-[var(--wp-border)] p-4">
-          <h2 className="text-sm font-semibold">Answers to core questions</h2>
-          <ul className="mt-2 space-y-2 text-sm">
-            {version.clarificationAnswers.map((answer) => (
-              <li key={answer.sourceId}>
-                <p className="font-medium">{answer.question}</p>
-                <p className="text-[var(--wp-text-secondary)]">{answer.answer}</p>
-              </li>
-            ))}
-          </ul>
+
+      {budgetMeaning && budgetMeaning.state !== "not_provided" ? (
+        <div className="border-t border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-4 py-3">
+          <p className="text-xs font-semibold text-slate-500">Budget context</p>
+          <p className="mt-1 text-sm font-medium text-slate-900">{describeBudget(budgetMeaning)}</p>
         </div>
-      )}
-    </div>
+      ) : null}
+    </aside>
   );
 }

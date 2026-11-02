@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   answerOptionSuggestionOutputSchema,
   intentInterpretationOutputSchema,
+  professionalBriefSchema,
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
 import {
   findCloudflareGroundingIssues,
+  findProfessionalBriefCoverageIssues,
+  findProfessionalBriefOrganizationIssues,
   normalizeCloudflareIntentFamiliarity,
   normalizeCloudflareResponseEnvelope,
   normalizeCloudflareScopeBudget,
+  organizeProfessionalBrief,
 } from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
 
@@ -73,6 +77,132 @@ describe("intake output JSON schemas", () => {
         sources,
       ),
     ).toEqual(["facts.0.evidence.0", "facts.0.evidence.1"]);
+  });
+
+  it("requires every supplied clarification answer to be represented in the brief", () => {
+    const brief = professionalBriefSchema.parse({
+      title: {
+        text: "Create a product video",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      goalAndContext: {
+        text: "Build awareness with general consumers.",
+        evidence: [{ sourceId: "answer_goal", quote: "Build awareness" }],
+      },
+      deliverables: [
+        {
+          text: "One video",
+          evidence: [{ sourceId: "answer_format", quote: "Video" }],
+        },
+      ],
+      requirements: [],
+      boundaries: [],
+      inputsAndDependencies: [],
+      timing: null,
+    });
+
+    expect(
+      findProfessionalBriefCoverageIssues(brief, [
+        { sourceId: "answer_goal" },
+        { sourceId: "answer_format" },
+      ]),
+    ).toEqual([]);
+    expect(
+      findProfessionalBriefCoverageIssues(brief, [
+        { sourceId: "answer_goal" },
+        { sourceId: "answer_platform" },
+      ]),
+    ).toEqual(["clarificationAnswers.answer_platform"]);
+  });
+
+  it("keeps deadlines and positive platform requirements in the correct brief sections", () => {
+    const brief = professionalBriefSchema.parse({
+      title: {
+        text: "Create a product video",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      goalAndContext: {
+        text: "Create a product video for general consumers.",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      deliverables: [
+        {
+          text: "One video",
+          evidence: [{ sourceId: "source_original", quote: "video" }],
+        },
+      ],
+      requirements: [],
+      boundaries: [
+        {
+          text: "Publish on social media",
+          evidence: [{ sourceId: "answer_platform", quote: "Social media" }],
+        },
+      ],
+      inputsAndDependencies: [
+        {
+          text: "Complete next Saturday",
+          evidence: [{ sourceId: "answer_deadline", quote: "next Saturday" }],
+        },
+      ],
+      timing: {
+        text: "Complete next Saturday",
+        evidence: [{ sourceId: "answer_deadline", quote: "next Saturday" }],
+      },
+    });
+
+    expect(
+      findProfessionalBriefOrganizationIssues(brief, [
+        {
+          sourceId: "answer_platform",
+          question: "Where will the video be published?",
+          answer: "Social media",
+        },
+        {
+          sourceId: "answer_deadline",
+          question: "When should it be complete?",
+          answer: "next Saturday",
+        },
+      ]),
+    ).toEqual([
+      "requirements.answer_platform",
+      "boundaries.answer_platform",
+      "inputsAndDependencies.answer_deadline",
+    ]);
+
+    const organized = organizeProfessionalBrief(brief, [
+      {
+        sourceId: "answer_platform",
+        question: "Where will the video be published?",
+        answer: "Social media",
+      },
+      {
+        sourceId: "answer_deadline",
+        question: "When should it be complete?",
+        answer: "next Saturday",
+      },
+    ]);
+    expect(organized.boundaries).toEqual([]);
+    expect(organized.inputsAndDependencies).toEqual([]);
+    expect(organized.requirements.map(({ text }) => text)).toContain("Publish on social media");
+    expect(organized.timing?.text).toBe("Complete next Saturday");
+    expect(organized.goalAndContext.text).toContain("The requested work should produce one video.");
+    expect(organized.goalAndContext.text).toContain(
+      "Confirmed requirements are: publish on social media.",
+    );
+    expect(
+      findProfessionalBriefOrganizationIssues(organized, [
+        {
+          sourceId: "answer_platform",
+          question: "Where will the video be published?",
+          answer: "Social media",
+        },
+        {
+          sourceId: "answer_deadline",
+          question: "When should it be complete?",
+          answer: "next Saturday",
+        },
+      ]),
+    ).toEqual([]);
   });
 
   it("preserves the intent output object when converting refined Zod schemas", () => {
