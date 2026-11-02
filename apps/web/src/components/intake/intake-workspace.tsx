@@ -1474,39 +1474,64 @@ function ProfessionalBriefSummary({
   ].filter(({ items }) => items.length > 0);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-[var(--wp-border)] p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wp-text-secondary)]">
-          Task brief
+    <article className="overflow-hidden rounded-2xl border border-[var(--wp-border)] bg-white shadow-sm">
+      <header className="border-b border-[var(--wp-border)] bg-gradient-to-br from-emerald-50/80 via-white to-white px-5 py-6 sm:px-7">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+            <FileText className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+              Professional brief
+            </p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+              {brief.title}
+            </h2>
+          </div>
+        </div>
+        <p className="mt-4 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+          {brief.goalAndContext}
         </p>
-        <h2 className="mt-1 text-lg font-semibold">{brief.title}</h2>
-        <h3 className="mt-4 text-sm font-semibold">Task description</h3>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{brief.goalAndContext}</p>
+      </header>
+
+      <div className="divide-y divide-[var(--wp-border)]">
+        {sections.map(({ title, items }) => (
+          <section key={title} className="px-5 py-5 sm:px-7">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {title}
+            </h3>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {items.map((item, index) => (
+                <li
+                  key={`${title}-${index}`}
+                  className="rounded-lg border border-[var(--wp-border)] bg-slate-50/60 px-3.5 py-3 text-sm leading-6 text-slate-900"
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {brief.timing ? (
+          <section className="px-5 py-5 sm:px-7">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Timing
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-900">{brief.timing}</p>
+          </section>
+        ) : null}
       </div>
-      {sections.map(({ title, items }) => (
-        <div key={title} className="rounded-lg border border-[var(--wp-border)] p-4">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6">
-            {items.map((item, index) => (
-              <li key={`${title}-${index}`}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      {brief.timing ? (
-        <div className="rounded-lg border border-[var(--wp-border)] p-4">
-          <h3 className="text-sm font-semibold">Timing</h3>
-          <p className="mt-2 text-sm leading-6">{brief.timing}</p>
-        </div>
-      ) : null}
-      <div className="rounded-lg border border-[var(--wp-border)] p-4">
-        <h3 className="text-sm font-semibold">Budget decision</h3>
-        <p className="mt-2 text-sm">{describeBudget(budget)}</p>
-        <p className="mt-1 text-xs text-[var(--wp-text-secondary)]">
+
+      <footer className="border-t border-emerald-200 bg-emerald-50/60 px-5 py-4 sm:px-7">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-800">
+          Budget context
+        </h3>
+        <p className="mt-1.5 text-sm leading-6 text-emerald-950">{describeBudget(budget)}</p>
+        <p className="mt-1.5 text-xs leading-5 text-emerald-800/80">
           This is budget context, not an agreed price or professional offer.
         </p>
-      </div>
-    </div>
+      </footer>
+    </article>
   );
 }
 
@@ -1669,19 +1694,28 @@ function specificationDetailLabel(question: string): string | null {
   if (/platform|broadcast|publish|channel/.test(normalized)) return "Distribution";
   if (/access|credentials|permission/.test(normalized)) return "Access";
   if (/provide|materials?|assets?|inputs?/.test(normalized)) return "Provided inputs";
-  return question.replace(/\?$/, "");
+  return "Additional requirement";
 }
 
 function ProjectSpecificationSnapshot({ version }: { version: IntakeVersion }) {
-  const details = new Map<string, string>();
+  const namedDetails = new Map<string, string>();
+  const otherDetails: string[] = [];
   for (const { question, answer } of version.clarificationAnswers) {
     const label = specificationDetailLabel(question);
-    if (label) details.set(label, answer.trim());
+    if (label === null) continue;
+    if (label === "Additional requirement") {
+      otherDetails.push(answer.trim());
+    } else {
+      namedDetails.set(label, answer.trim());
+    }
   }
   const budgetMeaning = version.budget.confirmationSourceId
     ? version.budget.meaning
     : version.scopeAssessment?.budget.meaning;
-  const detailEntries = [...details.entries()];
+  const detailEntries = [
+    ...namedDetails.entries(),
+    ...otherDetails.map((value) => ["Additional requirement", value] as [string, string]),
+  ];
 
   return (
     <section
@@ -1731,8 +1765,8 @@ function ProjectSpecificationSnapshot({ version }: { version: IntakeVersion }) {
               Confirmed details
             </h3>
             <dl className="mt-3 grid gap-px overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-border)] sm:grid-cols-2">
-              {detailEntries.map(([label, value]) => (
-                <div key={label} className="bg-white px-4 py-4">
+              {detailEntries.map(([label, value], index) => (
+                <div key={`${label}-${index}`} className="bg-white px-4 py-4">
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                     {label}
                   </dt>
