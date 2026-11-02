@@ -1324,83 +1324,77 @@ export function IntakeWorkspace() {
                       </div>
                     )}
                     {version.professionalBrief ? (
-                      <form className="space-y-4" onSubmit={handleSaveProfessionalBrief}>
-                        <ProfessionalBriefEditor
-                          brief={
-                            professionalBriefDraft ??
-                            toProfessionalBriefDraft(version.professionalBrief)
-                          }
-                          budget={version.budget.meaning}
-                          disabled={
-                            !editingProfessionalBrief ||
-                            version.approvedAt !== null ||
-                            busy !== null
-                          }
-                          onChange={setProfessionalBriefDraft}
-                        />
-                        {version.approvedAt === null && (
-                          <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4">
-                            {editingProfessionalBrief ? (
+                      editingProfessionalBrief && version.approvedAt === null ? (
+                        <form className="space-y-4" onSubmit={handleSaveProfessionalBrief}>
+                          <ProfessionalBriefEditor
+                            brief={
+                              professionalBriefDraft ??
+                              toProfessionalBriefDraft(version.professionalBrief)
+                            }
+                            budget={version.budget.meaning}
+                            disabled={busy !== null}
+                            onChange={setProfessionalBriefDraft}
+                          />
+                          <div className="flex flex-wrap gap-2 border-t border-[var(--wp-border)] pt-4">
+                            <Button type="submit" disabled={busy !== null}>
+                              {busy === "save-brief" ? (
+                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                              ) : null}
+                              Save brief edits
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={busy !== null}
+                              onClick={() => {
+                                setProfessionalBriefDraft(
+                                  toProfessionalBriefDraft(version.professionalBrief!),
+                                );
+                                setEditingProfessionalBrief(false);
+                              }}
+                            >
+                              Discard edits
+                            </Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="space-y-4">
+                          <ProfessionalBriefSummary
+                            brief={toProfessionalBriefDraft(version.professionalBrief)}
+                            budget={version.budget.meaning}
+                          />
+                          {version.approvedAt === null ? (
+                            <div className="flex flex-col gap-3 border-t border-[var(--wp-border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-xs leading-5 text-[var(--wp-text-secondary)]">
+                                Approval records this exact brief for possible later discovery. It
+                                does not start discovery or contact anyone.
+                              </p>
                               <div className="flex flex-wrap gap-2">
-                                <Button type="submit" disabled={busy !== null}>
-                                  {busy === "save-brief" ? (
-                                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : null}
-                                  Save brief edits
-                                </Button>
                                 <Button
                                   type="button"
                                   variant="outline"
+                                  onClick={() => setEditingProfessionalBrief(true)}
                                   disabled={busy !== null}
-                                  onClick={() => {
-                                    setProfessionalBriefDraft(
-                                      version.professionalBrief
-                                        ? toProfessionalBriefDraft(version.professionalBrief)
-                                        : null,
-                                    );
-                                    setEditingProfessionalBrief(false);
-                                  }}
                                 >
-                                  Discard edits
+                                  Edit brief
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={handleApprove}
+                                  disabled={busy !== null || !session.readiness.ready}
+                                >
+                                  {busy === "approve" ? (
+                                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Check className="mr-2 h-4 w-4" />
+                                  )}
+                                  Approve this brief
                                 </Button>
                               </div>
-                            ) : (
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="text-xs text-[var(--wp-text-secondary)]">
-                                  Approval records this exact brief for possible later discovery. It
-                                  does not start discovery or contact anyone.
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setEditingProfessionalBrief(true)}
-                                    disabled={busy !== null}
-                                  >
-                                    Edit brief
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    onClick={handleApprove}
-                                    disabled={
-                                      busy !== null ||
-                                      !session.readiness.ready ||
-                                      editingProfessionalBrief
-                                    }
-                                  >
-                                    {busy === "approve" ? (
-                                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Check className="mr-2 h-4 w-4" />
-                                    )}
-                                    Approve this brief
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </form>
+                            </div>
+                          ) : null}
+                        </div>
+                      )
                     ) : version.approvedAt !== null ? (
                       <BriefSummary version={version} />
                     ) : (
