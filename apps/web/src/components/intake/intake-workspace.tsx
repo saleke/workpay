@@ -722,14 +722,14 @@ export function IntakeWorkspace() {
                         <span
                           aria-hidden="true"
                           className={`absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-4 h-0.5 ${
-                            index < stageIndex ? "bg-[var(--wp-accent)]" : "bg-[var(--wp-border)]"
+                            index < stageIndex ? "bg-emerald-600" : "bg-[var(--wp-border)]"
                           }`}
                         />
                       ) : null}
                       <span
                         className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
                           complete || active
-                            ? "border-[var(--wp-accent)] bg-[var(--wp-accent)] text-white"
+                            ? "border-emerald-600 bg-emerald-600 text-white"
                             : "border-[var(--wp-border-strong)] bg-[var(--wp-surface)] text-[var(--wp-text-secondary)]"
                         }`}
                       >
@@ -1013,11 +1013,11 @@ export function IntakeWorkspace() {
                       >
                         <div className="space-y-5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface)] p-5 shadow-xs sm:p-6">
                           <div className="flex items-start gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--wp-accent)] text-sm font-bold text-white">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
                               {version.clarificationAnswers.length + 1}
                             </span>
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-[var(--wp-accent)]">
+                              <p className="text-xs font-semibold text-emerald-700">
                                 Clarify one important detail
                               </p>
                               <h2 className="mt-1 text-lg font-semibold leading-7 text-slate-950 sm:text-xl">
