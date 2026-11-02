@@ -1007,10 +1007,7 @@ export function IntakeWorkspace() {
                         Check what else matters
                       </Button>
                     ) : currentQuestion ? (
-                      <form
-                        className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]"
-                        onSubmit={handleAnswer}
-                      >
+                      <form className="mx-auto max-w-3xl" onSubmit={handleAnswer}>
                         <div className="space-y-5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface)] p-5 shadow-xs sm:p-6">
                           <div className="flex items-start gap-3">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
@@ -1128,7 +1125,6 @@ export function IntakeWorkspace() {
                             </Button>
                           </div>
                         </div>
-                        <ProjectSpecificationSnapshot version={version} compact />
                       </form>
                     ) : needsScopeRecheck ? (
                       <div className="space-y-3">
@@ -1676,13 +1672,7 @@ function specificationDetailLabel(question: string): string | null {
   return question.replace(/\?$/, "");
 }
 
-function ProjectSpecificationSnapshot({
-  version,
-  compact = false,
-}: {
-  version: IntakeVersion;
-  compact?: boolean;
-}) {
+function ProjectSpecificationSnapshot({ version }: { version: IntakeVersion }) {
   const details = new Map<string, string>();
   for (const { question, answer } of version.clarificationAnswers) {
     const label = specificationDetailLabel(question);
@@ -1691,59 +1681,94 @@ function ProjectSpecificationSnapshot({
   const budgetMeaning = version.budget.confirmationSourceId
     ? version.budget.meaning
     : version.scopeAssessment?.budget.meaning;
+  const detailEntries = [...details.entries()];
 
   return (
-    <aside
-      className={`overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface)] shadow-xs ${
-        compact ? "lg:sticky lg:top-4" : ""
-      }`}
+    <section
+      className="overflow-hidden rounded-2xl border border-[var(--wp-border)] bg-white shadow-sm"
       aria-label="Current project specification"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--wp-border)] p-4">
+      <header className="border-b border-[var(--wp-border)] bg-gradient-to-br from-emerald-50/80 via-white to-white px-5 py-6 sm:px-7">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
             <FileText className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="font-semibold text-slate-950">Project specification</h2>
-            <p className="text-xs text-slate-500">Updated as details are confirmed</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+              Project specification
+            </p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+              What the professional will receive
+            </h2>
           </div>
         </div>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-          {version.clarificationAnswers.length} confirmed
-        </span>
-      </div>
-
-      <div className="border-b border-[var(--wp-border)] p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Project overview
-        </h3>
-        <p className="mt-2 text-sm leading-6 text-slate-800">
-          {version.interpretation?.summary ?? "The project description is still being prepared."}
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-600">
+          Your confirmed answers are organized into a single description. This is the scope
+          professionals review; it is not a question-and-answer transcript.
         </p>
+      </header>
+
+      <div className="space-y-7 px-5 py-6 sm:px-7">
+        <section aria-labelledby="specification-overview">
+          <h3
+            id="specification-overview"
+            className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+          >
+            Overview
+          </h3>
+          <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+            {version.interpretation?.summary ??
+              "The project overview will appear once WorkPay understands the request."}
+          </p>
+        </section>
+
+        {detailEntries.length > 0 ? (
+          <section aria-labelledby="specification-details">
+            <h3
+              id="specification-details"
+              className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500"
+            >
+              Confirmed details
+            </h3>
+            <dl className="mt-3 grid gap-px overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-border)] sm:grid-cols-2">
+              {detailEntries.map(([label, value]) => (
+                <div key={label} className="bg-white px-4 py-4">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                    {label}
+                  </dt>
+                  <dd className="mt-1.5 text-sm leading-6 text-slate-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ) : (
+          <p className="rounded-xl border border-dashed border-[var(--wp-border-strong)] bg-slate-50/60 px-4 py-5 text-sm leading-6 text-slate-500">
+            Confirmed scope, audience, format, timing, access, and other requirements will be
+            organized here as you answer.
+          </p>
+        )}
+
+        {budgetMeaning && budgetMeaning.state !== "not_provided" ? (
+          <section
+            aria-labelledby="specification-budget"
+            className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-4"
+          >
+            <h3
+              id="specification-budget"
+              className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-800"
+            >
+              Budget context
+            </h3>
+            <p className="mt-1.5 text-sm leading-6 text-emerald-950">
+              {describeBudget(budgetMeaning)}
+            </p>
+            <p className="mt-1.5 text-xs leading-5 text-emerald-800/80">
+              Budget is shown separately and is not part of the generated task description. It is
+              not an agreed price or professional offer.
+            </p>
+          </section>
+        ) : null}
       </div>
-
-      {details.size > 0 ? (
-        <dl className="divide-y divide-[var(--wp-border)]">
-          {[...details.entries()].map(([label, value]) => (
-            <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
-              <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-              <dd className="text-sm font-medium leading-5 text-slate-900">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="p-4 text-sm leading-6 text-slate-500">
-          Confirmed scope, audience, format, timing, and other requirements will appear here.
-        </p>
-      )}
-
-      {budgetMeaning && budgetMeaning.state !== "not_provided" ? (
-        <div className="border-t border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-4 py-3">
-          <p className="text-xs font-semibold text-slate-500">Budget context</p>
-          <p className="mt-1 text-sm font-medium text-slate-900">{describeBudget(budgetMeaning)}</p>
-        </div>
-      ) : null}
-    </aside>
+    </section>
   );
 }

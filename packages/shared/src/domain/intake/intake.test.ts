@@ -1003,6 +1003,17 @@ describe("general-purpose intake model", () => {
         },
       }).blockers,
     ).toContain("budget_ambiguous");
+
+    expect(
+      evaluateIntakeReadiness({
+        ...version,
+        interpretation: {
+          ...version.interpretation!,
+          facts: [],
+        },
+        factConfirmations: [],
+      }),
+    ).toEqual({ ready: true, blockers: [] });
   });
 
   it("does not allow approval while readiness blockers remain", () => {

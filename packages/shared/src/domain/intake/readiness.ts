@@ -27,11 +27,15 @@ export function evaluateIntakeReadiness(version: IntakeVersion): IntakeReadiness
   if (version.interpretationConfirmationSourceId === null) {
     blockers.push("interpretation_not_confirmed");
   }
-  if (
-    !version.interpretation?.facts.some(
-      (fact) => fact.category === "objective" && confirmedFacts.has(fact.id),
-    )
-  ) {
+  const hasConfirmedOutcomeFact = version.interpretation?.facts.some(
+    (fact) =>
+      (fact.category === "objective" || fact.category === "deliverable") &&
+      confirmedFacts.has(fact.id),
+  );
+  const hasConfirmedInterpretation = Boolean(
+    version.interpretationConfirmationSourceId && version.interpretation?.summary?.trim(),
+  );
+  if (!hasConfirmedOutcomeFact && !hasConfirmedInterpretation) {
     blockers.push("objective_not_confirmed");
   }
   if (version.interpretation?.facts.some((fact) => !confirmedFacts.has(fact.id))) {
