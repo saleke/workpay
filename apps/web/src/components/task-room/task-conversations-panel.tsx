@@ -44,11 +44,17 @@ export function TaskConversationsPanel({
   const candidates = [
     ...(selection?.provider ? [selection.provider] : []),
     ...(selection?.alternatives ?? []),
-  ].filter(
-    (candidate, index, list) =>
-      candidate.eligible !== false &&
-      list.findIndex((other) => other.providerId === candidate.providerId) === index,
-  );
+  ]
+    .filter(
+      (candidate, index, list) =>
+        candidate.eligible !== false &&
+        list.findIndex((other) => other.providerId === candidate.providerId) === index,
+    )
+    .sort((left, right) => {
+      const leftName = left.displayName.trim().toLowerCase();
+      const rightName = right.displayName.trim().toLowerCase();
+      return leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
+    });
   const selectedCandidate = candidates.find((candidate) => candidate.providerId === providerId);
 
   const refresh = async () => {
@@ -109,23 +115,24 @@ export function TaskConversationsPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--wp-accent)]">
-            Connect when you’re ready
+            Professional selection
           </p>
           <h2
             id={`conversation-heading-${taskId}`}
             className="mt-1 text-lg font-semibold tracking-tight text-[var(--charcoal)] sm:text-xl"
           >
-            Professional conversation
+            Choose a professional
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--text-muted)]">
-            Messages stay between you and the selected professional. They do not change the
-            agreement or payment. Nothing is sent until you review the person and approve the exact
-            contact request.
+            Profiles are shown alphabetically, not ranked. Compare each person’s details and decide
+            whether to reach out; WorkPay does not endorse or contact anyone on your behalf.
           </p>
         </div>
-        <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
-          Buyer chooses
-        </span>
+        {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
+          <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
+            {candidates.length} {candidates.length === 1 ? "profile" : "profiles"} to review
+          </span>
+        ) : null}
       </div>
 
       {conversations.map((conversation) => (
@@ -157,33 +164,29 @@ export function TaskConversationsPanel({
       ))}
 
       {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
-        <div className="space-y-4 border-t border-[var(--wp-border)] pt-5">
-          <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="space-y-5 border-t border-[var(--wp-border)] pt-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold tracking-tight text-[var(--charcoal)]">
-                Choose a professional
+                Available professional profiles
               </h3>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {candidates.length} {candidates.length === 1 ? "person" : "people"} available
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Select a profile to review the agreement and prepare a contact request.
               </p>
             </div>
-            <span className="rounded-full bg-[var(--wp-surface-subtle)] px-2.5 py-1 text-xs text-[var(--text-muted)]">
-              Profiles, not recommendations
+            <span className="rounded-lg border border-[var(--wp-border)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--wp-text-secondary)]">
+              You make the choice
             </span>
           </div>
-          <p className="text-sm text-[var(--text-muted)]">
-            Review each person’s profile and choose whom you want to contact. WorkPay does not rank,
-            endorse, or contact anyone automatically.
-          </p>
-          <fieldset className="overflow-hidden rounded-2xl border border-[var(--wp-border)] bg-white">
+          <fieldset className="grid gap-2.5">
             <legend className="sr-only">Available professionals</legend>
             {candidates.map((candidate) => (
               <label
                 key={candidate.providerId}
-                className={`group flex cursor-pointer items-start gap-3.5 border-b border-[var(--wp-border)] px-3.5 py-4 last:border-b-0 transition-colors sm:items-center sm:px-4 ${
+                className={`group flex cursor-pointer items-start gap-3.5 rounded-2xl border p-3.5 transition-all sm:items-center sm:gap-4 sm:p-4 ${
                   providerId === candidate.providerId
-                    ? "bg-[var(--wp-accent-subtle)]/55"
-                    : "hover:bg-[var(--wp-surface-subtle)]"
+                    ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/45 shadow-sm"
+                    : "border-[var(--wp-border)] bg-white hover:border-[var(--wp-border-strong)] hover:bg-[var(--wp-surface-subtle)]"
                 }`}
               >
                 <span className="relative shrink-0">
@@ -192,18 +195,11 @@ export function TaskConversationsPanel({
                     image={candidate.image}
                     className="h-12 w-12 sm:h-14 sm:w-14"
                   />
-                  <span
-                    aria-label="Available"
-                    className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"
-                  />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-sm font-semibold text-[var(--wp-text-primary)]">
+                    <span className="text-sm font-semibold text-[var(--wp-text-primary)] sm:text-base">
                       {candidate.displayName}
-                    </span>
-                    <span className="text-[11px] font-medium text-[var(--wp-success)]">
-                      Available
                     </span>
                   </span>
                   <span className="mt-1 block line-clamp-2 text-[13px] leading-relaxed text-[var(--text-muted)]">
@@ -214,20 +210,20 @@ export function TaskConversationsPanel({
                       {candidate.capabilities.slice(0, 3).map(({ tag }) => (
                         <span
                           key={tag}
-                          className="rounded-full bg-[var(--wp-surface-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--wp-text-secondary)]"
+                          className="rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-2.5 py-1 text-[11px] font-medium text-[var(--wp-text-secondary)]"
                         >
                           {formatCapability(tag)}
                         </span>
                       ))}
                       {candidate.capabilities.length > 3 ? (
-                        <span className="px-1 py-0.5 text-[10px] text-[var(--wp-text-secondary)]">
+                        <span className="px-1 py-1 text-[11px] text-[var(--wp-text-secondary)]">
                           +{candidate.capabilities.length - 3} more
                         </span>
                       ) : null}
                     </span>
                   ) : null}
                 </span>
-                <span className="shrink-0">
+                <span className="flex shrink-0 flex-col items-center gap-1">
                   <input
                     type="radio"
                     name={`professional-${taskId}`}
@@ -240,19 +236,22 @@ export function TaskConversationsPanel({
                     aria-label={`Select ${candidate.displayName}`}
                     className="mt-1 h-4 w-4 accent-[var(--wp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wp-accent)] sm:mt-0"
                   />
+                  <span className="sr-only">
+                    {providerId === candidate.providerId ? "Selected" : "Select"}
+                  </span>
                 </span>
               </label>
             ))}
           </fieldset>
           {selectedCandidate ? (
-            <div className="rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
+            <div className="space-y-4 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                    Agreement shared with your request
+                    01 · Review the agreement
                   </p>
                   <p className="mt-1 font-semibold text-[var(--charcoal)]">{contract.title}</p>
-                  <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
                     {contract.summary}
                   </p>
                 </div>
@@ -260,12 +259,41 @@ export function TaskConversationsPanel({
                   Version {contract.version}
                 </span>
               </div>
-              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--wp-border)] pt-3 text-xs text-[var(--wp-text-secondary)]">
-                <span>{contract.requirements.length} acceptance criteria</span>
-                <span>
-                  {contract.currency} {formatAmount(contract.budgetMinor)} agreed budget
-                </span>
-              </div>
+              <dl className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-[var(--wp-border)] bg-white p-3">
+                  <dt className="text-xs text-[var(--text-muted)]">Agreed checks</dt>
+                  <dd className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
+                    {contract.requirements.length}{" "}
+                    {contract.requirements.length === 1 ? "criterion" : "criteria"}
+                  </dd>
+                </div>
+                <div className="rounded-xl border border-[var(--wp-border)] bg-white p-3">
+                  <dt className="text-xs text-[var(--text-muted)]">Agreed budget</dt>
+                  <dd className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
+                    {contract.currency} {formatAmount(contract.budgetMinor)}
+                  </dd>
+                </div>
+              </dl>
+              {contract.requirements.length > 0 ? (
+                <details className="rounded-xl border border-[var(--wp-border)] bg-white">
+                  <summary className="cursor-pointer px-3.5 py-3 text-sm font-medium text-[var(--wp-text-secondary)] marker:text-[var(--wp-accent)]">
+                    Read all {contract.requirements.length} agreed checks
+                  </summary>
+                  <ol className="grid gap-2 border-t border-[var(--wp-border)] px-4 py-3">
+                    {contract.requirements.map((requirement, index) => (
+                      <li
+                        key={requirement.key}
+                        className="flex items-start gap-3 text-sm leading-relaxed text-[var(--wp-text-secondary)]"
+                      >
+                        <span className="font-mono text-xs text-[var(--text-muted)]">
+                          {index + 1}.
+                        </span>
+                        <span>{requirement.statement}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              ) : null}
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-[var(--wp-border-strong)] px-4 py-3 text-sm text-[var(--wp-text-secondary)]">
@@ -273,9 +301,24 @@ export function TaskConversationsPanel({
             </p>
           )}
           {selectedCandidate ? (
-            <>
+            <div className="space-y-4 rounded-2xl border border-[var(--wp-border)] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--wp-accent-subtle)] text-xs font-semibold text-[var(--wp-accent)]">
+                  02
+                </span>
+                <div>
+                  <h4 className="font-semibold text-[var(--charcoal)]">
+                    Prepare your contact request
+                  </h4>
+                  <p className="mt-1 text-sm text-[var(--text-muted)]">
+                    Your message will be sent with the agreement details above.
+                  </p>
+                </div>
+              </div>
               <label className="block space-y-2 text-sm">
-                <span className="font-medium text-[var(--charcoal)]">Your first message</span>
+                <span className="font-medium text-[var(--charcoal)]">
+                  Message to {selectedCandidate.displayName}
+                </span>
                 <textarea
                   value={initialMessage}
                   onChange={(event) => {
@@ -287,11 +330,13 @@ export function TaskConversationsPanel({
                   className="w-full resize-y rounded-xl border border-[var(--wp-border-strong)] bg-white px-3.5 py-3 text-sm leading-relaxed text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]/40"
                   placeholder="Introduce yourself and ask any remaining non-binding questions."
                 />
+                <span className="block text-right text-xs text-[var(--text-muted)]">
+                  {initialMessage.length} / 5,000
+                </span>
               </label>
-              <p className="text-xs leading-relaxed text-[var(--text-muted)]">
-                Review the selected professional, agreement version, and exact message. The
-                professional can accept or decline; no payment is authorized by this contact
-                request.
+              <p className="rounded-lg bg-[var(--wp-surface-subtle)] px-3 py-2.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
+                Nothing is sent until you approve the exact message below. This request does not
+                change the agreement or authorize a payment.
               </p>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--wp-border)] bg-white p-3.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
                 <input
@@ -305,18 +350,19 @@ export function TaskConversationsPanel({
                   <span className="font-semibold text-[var(--charcoal)]">
                     {selectedCandidate.displayName}
                   </span>{" "}
-                  with the agreement details shown above.
+                  with the agreement version and scope details shown above. The professional may
+                  accept or decline.
                 </span>
               </label>
               <Button
                 type="button"
                 disabled={!providerId || !initialMessage.trim() || !contactApproved || sending}
                 onClick={() => void beginContact()}
-                className="min-h-11 w-full sm:w-auto"
+                className="min-h-11 w-full"
               >
                 {sending ? "Sending contact request…" : "Approve and send contact request"}
               </Button>
-            </>
+            </div>
           ) : null}
         </div>
       ) : null}

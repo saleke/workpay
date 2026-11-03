@@ -12,10 +12,11 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <Wallet className="h-4 w-4 text-primary" /> Payment policy simulation
+            <Wallet className="h-4 w-4 text-primary" /> Payment activity
           </CardTitle>
           <CardDescription>
-            No simulated payment has been initialized. Approving task terms does not authorize or move money.
+            No payment test has been recorded. Approving task terms does not authorize or move
+            money.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -32,16 +33,17 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
 
   return (
     <div className="grid gap-4">
-      {/* Top Settlement Banner */}
+      {/* Simulation status banner */}
       {isCaptured ? (
         <div className="flex items-start gap-3 rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-xs dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200 shrink-0">
             <ShieldCheck className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Simulated capture passed</div>
+            <div className="font-semibold text-base">Simulated capture recorded</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              The policy simulation recorded a capture of {amount}. No funds were charged, held, or paid to a professional.
+              The policy simulation recorded a capture of {amount}. No funds were charged, held, or
+              paid to a professional.
             </p>
           </div>
         </div>
@@ -51,9 +53,10 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Simulated authorization active</div>
+            <div className="font-semibold text-base">Simulated authorization recorded</div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              WorkPay is testing the authorization and policy states for {amount}. This is not a PayPal hold and no funds have moved.
+              WorkPay is testing the authorization and policy states for {amount}. This is not a
+              PayPal hold and no funds have moved.
             </p>
           </div>
         </div>
@@ -63,14 +66,14 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
         <CardHeader className="border-b border-border/60 bg-muted/20 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Wallet className="h-4 w-4 text-primary" /> Simulated payment lifecycle
+              <Wallet className="h-4 w-4 text-primary" /> Payment test details
             </CardTitle>
             <StatusBadge tone={paymentStatusTone(payment.status)}>
               {paymentStatusLabel(payment.status)}
             </StatusBadge>
           </div>
           <CardDescription className="mt-0.5">
-            Validation data for policy, idempotency, and state transitions. Live payment execution is disabled.
+            Payment activity in this environment is simulated. No funds have moved.
           </CardDescription>
         </CardHeader>
 
@@ -128,16 +131,18 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
                   ) : (
                     <ShieldX className="h-4 w-4 text-rose-600" />
                   )}
-                  <span>Policy Gate Evaluation: {decision.result}</span>
+                  <span>Payment policy check: {decision.result}</span>
                 </div>
-                <span className="text-xs font-mono text-muted-foreground">Action: {decision.action}</span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  Action: {decision.action}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground">{decision.reason}</p>
 
               {decision.checks.length > 0 ? (
                 <div className="grid gap-2 pt-2 border-t border-border/50">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Automated Invariant Gating Checks:
+                    Payment checks:
                   </span>
                   <ul className="grid gap-1.5">
                     {decision.checks.map((check) => (
