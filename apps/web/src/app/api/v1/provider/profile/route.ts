@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
 import { requireProviderUser } from "@/lib/server/conversation-auth";
 import { providers, capabilities, availability } from "@workpay/shared/db/schema/providers";
+import { users } from "@workpay/shared/db/schema/identity";
 import { newId } from "@workpay/shared/platform";
 
 const workPreferencesSchema = z.object({
@@ -22,7 +23,9 @@ const workPreferencesSchema = z.object({
   aiRecommendationAllowed: z.boolean().default(true),
   communicationPreference: z.enum(["ASYNC", "REALTIME", "DIRECT"]).default("ASYNC"),
   deliveryFormat: z.string().optional().nullable(),
-  updateFrequency: z.enum(["CHECKPOINTS_ONLY", "DAILY", "ON_MILESTONES"]).default("CHECKPOINTS_ONLY"),
+  updateFrequency: z
+    .enum(["CHECKPOINTS_ONLY", "DAILY", "ON_MILESTONES"])
+    .default("CHECKPOINTS_ONLY"),
   notifyOnVerificationFail: z.boolean().default(true),
   notifyOnRevisionRequest: z.boolean().default(true),
   reviewSpecBeforeAccept: z.boolean().default(true),
@@ -30,29 +33,47 @@ const workPreferencesSchema = z.object({
   languages: z.array(z.string()).default(["English"]),
 });
 
-const updateProfileSchema = z.object({
-  displayName: z.string().trim().min(2).max(100),
-  bio: z.string().trim().max(500).optional().nullable(),
-  hourlyRateMinor: z.number().int().nonnegative().optional().nullable(),
-  currency: z.literal("USD").default("USD"),
-  payoutEmail: z.string().trim().email().optional().nullable(),
-  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
-  capabilities: z
-    .array(
-      z.object({
-        tag: z.string().trim().min(1).max(50),
-        proficiency: z.number().int().min(1).max(5).default(4),
-      }),
-    )
-    .default([]),
-  availability: z
-    .object({
-      available: z.boolean().default(true),
-      capacity: z.number().int().min(1).max(20).default(2),
-    })
-    .optional(),
-  workPreferences: workPreferencesSchema.optional(),
-});
+const updateProfileSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(100),
+    image: z
+      .string()
+      .trim()
+      .url("Enter a valid profile photo URL.")
+      .max(2048)
+      .refine((value) => new URL(value).protocol === "https:", "Profile photo URLs must use HTTPS.")
+      .nullable()
+      .optional(),
+    bio: z.string().trim().max(500).optional().nullable(),
+    hourlyRateMinor: z.number().int().nonnegative().optional().nullable(),
+    currency: z.literal("USD").default("USD"),
+    payoutEmail: z.string().trim().email().optional().nullable(),
+    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+    capabilities: z
+      .array(
+        z.object({
+          tag: z.string().trim().min(1).max(50),
+          proficiency: z.number().int().min(1).max(5).default(4),
+        }),
+      )
+      .default([]),
+    availability: z
+      .object({
+        available: z.boolean().default(true),
+        capacity: z.number().int().min(1).max(20).default(2),
+      })
+      .optional(),
+    workPreferences: workPreferencesSchema.optional(),
+  })
+  .superRefine((profile, context) => {
+    if (profile.status === "ACTIVE" && !profile.bio?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bio"],
+        message: "Add a professional summary before listing your profile.",
+      });
+    }
+  });
 
 const DEFAULT_WORK_PREFERENCES = {
   workAcceptanceStatus: "ACCEPTING" as const,
@@ -91,22 +112,32 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (!provider) {
-      return jsonOk({ isListed: false, provider: null });
+      const [account] = await db
+        .select({ name: users.name, displayName: users.displayName, image: users.image })
+        .from(users)
+        .where(eq(users.id, actor.id))
+        .limit(1);
+      return jsonOk({
+        isListed: false,
+        provider: null,
+        profile: {
+          displayName: account?.displayName || account?.name || "",
+          image: account?.image ?? null,
+        },
+      });
     }
 
-    const caps = await db
-      .select({
-        tag: capabilities.tag,
-        proficiency: capabilities.proficiency,
-      })
-      .from(capabilities)
-      .where(eq(capabilities.providerId, provider.id));
-
-    const [avail] = await db
-      .select()
-      .from(availability)
-      .where(eq(availability.providerId, provider.id))
-      .limit(1);
+    const [[account], caps, [avail]] = await Promise.all([
+      db.select({ image: users.image }).from(users).where(eq(users.id, actor.id)).limit(1),
+      db
+        .select({
+          tag: capabilities.tag,
+          proficiency: capabilities.proficiency,
+        })
+        .from(capabilities)
+        .where(eq(capabilities.providerId, provider.id)),
+      db.select().from(availability).where(eq(availability.providerId, provider.id)).limit(1),
+    ]);
 
     const savedPrefs = (provider.workPreferences as Record<string, unknown> | null) ?? null;
 
@@ -116,6 +147,7 @@ export async function GET(req: Request) {
         id: provider.id,
         userId: provider.userId,
         displayName: provider.displayName,
+        image: account?.image ?? null,
         bio: provider.bio,
         hourlyRateMinor: provider.hourlyRateMinor,
         currency: provider.currency,
@@ -147,6 +179,13 @@ export async function PUT(req: Request) {
         .from(providers)
         .where(eq(providers.userId, actor.id as string))
         .limit(1);
+
+      if (parsed.image !== undefined) {
+        await tx
+          .update(users)
+          .set({ image: parsed.image, updatedAt: new Date() })
+          .where(eq(users.id, actor.id as string));
+      }
 
       let providerId: string;
 
@@ -181,9 +220,7 @@ export async function PUT(req: Request) {
         });
       }
 
-      await tx
-        .delete(capabilities)
-        .where(eq(capabilities.providerId, providerId));
+      await tx.delete(capabilities).where(eq(capabilities.providerId, providerId));
 
       if (parsed.capabilities.length > 0) {
         await tx.insert(capabilities).values(
@@ -248,7 +285,16 @@ export async function PUT(req: Request) {
       };
     });
 
-    return jsonOk({ isListed: true, provider: result });
+    const [account] = await getDb()
+      .select({ image: users.image })
+      .from(users)
+      .where(eq(users.id, actor.id as string))
+      .limit(1);
+
+    return jsonOk({
+      isListed: true,
+      provider: { ...result, image: account?.image ?? null },
+    });
   } catch (err) {
     return jsonError(err);
   }

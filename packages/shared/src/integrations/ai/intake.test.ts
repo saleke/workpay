@@ -9,12 +9,23 @@ import {
   findCloudflareGroundingIssues,
   findProfessionalBriefCoverageIssues,
   findProfessionalBriefOrganizationIssues,
+  isCloudflareQuotaExceeded,
   normalizeCloudflareIntentFamiliarity,
   normalizeCloudflareResponseEnvelope,
   normalizeCloudflareScopeBudget,
   organizeProfessionalBrief,
 } from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
+
+describe("Cloudflare quota fallback classification", () => {
+  it("uses the backup only for a provider quota response", () => {
+    expect(isCloudflareQuotaExceeded({ status: 429 })).toBe(true);
+    expect(isCloudflareQuotaExceeded({ statusCode: 429 })).toBe(true);
+    expect(isCloudflareQuotaExceeded({ status: 503 })).toBe(false);
+    expect(isCloudflareQuotaExceeded({ status: 403 })).toBe(false);
+    expect(isCloudflareQuotaExceeded(new Error("network error"))).toBe(false);
+  });
+});
 
 describe("intake output JSON schemas", () => {
   it("unwraps object and JSON-string response envelopes without accepting prose", () => {
@@ -203,6 +214,60 @@ describe("intake output JSON schemas", () => {
         },
       ]),
     ).toEqual([]);
+  });
+
+  it("preserves a clarification deadline when the brief already has different timing", () => {
+    const brief = professionalBriefSchema.parse({
+      title: {
+        text: "Create a product video",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      goalAndContext: {
+        text: "Create a product video for general consumers.",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      deliverables: [
+        {
+          text: "One video",
+          evidence: [{ sourceId: "source_original", quote: "video" }],
+        },
+      ],
+      requirements: [],
+      boundaries: [],
+      inputsAndDependencies: [
+        {
+          text: "Complete next Saturday",
+          evidence: [{ sourceId: "answer_deadline", quote: "next Saturday" }],
+        },
+      ],
+      timing: {
+        text: "Work begins on Monday.",
+        evidence: [
+          { sourceId: "source_original", quote: "Monday" },
+          ...Array.from({ length: 9 }, (_, index) => ({
+            sourceId: `source_timing_${index}`,
+            quote: "Monday",
+          })),
+        ],
+      },
+    });
+    const clarificationAnswers = [
+      {
+        sourceId: "answer_deadline",
+        question: "When should it be complete?",
+        answer: "next Saturday",
+      },
+    ];
+
+    const organized = organizeProfessionalBrief(brief, clarificationAnswers);
+
+    expect(organized.inputsAndDependencies).toEqual([]);
+    expect(organized.timing?.text).toContain("Work begins on Monday.");
+    expect(organized.timing?.text).toContain("When should it be complete: next Saturday");
+    expect(organized.timing?.evidence).toHaveLength(10);
+    expect(organized.timing?.evidence.map(({ sourceId }) => sourceId)).toContain("answer_deadline");
+    expect(findProfessionalBriefCoverageIssues(organized, clarificationAnswers)).toEqual([]);
+    expect(findProfessionalBriefOrganizationIssues(organized, clarificationAnswers)).toEqual([]);
   });
 
   it("preserves the intent output object when converting refined Zod schemas", () => {

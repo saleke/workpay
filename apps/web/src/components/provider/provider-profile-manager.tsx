@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { toast } from "sonner";
 import {
   getProviderProfile,
@@ -95,21 +96,23 @@ export function ProviderProfileManager() {
 
   // Core profile fields
   const [displayName, setDisplayName] = useState("");
+  const [profileImage, setProfileImage] = useState("");
   const [bio, setBio] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [payoutEmail, setPayoutEmail] = useState("");
-  const [capabilities, setCapabilities] = useState<Array<{ tag: string; proficiency: number }>>([
-    { tag: "data-cleaning", proficiency: 5 },
-    { tag: "data-enrichment", proficiency: 4 },
-  ]);
+  const [capabilities, setCapabilities] = useState<Array<{ tag: string; proficiency: number }>>([]);
   const [customSkill, setCustomSkill] = useState("");
 
   // Availability fields
-  const [workAcceptanceStatus, setWorkAcceptanceStatus] = useState<"ACCEPTING" | "LIMITED" | "UNAVAILABLE">("ACCEPTING");
+  const [workAcceptanceStatus, setWorkAcceptanceStatus] = useState<
+    "ACCEPTING" | "LIMITED" | "UNAVAILABLE"
+  >("ACCEPTING");
   const [capacity, setCapacity] = useState<number>(2);
   const [activeAssignments, setActiveAssignments] = useState<number>(0);
   const [timezone, setTimezone] = useState("UTC");
-  const [availabilitySchedule, setAvailabilitySchedule] = useState("Monday to Friday, 9:00 AM - 5:00 PM UTC");
+  const [availabilitySchedule, setAvailabilitySchedule] = useState(
+    "Monday to Friday, 9:00 AM - 5:00 PM UTC",
+  );
   const [minNoticeHours, setMinNoticeHours] = useState<number>(4);
   const [plannedUnavailability, setPlannedUnavailability] = useState("");
 
@@ -123,18 +126,31 @@ export function ProviderProfileManager() {
   // Commitment & acceptance rules
   const [requireExplicitApproval, setRequireExplicitApproval] = useState(true);
   const [aiRecommendationAllowed, setAiRecommendationAllowed] = useState(true);
-  const [acceptedCategories, setAcceptedCategories] = useState<string[]>(["data-cleaning", "data-enrichment"]);
+  const [acceptedCategories, setAcceptedCategories] = useState<string[]>([
+    "data-cleaning",
+    "data-enrichment",
+  ]);
   const [declinedCategories, setDeclinedCategories] = useState<string[]>([]);
   const [customDeclined, setCustomDeclined] = useState("");
 
   // Execution & quality preferences
-  const [communicationPreference, setCommunicationPreference] = useState<"ASYNC" | "REALTIME" | "DIRECT">("ASYNC");
-  const [deliveryFormat, setDeliveryFormat] = useState("Clean CSV with header row and summary diff");
-  const [updateFrequency, setUpdateFrequency] = useState<"CHECKPOINTS_ONLY" | "DAILY" | "ON_MILESTONES">("CHECKPOINTS_ONLY");
+  const [communicationPreference, setCommunicationPreference] = useState<
+    "ASYNC" | "REALTIME" | "DIRECT"
+  >("ASYNC");
+  const [deliveryFormat, setDeliveryFormat] = useState(
+    "Clean CSV with header row and summary diff",
+  );
+  const [updateFrequency, setUpdateFrequency] = useState<
+    "CHECKPOINTS_ONLY" | "DAILY" | "ON_MILESTONES"
+  >("CHECKPOINTS_ONLY");
   const [reviewSpecBeforeAccept, setReviewSpecBeforeAccept] = useState(true);
   const [notifyOnVerificationFail, setNotifyOnVerificationFail] = useState(true);
   const [notifyOnRevisionRequest, setNotifyOnRevisionRequest] = useState(true);
-  const [toolsAndTechnologies, setToolsAndTechnologies] = useState<string[]>(["Python", "TypeScript", "PostgreSQL"]);
+  const [toolsAndTechnologies, setToolsAndTechnologies] = useState<string[]>([
+    "Python",
+    "TypeScript",
+    "PostgreSQL",
+  ]);
   const [customTool, setCustomTool] = useState("");
   const [languages, setLanguages] = useState<string[]>(["English"]);
 
@@ -145,6 +161,7 @@ export function ProviderProfileManager() {
       if (!res.error && res.data?.provider) {
         const p = res.data.provider;
         setDisplayName(p.displayName || "Freelance Specialist");
+        setProfileImage(p.image ?? "");
         setBio(p.bio ?? "");
         setStatus(p.status);
         setPayoutEmail(p.payoutEmail ?? "");
@@ -162,13 +179,19 @@ export function ProviderProfileManager() {
           const wp = p.workPreferences;
           setWorkAcceptanceStatus(wp.workAcceptanceStatus);
           setTimezone(wp.timezone || "UTC");
-          setAvailabilitySchedule(wp.availabilitySchedule || "Monday to Friday, 9:00 AM - 5:00 PM UTC");
+          setAvailabilitySchedule(
+            wp.availabilitySchedule || "Monday to Friday, 9:00 AM - 5:00 PM UTC",
+          );
           setMinNoticeHours(wp.minNoticeHours ?? 4);
           setPlannedUnavailability(wp.plannedUnavailability ?? "");
           setPricingModel(wp.pricingModel || "FIXED");
           setTargetRate(wp.targetRateMinor ? Math.round(wp.targetRateMinor / 100) : 45);
-          setMinCompensation(wp.minCompensationMinor ? Math.round(wp.minCompensationMinor / 100) : 25);
-          setMinAssignmentSize(wp.minAssignmentSizeMinor ? Math.round(wp.minAssignmentSizeMinor / 100) : 20);
+          setMinCompensation(
+            wp.minCompensationMinor ? Math.round(wp.minCompensationMinor / 100) : 25,
+          );
+          setMinAssignmentSize(
+            wp.minAssignmentSizeMinor ? Math.round(wp.minAssignmentSizeMinor / 100) : 20,
+          );
           setWillingToNegotiate(wp.willingToNegotiate ?? true);
           setRequireExplicitApproval(wp.requireExplicitApproval ?? true);
           setAiRecommendationAllowed(wp.aiRecommendationAllowed ?? true);
@@ -187,9 +210,15 @@ export function ProviderProfileManager() {
             setLanguages(wp.languages);
           }
         }
+      } else if (res.data) {
+        setDisplayName(res.data.profile?.displayName ?? "");
+        setProfileImage(res.data.profile?.image ?? "");
+        setBio("");
+        setStatus("ACTIVE");
+        setPayoutEmail("");
+        setCapabilities([]);
       } else {
-        setDisplayName("Alice Smith");
-        setPayoutEmail("alice.payout@example.com");
+        toast.error("Your professional profile could not be loaded.");
       }
     } catch (err) {
       console.error("Failed to load worker preferences:", err);
@@ -264,11 +293,16 @@ export function ProviderProfileManager() {
       toast.error("Display name is required");
       return;
     }
+    if (status === "ACTIVE" && !bio.trim()) {
+      toast.error("Add a professional summary before listing your profile.");
+      return;
+    }
 
     setSaving(true);
     try {
       const payload = {
         displayName: displayName.trim(),
+        image: profileImage.trim() || null,
         bio: bio.trim() || null,
         hourlyRateMinor: Math.round(targetRate * 100),
         currency: "USD",
@@ -363,7 +397,8 @@ export function ProviderProfileManager() {
               </Badge>
             </div>
             <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-2xl leading-relaxed">
-              Configure the work you can perform, your availability schedule, and the commercial terms under which you accept assignments.
+              Configure the work you can perform, your availability schedule, and the commercial
+              terms under which you accept assignments.
             </p>
           </div>
         </div>
@@ -427,7 +462,8 @@ export function ProviderProfileManager() {
               Work Profile &amp; Demonstrated Capabilities
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Declare what tasks you can execute. Self-declared tags are matched against contract requirements, while demonstrated skills reflect passing verification history.
+              Declare what tasks you can execute. Self-declared tags are matched against contract
+              requirements, while demonstrated skills reflect passing verification history.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -468,6 +504,38 @@ export function ProviderProfileManager() {
               </div>
             </div>
 
+            <div className="flex flex-col gap-4 rounded-xl border border-[var(--wp-border)] bg-white p-4 sm:flex-row sm:items-center">
+              <ProviderAvatar
+                displayName={displayName || "Your profile"}
+                image={profileImage.trim() || null}
+                className="h-16 w-16"
+              />
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor="professional-profile-photo"
+                  className="mb-1 block text-xs font-semibold text-[var(--wp-text-primary)]"
+                >
+                  Profile photo URL
+                </label>
+                <Input
+                  id="professional-profile-photo"
+                  type="url"
+                  value={profileImage}
+                  onChange={(event) => {
+                    setProfileImage(event.target.value);
+                    markDirty();
+                  }}
+                  placeholder="https://example.com/your-photo.jpg"
+                  maxLength={2048}
+                  className="bg-white text-xs"
+                />
+                <p className="mt-1 text-[11px] leading-relaxed text-[var(--wp-text-secondary)]">
+                  Use a public HTTPS photo. It appears beside your name and summary when people
+                  browse professionals.
+                </p>
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
                 Professional Summary &amp; Domain Expertise
@@ -492,7 +560,8 @@ export function ProviderProfileManager() {
                     Execution Capability Tags (Required for Deterministic Matching)
                   </span>
                   <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                    Active contract requirements match against these tags. Higher proficiency gives higher ranking.
+                    Active contract requirements match against these tags. Higher proficiency gives
+                    higher ranking.
                   </span>
                 </div>
               </div>
@@ -590,7 +659,8 @@ export function ProviderProfileManager() {
               Availability &amp; Workload Capacity
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Control your capacity to accept new commitments. Marking yourself unavailable prevents new proposals without affecting work currently in progress.
+              Control your capacity to accept new commitments. Marking yourself unavailable prevents
+              new proposals without affecting work currently in progress.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -605,19 +675,22 @@ export function ProviderProfileManager() {
                     key: "ACCEPTING" as const,
                     title: "Accepting Work",
                     desc: "Available for new contract opportunities up to full capacity.",
-                    color: "text-[var(--wp-success)] border-[var(--wp-success)]/40 bg-[var(--wp-success-subtle)]/30",
+                    color:
+                      "text-[var(--wp-success)] border-[var(--wp-success)]/40 bg-[var(--wp-success-subtle)]/30",
                   },
                   {
                     key: "LIMITED" as const,
                     title: "Limited Availability",
                     desc: "Accepting select urgent tasks only with longer turnaround.",
-                    color: "text-[var(--wp-accent)] border-[var(--wp-accent)]/40 bg-[var(--wp-accent-subtle)]/30",
+                    color:
+                      "text-[var(--wp-accent)] border-[var(--wp-accent)]/40 bg-[var(--wp-accent-subtle)]/30",
                   },
                   {
                     key: "UNAVAILABLE" as const,
                     title: "Not Accepting Work",
                     desc: "Excluded from provider matching. Existing commitments continue safely.",
-                    color: "text-[var(--wp-text-secondary)] border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]",
+                    color:
+                      "text-[var(--wp-text-secondary)] border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]",
                   },
                 ].map((item) => {
                   const isSelected = workAcceptanceStatus === item.key;
@@ -630,7 +703,9 @@ export function ProviderProfileManager() {
                       }}
                       className={cn(
                         "p-3.5 rounded-xl border-2 cursor-pointer transition-all active:scale-[0.99] flex flex-col justify-between",
-                        isSelected ? item.color : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
+                        isSelected
+                          ? item.color
+                          : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
                       )}
                     >
                       <div>
@@ -737,7 +812,8 @@ export function ProviderProfileManager() {
               Pricing &amp; Commercial Terms
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Express your pricing structure. Minimum compensation rules are enforced as hard constraints during automated matching.
+              Express your pricing structure. Minimum compensation rules are enforced as hard
+              constraints during automated matching.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -747,9 +823,21 @@ export function ProviderProfileManager() {
               </label>
               <div className="grid sm:grid-cols-3 gap-3">
                 {[
-                  { key: "FIXED" as const, title: "Fixed-Price Only", desc: "Per-deliverable bounded contracts." },
-                  { key: "HOURLY" as const, title: "Hourly Rate", desc: "Estimated hour milestones." },
-                  { key: "BOTH" as const, title: "Both Models", desc: "Accept fixed-price deliverables or hourly execution." },
+                  {
+                    key: "FIXED" as const,
+                    title: "Fixed-Price Only",
+                    desc: "Per-deliverable bounded contracts.",
+                  },
+                  {
+                    key: "HOURLY" as const,
+                    title: "Hourly Rate",
+                    desc: "Estimated hour milestones.",
+                  },
+                  {
+                    key: "BOTH" as const,
+                    title: "Both Models",
+                    desc: "Accept fixed-price deliverables or hourly execution.",
+                  },
                 ].map((m) => {
                   const isSelected = pricingModel === m.key;
                   return (
@@ -785,7 +873,9 @@ export function ProviderProfileManager() {
                   Target Compensation ($)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">$</span>
+                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">
+                    $
+                  </span>
                   <Input
                     type="number"
                     min={1}
@@ -807,7 +897,9 @@ export function ProviderProfileManager() {
                   Minimum Acceptable Rate ($)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">$</span>
+                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">
+                    $
+                  </span>
                   <Input
                     type="number"
                     min={1}
@@ -829,7 +921,9 @@ export function ProviderProfileManager() {
                   Minimum Assignment Size ($)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">$</span>
+                  <span className="absolute left-3 top-2 text-xs text-[var(--wp-text-secondary)]">
+                    $
+                  </span>
                   <Input
                     type="number"
                     min={5}
@@ -855,8 +949,12 @@ export function ProviderProfileManager() {
                 }}
                 className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
               />
-              <label htmlFor="willingToNegotiate" className="text-xs text-[var(--wp-text-primary)] cursor-pointer">
-                <strong>Willing to negotiate commercial terms:</strong> Permit task owners to propose counter-offers within 15% of target rate.
+              <label
+                htmlFor="willingToNegotiate"
+                className="text-xs text-[var(--wp-text-primary)] cursor-pointer"
+              >
+                <strong>Willing to negotiate commercial terms:</strong> Permit task owners to
+                propose counter-offers within 15% of target rate.
               </label>
             </div>
           </CardContent>
@@ -872,7 +970,8 @@ export function ProviderProfileManager() {
               Assignment Acceptance Rules
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Rules determining how assignments are offered and confirmed. Finding work is distinct from binding contract acceptance.
+              Rules determining how assignments are offered and confirmed. Finding work is distinct
+              from binding contract acceptance.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -889,11 +988,16 @@ export function ProviderProfileManager() {
                 className="h-4 w-4 mt-0.5 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
               />
               <div>
-                <label htmlFor="requireExplicitApproval" className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer">
+                <label
+                  htmlFor="requireExplicitApproval"
+                  className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer"
+                >
                   Require Explicit Human Confirmation Before Contract Acceptance (Recommended)
                 </label>
                 <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 leading-relaxed">
-                  Finding or recommending an opportunity will never automatically bind you to a contract. You retain final sign-off on scope, delivery dates, and commercial terms before work begins.
+                  Finding or recommending an opportunity will never automatically bind you to a
+                  contract. You retain final sign-off on scope, delivery dates, and commercial terms
+                  before work begins.
                 </p>
               </div>
             </div>
@@ -910,11 +1014,15 @@ export function ProviderProfileManager() {
                 className="h-4 w-4 mt-0.5 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
               />
               <div>
-                <label htmlFor="aiRecommendationAllowed" className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer">
+                <label
+                  htmlFor="aiRecommendationAllowed"
+                  className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer"
+                >
                   Permit AI Matching Engine to Propose Suitable Work Opportunities
                 </label>
                 <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 leading-relaxed">
-                  Allow the task planner to surface your profile to task owners whose specifications match your capability tags and commercial rules.
+                  Allow the task planner to surface your profile to task owners whose specifications
+                  match your capability tags and commercial rules.
                 </p>
               </div>
             </div>
@@ -926,7 +1034,9 @@ export function ProviderProfileManager() {
               </span>
               <div className="flex flex-wrap gap-2 mb-2">
                 {declinedCategories.length === 0 ? (
-                  <span className="text-xs text-[var(--wp-text-secondary)] italic">No excluded categories</span>
+                  <span className="text-xs text-[var(--wp-text-secondary)] italic">
+                    No excluded categories
+                  </span>
                 ) : (
                   declinedCategories.map((cat) => (
                     <span
@@ -979,7 +1089,8 @@ export function ProviderProfileManager() {
               Execution &amp; Verification Preferences
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Operational preferences for deliverables, intermediate reporting, and revision handling.
+              Operational preferences for deliverables, intermediate reporting, and revision
+              handling.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -997,7 +1108,9 @@ export function ProviderProfileManager() {
                   className="w-full h-9 rounded-lg border border-[var(--wp-border)] bg-white px-3 text-xs text-[var(--wp-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]"
                 >
                   <option value="ASYNC">Asynchronous (Task notes and deliverable comments)</option>
-                  <option value="REALTIME">Milestone Checkpoints (Notification on stage transitions)</option>
+                  <option value="REALTIME">
+                    Milestone Checkpoints (Notification on stage transitions)
+                  </option>
                   <option value="DIRECT">Direct Notes Only (Deliverable submission only)</option>
                 </select>
               </div>
@@ -1053,7 +1166,10 @@ export function ProviderProfileManager() {
                   }}
                   className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
                 />
-                <label htmlFor="notifyOnVerificationFail" className="text-xs text-[var(--wp-text-primary)] cursor-pointer">
+                <label
+                  htmlFor="notifyOnVerificationFail"
+                  className="text-xs text-[var(--wp-text-primary)] cursor-pointer"
+                >
                   Notify immediately if deliverable verification fails with unmet criteria evidence.
                 </label>
               </div>
@@ -1069,13 +1185,19 @@ export function ProviderProfileManager() {
                   }}
                   className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
                 />
-                <label htmlFor="notifyOnRevisionRequest" className="text-xs text-[var(--wp-text-primary)] cursor-pointer">
-                  Notify when a revision is requested, displaying the specific requirements that were not satisfied.
+                <label
+                  htmlFor="notifyOnRevisionRequest"
+                  className="text-xs text-[var(--wp-text-primary)] cursor-pointer"
+                >
+                  Notify when a revision is requested, displaying the specific requirements that
+                  were not satisfied.
                 </label>
               </div>
 
               <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                <strong className="text-[var(--wp-text-primary)]">Invariant Notice:</strong> Worker preferences cannot disable required verification or bypass objective acceptance criteria once a contract is executed.
+                <strong className="text-[var(--wp-text-primary)]">Invariant Notice:</strong> Worker
+                preferences cannot disable required verification or bypass objective acceptance
+                criteria once a contract is executed.
               </div>
             </div>
           </CardContent>
@@ -1091,14 +1213,15 @@ export function ProviderProfileManager() {
               Payment integration is not active
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Professional profiles do not require or expose a payout destination during lifecycle validation.
+              Professional profiles do not require or expose a payout destination during lifecycle
+              validation.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
             <p>
               Agreed prices can be exercised through the payment-policy simulation, but no funds are
-              charged or paid. A future marketplace payment design will require separate professional
-              onboarding and explicit buyer approval at the payment provider.
+              charged or paid. A future marketplace payment design will require separate
+              professional onboarding and explicit buyer approval at the payment provider.
             </p>
             <Button asChild variant="outline" size="sm" className="text-xs font-medium gap-1.5">
               <Link href="/payments">
@@ -1119,7 +1242,8 @@ export function ProviderProfileManager() {
               Payout Configuration
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Configure where eligible payments are transferred upon verified proof and policy confirmation.
+              Configure where eligible payments are transferred upon verified proof and policy
+              confirmation.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -1140,7 +1264,9 @@ export function ProviderProfileManager() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                    {isPayoutConfigured ? "Payout Destination Configured" : "Payout Configuration Incomplete"}
+                    {isPayoutConfigured
+                      ? "Payout Destination Configured"
+                      : "Payout Configuration Incomplete"}
                   </span>
                   <StatusBadge tone={isPayoutConfigured ? "success" : "danger"}>
                     {isPayoutConfigured ? "READY FOR SETTLEMENT" : "PAYOUT BLOCKED"}
@@ -1203,7 +1329,9 @@ export function ProviderProfileManager() {
         <div className="sticky bottom-4 z-20 p-3 rounded-xl border border-[var(--wp-border-strong)] bg-white/95 backdrop-blur-md shadow-xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
           <div className="flex items-center gap-2 text-xs">
             <span className="h-2 w-2 rounded-full bg-[var(--wp-accent)] animate-pulse" />
-            <span className="font-semibold text-[var(--wp-text-primary)]">You have unsaved preference changes</span>
+            <span className="font-semibold text-[var(--wp-text-primary)]">
+              You have unsaved preference changes
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -1221,7 +1349,11 @@ export function ProviderProfileManager() {
               disabled={saving}
               className="text-xs font-semibold gap-1.5"
             >
-              {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              {saving ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
               <span>{saving ? "Saving Changes..." : "Save Preferences"}</span>
             </Button>
           </div>

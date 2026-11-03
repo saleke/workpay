@@ -191,6 +191,7 @@ export interface AgentActionDto {
 export interface ProviderSnapshotDto {
   providerId: string;
   displayName: string;
+  image?: string | null;
   bio?: string | null;
   capabilities?: Array<{ tag: string; proficiency: number }>;
   firstPassAcceptancePct?: number;

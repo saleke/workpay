@@ -170,6 +170,21 @@ instance role; no long-lived AWS access keys are stored by WorkPay.
 7. Run `deploy/deploy.sh`.
 8. Run `deploy/seed-test-users.sh` once to create separate test identities.
 
+For later deployments from an authenticated workstation, commit and push the exact revision, then
+run:
+
+```bash
+./deploy/deploy-from-workstation.sh
+```
+
+The workstation script deploys only a clean revision that matches `origin/main`. It uses AWS
+Systems Manager rather than SSH, refreshes `deploy/.env.production` from the encrypted
+`/workpay/test/environment` parameter, runs the server-side Compose deployment and migrations, and
+fails unless the public readiness check succeeds. If the AWS session has expired, run `aws login`
+and retry. The instance ID, Region, branch, parameter, and health URL can be overridden with the
+`WORKPAY_INSTANCE_ID`, `AWS_REGION`, `WORKPAY_DEPLOY_BRANCH`, `WORKPAY_ENV_PARAMETER`, and
+`WORKPAY_HEALTH_URL` environment variables.
+
 Do not expose PostgreSQL or the worker publicly. Keep the application-level basic-auth boundary
 enabled until browser-level authorization tests are complete. Schedule `deploy/backup-postgres.sh`
 daily and create an EBS snapshot before destructive test resets or migration experiments.

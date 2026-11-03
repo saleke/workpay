@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import {
   availability,
@@ -8,6 +8,7 @@ import {
   reputation,
 } from "../../db/schema/providers.js";
 import { workContracts } from "../../db/schema/contracts.js";
+import { users } from "../../db/schema/identity.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound } from "../../platform/errors.js";
@@ -69,6 +70,16 @@ export async function discoverProviders(
     tx.select().from(availability),
     tx.select().from(reputation),
   ]);
+  const linkedUserIds = providerRows.flatMap((provider) =>
+    provider.userId ? [provider.userId] : [],
+  );
+  const profileRows = linkedUserIds.length
+    ? await tx
+        .select({ id: users.id, image: users.image })
+        .from(users)
+        .where(inArray(users.id, linkedUserIds))
+    : [];
+  const profileImages = new Map(profileRows.map((user) => [user.id, user.image]));
   const latestReputation = new Map<string, (typeof reputationRows)[number]>();
   for (const row of reputationRows) {
     const current = latestReputation.get(row.providerId);
@@ -76,7 +87,10 @@ export async function discoverProviders(
   }
 
   const candidateSnapshots = providerRows
-    .filter((provider) => provider.userId && provider.userId !== task.userId)
+    .filter(
+      (provider) =>
+        provider.userId && provider.userId !== task.userId && Boolean(provider.bio?.trim()),
+    )
     .flatMap((provider) => {
       const currentAvailability = availabilityRows.find((row) => row.providerId === provider.id);
       if (
@@ -94,6 +108,7 @@ export async function discoverProviders(
         {
           providerId: provider.id,
           displayName: provider.displayName,
+          image: provider.userId ? (profileImages.get(provider.userId) ?? null) : null,
           bio: provider.bio,
           capabilities: profileCapabilities,
           ...(rep?.firstPassAcceptancePct !== null && rep?.firstPassAcceptancePct !== undefined

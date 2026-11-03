@@ -14,8 +14,7 @@ import { z } from "zod";
 /** Load the nearest environment files walking up from cwd (monorepo: apps/* -> repo root). */
 function loadEnvFiles(): void {
   const nodeEnv = process.env.NODE_ENV;
-  const mode =
-    nodeEnv === "production" || nodeEnv === "test" ? nodeEnv : "development";
+  const mode = nodeEnv === "production" || nodeEnv === "test" ? nodeEnv : "development";
   const filenames = [
     `.env.${mode}.local`,
     ...(mode !== "test" ? [".env.local"] : []),
@@ -66,8 +65,11 @@ export const envSchema = z
     // Existing planning/verification integrations remain independently configured.
     AI_PROVIDER: z.enum(["fake", "openai", "cloudflare"]).default("fake"),
     INTAKE_AI_PROVIDER: z.enum(["disabled", "gateway", "cloudflare"]).default("disabled"),
+    INTAKE_AI_FALLBACK_PROVIDER: z.enum(["none", "bedrock"]).default("none"),
     AI_GATEWAY_API_KEY: optionalString,
     INTAKE_AI_MODEL: optionalString,
+    BEDROCK_REGION: optionalString,
+    BEDROCK_MODEL: optionalString,
     OPENAI_API_KEY: optionalString,
     OPENAI_BASE_URL: optionalString,
     OPENAI_MODEL: z.string().default("gpt-4o-mini"),
@@ -169,6 +171,22 @@ export const envSchema = z
           code: z.ZodIssueCode.custom,
           path: ["CLOUDFLARE_API_TOKEN"],
           message: "CLOUDFLARE_API_TOKEN is required when INTAKE_AI_PROVIDER=cloudflare",
+        });
+      }
+    }
+    if (env.INTAKE_AI_FALLBACK_PROVIDER === "bedrock") {
+      if (!env.BEDROCK_REGION) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["BEDROCK_REGION"],
+          message: "BEDROCK_REGION is required when INTAKE_AI_FALLBACK_PROVIDER=bedrock",
+        });
+      }
+      if (!env.BEDROCK_MODEL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["BEDROCK_MODEL"],
+          message: "BEDROCK_MODEL is required when INTAKE_AI_FALLBACK_PROVIDER=bedrock",
         });
       }
     }

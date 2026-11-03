@@ -109,9 +109,7 @@ export function getTaskPayment(taskId: string): Promise<ApiResponse<PaymentDto |
 export function simulatePaymentAuthorization(
   taskId: string,
   idempotencyKey: string,
-): Promise<
-  ApiResponse<{ paymentId: string; executionId: string; alreadyPrepared: boolean }>
-> {
+): Promise<ApiResponse<{ paymentId: string; executionId: string; alreadyPrepared: boolean }>> {
   return apiFetch(`${BASE}/tasks/${taskId}/payment/simulate-authorization`, {
     method: "POST",
     idempotencyKey,
@@ -258,9 +256,10 @@ export function getTaskReviewerRecommendations(
   taskId: string,
   additionalDomains: string[],
 ): Promise<ApiResponse<TaskReviewerRecommendationsDto>> {
-  const query = additionalDomains.length > 0
-    ? `?domains=${encodeURIComponent(additionalDomains.join(","))}`
-    : "";
+  const query =
+    additionalDomains.length > 0
+      ? `?domains=${encodeURIComponent(additionalDomains.join(","))}`
+      : "";
   return apiFetch(`${BASE}/tasks/${taskId}/reviewers${query}`);
 }
 
@@ -419,6 +418,7 @@ export interface ProviderProfileDto {
   id: string;
   userId: string | null;
   displayName: string;
+  image: string | null;
   bio: string | null;
   hourlyRateMinor: number | null;
   currency: string;
@@ -432,6 +432,7 @@ export interface ProviderProfileDto {
 export interface ProviderProfileResponse {
   isListed: boolean;
   provider: ProviderProfileDto | null;
+  profile?: { displayName: string; image: string | null };
 }
 
 export function getProviderProfile(): Promise<ApiResponse<ProviderProfileResponse>> {
@@ -440,6 +441,7 @@ export function getProviderProfile(): Promise<ApiResponse<ProviderProfileRespons
 
 export function updateProviderProfile(body: {
   displayName: string;
+  image?: string | null;
   bio?: string | null;
   hourlyRateMinor?: number | null;
   currency?: string;

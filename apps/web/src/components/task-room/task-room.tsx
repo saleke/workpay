@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -166,29 +166,63 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
   if (room.loading && !room.data) {
     return (
-      <div className="py-24 text-center text-sm text-[var(--text-muted)]">
-        Opening canonical task workspace...
+      <div className="mx-auto max-w-5xl space-y-6 py-6" role="status" aria-live="polite">
+        <span className="sr-only">Opening task workspace…</span>
+        <div className="h-4 w-32 animate-pulse rounded bg-[var(--wp-border)]" />
+        <div className="workpay-card space-y-4 p-6 sm:p-8">
+          <div className="h-4 w-36 animate-pulse rounded bg-[var(--wp-surface-subtle)]" />
+          <div className="h-9 w-3/4 animate-pulse rounded bg-[var(--wp-surface-subtle)]" />
+          <div className="h-4 w-full animate-pulse rounded bg-[var(--wp-surface-subtle)]" />
+          <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--wp-surface-subtle)]" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div
+              key={index}
+              className="workpay-card h-28 animate-pulse bg-[var(--wp-surface-subtle)]"
+            />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (room.error || !room.data) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <AlertTriangle className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
-          Could not open task workspace
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          The requested task may not exist or permissions may be restricted.
-        </p>
-        <div className="mt-6">
-          <Link
-            href="/tasks"
-            className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-          >
-            <span>Return to task register</span>
-          </Link>
+      <div className="mx-auto max-w-lg py-16 sm:py-24">
+        <div className="workpay-card p-6 text-center sm:p-8">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-[var(--charcoal)]">
+            Task workspace unavailable
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+            {room.error?.status === 502
+              ? "The task service returned a temporary 502 error. Try refreshing in a moment."
+              : "We couldn’t load this task. It may no longer be available to your account."}
+          </p>
+          {room.error?.status ? (
+            <p className="mt-3 font-mono text-xs text-[var(--text-muted)]">
+              Request status: {room.error.status}
+            </p>
+          ) : null}
+          <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={refresh}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--charcoal)] transition-colors hover:bg-[var(--wp-surface-subtle)]"
+            >
+              <RotateCw className="h-4 w-4" />
+              Try again
+            </button>
+            <Link
+              href="/tasks"
+              className="inline-flex items-center justify-center rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-black"
+            >
+              Return to tasks
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -204,8 +238,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     activeContract.status === "AWAITING_APPROVAL" ||
     task.status === "CONTRACT_REVIEW" ||
     task.status === "PLANNING" ||
-    task.status === "CREATED" ||
-    task.status === "AGREEMENT_READY";
+    task.status === "CREATED";
 
   const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
   const verificationResults = verification.data?.results ?? [];
@@ -213,139 +246,216 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const providerName = providerSelection?.provider?.displayName || "Assigned specialist";
 
   // Derive status presentation
-  let statusBadgeClass = "bg-blue-50 text-blue-700";
+  let statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
   let statusText = "In Execution";
 
   if (isDraftOrAwaiting) {
-    statusBadgeClass = "bg-amber-100 text-amber-800";
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Awaiting Sign-off";
   } else if (task.status === "HUMAN_REVIEW") {
-    statusBadgeClass = "bg-amber-100 text-amber-800";
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Review Needed";
   } else if (task.status === "REVISION_REQUIRED") {
-    statusBadgeClass = "bg-red-50 text-red-700";
+    statusBadgeClass = "bg-[var(--wp-danger-subtle)] text-[var(--wp-danger)]";
     statusText = "Revision Requested";
   } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
-    statusBadgeClass = "bg-purple-50 text-purple-700";
+    statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
     statusText = "Verifying Proof";
+  } else if (task.status === "AGREEMENT_READY") {
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
+    statusText = "Ready for Assignment";
   } else if (isPaid) {
-    statusBadgeClass = "bg-emerald-50 text-emerald-700";
+    statusBadgeClass = "bg-[var(--wp-success-subtle)] text-[var(--wp-success)]";
     statusText = "Settled";
   }
 
-  return (
-    <div className="space-y-6 pb-16">
-      {/* 1. Header (Section 9): Outcome Title, Stable ID with Copy, Status, Primary Action */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
-        <div className="space-y-2 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass}`}
-            >
-              {statusText}
-            </span>
+  const nextStepLabel =
+    isDraftOrAwaiting && activeContract
+      ? "Review and approve the scope"
+      : task.status === "HUMAN_REVIEW"
+        ? "Choose an independent reviewer"
+        : task.status === "AGREEMENT_READY"
+          ? "Validate the next stage"
+          : task.status === "WORK_IN_PROGRESS"
+            ? "Work is in progress"
+            : task.status === "SUBMITTED" || task.status === "VERIFYING"
+              ? "Deliverables are being verified"
+              : task.status === "REVISION_REQUIRED"
+                ? "A revision has been requested"
+                : isPaid
+                  ? "Task settlement is complete"
+                  : "Review task details";
 
-            <button
-              type="button"
-              onClick={handleCopyId}
-              className="inline-flex items-center gap-1 font-mono text-xs text-[var(--text-muted)] hover:text-[var(--charcoal)] bg-[var(--surface-subtle)] border border-[var(--border-subtle)] px-2 py-0.5 rounded transition-colors"
-              title="Copy task ID"
-            >
-              <span>{taskId.slice(0, 12)}</span>
-              {copiedId ? (
-                <Check className="h-3 w-3 text-[var(--green)]" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </button>
+  return (
+    <div className="mx-auto max-w-6xl space-y-7 pb-16">
+      <nav aria-label="Breadcrumb" className="text-sm">
+        <Link
+          href="/tasks"
+          className="text-[var(--text-muted)] transition-colors hover:text-[var(--charcoal)]"
+        >
+          Tasks
+        </Link>
+        <span className="mx-2 text-[var(--wp-border-strong)]" aria-hidden="true">
+          /
+        </span>
+        <span className="font-medium text-[var(--charcoal)]">Task workspace</span>
+      </nav>
+
+      <header className="workpay-card overflow-hidden">
+        <div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-start lg:justify-between lg:p-8">
+          <div className="min-w-0 flex-1 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)]" />
+                Task workspace
+              </span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass}`}>
+                {statusText}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyId}
+                className="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[var(--wp-border)] bg-white px-2.5 font-mono text-[11px] text-[var(--text-muted)] transition-colors hover:border-[var(--wp-border-strong)] hover:text-[var(--charcoal)]"
+                title="Copy task ID"
+                aria-label={copiedId ? "Task ID copied" : "Copy task ID"}
+              >
+                <span>{taskId.slice(0, 12)}</span>
+                {copiedId ? (
+                  <Check className="h-3.5 w-3.5 text-[var(--green)]" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+
+            <div className="max-w-3xl">
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[var(--charcoal)] sm:text-3xl lg:text-4xl">
+                {task.title}
+              </h1>
+              <div className="mt-4 border-l-2 border-[var(--wp-border-strong)] pl-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  Your request
+                </p>
+                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--wp-text-secondary)]">
+                  {task.rawRequest}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            {task.title}
-          </h1>
+          <aside className="w-full shrink-0 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5 lg:max-w-xs">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              Next step
+            </p>
+            <p className="mt-1 text-base font-semibold leading-snug text-[var(--charcoal)]">
+              {nextStepLabel}
+            </p>
+            {isDraftOrAwaiting && activeContract ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Confirm the agreed scope and budget. This does not authorize or capture a payment.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onSignContract(activeContract)}
+                  disabled={signing}
+                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {signing ? "Approving…" : "Approve scope and budget"}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </>
+            ) : task.status === "HUMAN_REVIEW" ? (
+              <Link
+                href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
+                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--wp-warning)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:brightness-95"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Browse reviewers
+              </Link>
+            ) : task.status === "AGREEMENT_READY" ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Run the payment-policy simulation to create an assignment. No funds move, and the
+                  professional must still accept and start work.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void beginPaymentSimulation()}
+                  disabled={simulatingPayment}
+                  className="mt-4 w-full"
+                >
+                  {simulatingPayment ? "Running payment test…" : "Run payment test & assign"}
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                Your task status and the latest updates are shown below.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={refresh}
+              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--wp-text-secondary)] transition-colors hover:text-[var(--charcoal)]"
+              title="Refresh task status"
+            >
+              <RotateCw className="h-4 w-4" />
+              Refresh status
+            </button>
+          </aside>
+        </div>
+      </header>
 
-          <p className="text-xs sm:text-sm text-[var(--text-muted)] max-w-3xl leading-relaxed">
-            {task.rawRequest}
+      <section aria-label="Task lifecycle" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="workpay-card min-w-0 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              01 · Commitment
+            </p>
+            <FileText className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
+          </div>
+          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
+            {activeContract ? `Contract v${activeContract.version}` : "Drafting terms"}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
+            {activeContract?.status === "ACTIVE" ? "Terms agreed and locked" : "Awaiting sign-off"}
           </p>
         </div>
 
-        {/* Primary Next Action */}
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-          {isDraftOrAwaiting && activeContract && (
-            <button
-              type="button"
-              onClick={() => onSignContract(activeContract)}
-              disabled={signing}
-              className="inline-flex items-center gap-2 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
-            >
-              <span>{signing ? "Approving..." : "Approve scope and budget"}</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          )}
-
-          {task.status === "HUMAN_REVIEW" && (
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = `/reviewers?taskId=${encodeURIComponent(taskId)}`;
-              }}
-              className="inline-flex items-center gap-1.5 bg-amber-600 text-white hover:bg-amber-700 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              <span>Find an Independent Reviewer</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={refresh}
-            className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] hover:bg-gray-100 text-[var(--text-muted)] hover:text-[var(--charcoal)] transition-colors"
-            title="Refresh state"
-          >
-            <RotateCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. 4-Stage Decoupled Lifecycle Matrix */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="workpay-card p-3.5 space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            1. Commitment
+        <div className="workpay-card min-w-0 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              02 · Execution
+            </p>
+            <Users className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
           </div>
-          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
-            {activeContract ? `Contract v${activeContract.version}` : "Drafting Terms"}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)]">
-            {activeContract?.status === "ACTIVE" ? "Terms Agreed & Locked" : "Awaiting Sign-off"}
-          </div>
-        </div>
-
-        <div className="workpay-card p-3.5 space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            2. Execution
-          </div>
-          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
             {providerName}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)]">
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
             {execution?.status === "COMPLETED"
               ? "Deliverable Received"
               : task.status === "REVISION_REQUIRED"
                 ? "Revising Deliverable"
                 : task.status === "WORK_IN_PROGRESS"
                   ? "In Progress"
-                  : isDraftOrAwaiting
-                    ? "Pending Sign-off"
-                    : "Assigned"}
-          </div>
+                  : task.status === "AGREEMENT_READY"
+                    ? "Awaiting payment test"
+                    : isDraftOrAwaiting
+                      ? "Pending Sign-off"
+                      : "Assigned"}
+          </p>
         </div>
 
-        <div className="workpay-card p-3.5 space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            3. Verification
+        <div className="workpay-card min-w-0 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              03 · Verification
+            </p>
+            <CheckSquare className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
           </div>
-          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
             {task.status === "HUMAN_REVIEW"
               ? "Human Review Needed"
               : verification.data?.outcome === "PASS"
@@ -353,17 +463,20 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 : verification.data?.outcome === "FAIL"
                   ? "Failed (Revision Required)"
                   : "Awaiting Deliverable"}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)]">
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
             {requirements.length} acceptance criteria
-          </div>
+          </p>
         </div>
 
-        <div className="workpay-card p-3.5 space-y-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-            4. Settlement
+        <div className="workpay-card min-w-0 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+              04 · Settlement
+            </p>
+            <Receipt className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
           </div>
-          <div className="text-sm font-semibold text-[var(--charcoal)] truncate">
+          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
             {payment.data?.status === "CAPTURED" || isPaid
               ? "Simulated capture recorded"
               : payment.data?.status === "AUTHORIZED"
@@ -373,15 +486,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   : payment.data?.status === "FAILED"
                     ? "Authorization failed"
                     : "Not authorized"}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)]">
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
             {payment.data ? `${moneyAmount} policy test` : "No payment simulation started"}
-          </div>
+          </p>
         </div>
-      </div>
+      </section>
 
       {actionError && (
-        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+        <div
+          className="rounded-xl border border-[var(--wp-danger)]/25 bg-[var(--wp-danger-subtle)] p-3.5 text-sm text-[var(--wp-danger)]"
+          role="alert"
+        >
           {actionError}
         </div>
       )}
@@ -395,52 +511,36 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         onTaskChanged={refresh}
       />
 
-      {task.status === "AGREEMENT_READY" ? (
-        <section className="workpay-card space-y-3 p-5" aria-labelledby="payment-simulation-title">
-          <div>
-            <h2 id="payment-simulation-title" className="text-base font-semibold text-[var(--charcoal)]">
-              Terms agreed — validate the next stage
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Start the payment-policy simulation and create the professional assignment. This will
-              not charge, hold, capture, or pay funds. The professional must still accept the
-              assignment and explicitly start work.
-            </p>
-          </div>
-          <Button
-            type="button"
-            onClick={() => void beginPaymentSimulation()}
-            disabled={simulatingPayment}
-          >
-            {simulatingPayment ? "Running policy simulation…" : "Simulate authorization and create assignment"}
-          </Button>
-        </section>
-      ) : null}
-
       <Link
         href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
-        className="workpay-card flex flex-col gap-1 p-4 transition-colors hover:border-[var(--border-strong)] sm:flex-row sm:items-center sm:justify-between"
+        className="group workpay-card flex flex-col gap-2 p-4 transition-colors hover:border-[var(--border-strong)] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5"
       >
         <span>
           <span className="block text-sm font-semibold text-[var(--charcoal)]">
             Find an independent reviewer
           </span>
-          <span className="mt-1 block text-xs text-[var(--text-muted)]">
+          <span className="mt-1 block text-sm text-[var(--text-muted)]">
             Compare domain fit and reviewer-supplied evidence. You choose whether to contact anyone.
           </span>
         </span>
-        <span className="text-sm font-medium text-[var(--charcoal)]">Explore reviewers →</span>
+        <span className="shrink-0 text-sm font-semibold text-[var(--charcoal)] transition-transform group-hover:translate-x-0.5">
+          Explore reviewers →
+        </span>
       </Link>
 
-      {/* 3. Five-Tab Navigation (Section 9) */}
-      <div className="flex items-center gap-1 border-b border-[var(--border-subtle)] pb-2 overflow-x-auto text-xs sm:text-sm font-medium">
+      {/* Workspace sections */}
+      <nav
+        aria-label="Task workspace sections"
+        className="-mx-1 flex gap-1 overflow-x-auto rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-1.5 text-xs font-medium sm:mx-0 sm:gap-1.5 sm:p-2 sm:text-sm"
+      >
         <button
           type="button"
+          aria-pressed={activeTab === "contract"}
           onClick={() => setActiveTab("contract")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
             activeTab === "contract"
-              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
-              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+              ? "border border-[var(--wp-border)] bg-white font-semibold text-[var(--charcoal)] shadow-sm"
+              : "border border-transparent text-[var(--text-muted)] hover:bg-white/70 hover:text-[var(--charcoal)]"
           }`}
         >
           <FileText className="h-4 w-4" />
@@ -449,11 +549,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
         <button
           type="button"
+          aria-pressed={activeTab === "execution"}
           onClick={() => setActiveTab("execution")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
             activeTab === "execution"
-              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
-              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+              ? "border border-[var(--wp-border)] bg-white font-semibold text-[var(--charcoal)] shadow-sm"
+              : "border border-transparent text-[var(--text-muted)] hover:bg-white/70 hover:text-[var(--charcoal)]"
           }`}
         >
           <Users className="h-4 w-4" />
@@ -462,11 +563,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
         <button
           type="button"
+          aria-pressed={activeTab === "verification"}
           onClick={() => setActiveTab("verification")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
             activeTab === "verification"
-              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
-              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+              ? "border border-[var(--wp-border)] bg-white font-semibold text-[var(--charcoal)] shadow-sm"
+              : "border border-transparent text-[var(--text-muted)] hover:bg-white/70 hover:text-[var(--charcoal)]"
           }`}
         >
           <CheckSquare className="h-4 w-4" />
@@ -478,11 +580,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
         <button
           type="button"
+          aria-pressed={activeTab === "payment"}
           onClick={() => setActiveTab("payment")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
             activeTab === "payment"
-              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
-              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+              ? "border border-[var(--wp-border)] bg-white font-semibold text-[var(--charcoal)] shadow-sm"
+              : "border border-transparent text-[var(--text-muted)] hover:bg-white/70 hover:text-[var(--charcoal)]"
           }`}
         >
           <Receipt className="h-4 w-4" />
@@ -491,17 +594,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
 
         <button
           type="button"
+          aria-pressed={activeTab === "activity"}
           onClick={() => setActiveTab("activity")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap ${
             activeTab === "activity"
-              ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
-              : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
+              ? "border border-[var(--wp-border)] bg-white font-semibold text-[var(--charcoal)] shadow-sm"
+              : "border border-transparent text-[var(--text-muted)] hover:bg-white/70 hover:text-[var(--charcoal)]"
           }`}
         >
           <History className="h-4 w-4" />
           <span>Activity & Audit</span>
         </button>
-      </div>
+      </nav>
 
       {/* 4. Tab 1: Specification & Contract (Section 7) */}
       {activeTab === "contract" && (
@@ -593,8 +697,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   <span>WorkPay Authority Boundaries</span>
                 </div>
                 <p className="text-emerald-800 leading-relaxed">
-                  WorkPay will not choose or contact a professional on your behalf. You approve each exact
-                  contact request. Approving these terms does not authorize or capture a payment.
+                  WorkPay will not choose or contact a professional on your behalf. You approve each
+                  exact contact request. Approving these terms does not authorize or capture a
+                  payment.
                 </p>
               </div>
 
@@ -818,8 +923,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 </div>
                 <p className="text-xs text-amber-800 leading-relaxed">
                   Automated checks and AI cannot determine whether this work is professionally
-                  satisfactory. WorkPay does not provide an arbitrator or judge this result. Use
-                  the agreed review criteria and contact an independent reviewer. Any PayPal
+                  satisfactory. WorkPay does not provide an arbitrator or judge this result. Use the
+                  agreed review criteria and contact an independent reviewer. Any PayPal
                   authorization remains subject to its actual status; this screen does not promise
                   that funds are held.
                 </p>
