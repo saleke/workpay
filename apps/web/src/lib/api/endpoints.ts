@@ -138,6 +138,25 @@ export function startTaskConversation(
   return apiFetch(`${BASE}/tasks/${taskId}/conversations`, { method: "POST", body: input });
 }
 
+export type FirstContactTone = "warm" | "direct" | "professional";
+
+export function draftFirstContactMessage(
+  taskId: string,
+  input: {
+    providerId: string;
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    tone: FirstContactTone;
+    buyerNote: string;
+    existingDraft: string;
+  },
+): Promise<ApiResponse<{ message: string }>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/conversations/draft`, {
+    method: "POST",
+    body: input,
+  });
+}
+
 export function listProviderConversations(): Promise<ApiResponse<TaskConversationDto[]>> {
   return apiFetch<TaskConversationDto[]>(`${BASE}/provider/conversations`);
 }

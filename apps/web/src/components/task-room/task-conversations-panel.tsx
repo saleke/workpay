@@ -5,9 +5,11 @@ import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import {
+  draftFirstContactMessage,
   getTaskConversations,
   startProviderSearch,
   startTaskConversation,
+  type FirstContactTone,
 } from "@/lib/api/endpoints";
 import type {
   ContractDto,
@@ -16,6 +18,12 @@ import type {
   TaskConversationDto,
 } from "@/lib/api/types";
 import { ConversationThread } from "./conversation-thread";
+
+interface FirstContactDraft {
+  message: string;
+  tone: FirstContactTone;
+  buyerNote: string;
+}
 
 export function TaskConversationsPanel({
   taskId,
@@ -34,12 +42,18 @@ export function TaskConversationsPanel({
 }) {
   const [conversations, setConversations] = useState<TaskConversationDto[]>([]);
   const [providerId, setProviderId] = useState("");
-  const [initialMessage, setInitialMessage] = useState("");
-  const [contactApproved, setContactApproved] = useState(false);
+  const [draftsByProvider, setDraftsByProvider] = useState<Record<string, FirstContactDraft>>({});
+  const [contactApproval, setContactApproval] = useState<{
+    providerId: string;
+    contractHash: string;
+    message: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   const candidates = [
     ...(selection?.provider ? [selection.provider] : []),
@@ -56,6 +70,34 @@ export function TaskConversationsPanel({
       return leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
     });
   const selectedCandidate = candidates.find((candidate) => candidate.providerId === providerId);
+  const selectedDraft = draftsByProvider[providerId] ?? {
+    message: "",
+    tone: "warm" as const,
+    buyerNote: "",
+  };
+  const initialMessage = selectedDraft.message;
+  const contactApproved =
+    contactApproval?.providerId === providerId &&
+    contactApproval.contractHash === contract?.contractHash &&
+    contactApproval.message === initialMessage;
+
+  const updateDraftForProvider = (targetProviderId: string, patch: Partial<FirstContactDraft>) => {
+    setDraftsByProvider((current) => ({
+      ...current,
+      [targetProviderId]: {
+        message: "",
+        tone: "warm",
+        buyerNote: "",
+        ...current[targetProviderId],
+        ...patch,
+      },
+    }));
+  };
+
+  const updateSelectedDraft = (patch: Partial<FirstContactDraft>) => {
+    if (!providerId) return;
+    updateDraftForProvider(providerId, patch);
+  };
 
   const refresh = async () => {
     const result = await getTaskConversations(taskId);
@@ -74,6 +116,13 @@ export function TaskConversationsPanel({
     return () => clearInterval(timer);
   }, [taskId]);
 
+  useEffect(() => {
+    setProviderId("");
+    setDraftsByProvider({});
+    setContactApproval(null);
+    setDraftError(null);
+  }, [taskId]);
+
   const beginContact = async () => {
     if (!contract || !selectedCandidate || !initialMessage.trim()) return;
     setSending(true);
@@ -90,9 +139,39 @@ export function TaskConversationsPanel({
       setError(result.error.message);
       return;
     }
-    setInitialMessage("");
-    setContactApproved(false);
+    setDraftsByProvider((current) => ({
+      ...current,
+      [selectedCandidate.providerId]: { message: "", tone: "warm", buyerNote: "" },
+    }));
+    setContactApproval(null);
     await refresh();
+  };
+
+  const draftWithAI = async () => {
+    if (!contract || !selectedCandidate) return;
+    const targetProviderId = selectedCandidate.providerId;
+    setDrafting(true);
+    setDraftError(null);
+    const result = await draftFirstContactMessage(taskId, {
+      providerId: targetProviderId,
+      expectedContractVersion: contract.version,
+      expectedContractHash: contract.contractHash,
+      tone: selectedDraft.tone,
+      buyerNote: selectedDraft.buyerNote,
+      existingDraft: initialMessage,
+    });
+    setDrafting(false);
+    if (result.error) {
+      setDraftError(result.error.message);
+      return;
+    }
+    if (!result.data?.message) {
+      setDraftError("The AI service returned an empty draft. Your current message is unchanged.");
+      return;
+    }
+    updateDraftForProvider(targetProviderId, { message: result.data.message });
+    setDraftError(null);
+    setContactApproval(null);
   };
 
   const findProfessionals = async () => {
@@ -178,7 +257,7 @@ export function TaskConversationsPanel({
               You make the choice
             </span>
           </div>
-          <fieldset className="grid gap-2.5">
+          <fieldset className="grid gap-2.5" disabled={drafting || sending}>
             <legend className="sr-only">Available professionals</legend>
             {candidates.map((candidate) => (
               <label
@@ -231,7 +310,8 @@ export function TaskConversationsPanel({
                     checked={providerId === candidate.providerId}
                     onChange={() => {
                       setProviderId(candidate.providerId);
-                      setContactApproved(false);
+                      setContactApproval(null);
+                      setDraftError(null);
                     }}
                     aria-label={`Select ${candidate.displayName}`}
                     className="mt-1 h-4 w-4 accent-[var(--wp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wp-accent)] sm:mt-0"
@@ -315,6 +395,41 @@ export function TaskConversationsPanel({
                   </p>
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+                <label className="block space-y-2 text-sm">
+                  <span className="font-medium text-[var(--charcoal)]">Message tone</span>
+                  <select
+                    value={selectedDraft.tone}
+                    onChange={(event) =>
+                      updateSelectedDraft({
+                        tone:
+                          event.target.value === "direct" || event.target.value === "professional"
+                            ? event.target.value
+                            : "warm",
+                      })
+                    }
+                    disabled={drafting || sending}
+                    className="min-h-11 w-full rounded-xl border border-[var(--wp-border-strong)] bg-white px-3.5 py-2 text-sm text-[var(--charcoal)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]/40"
+                  >
+                    <option value="warm">Warm and approachable</option>
+                    <option value="direct">Direct and concise</option>
+                    <option value="professional">Professional and polished</option>
+                  </select>
+                </label>
+                <label className="block space-y-2 text-sm">
+                  <span className="font-medium text-[var(--charcoal)]">
+                    Optional personal detail or question
+                  </span>
+                  <input
+                    value={selectedDraft.buyerNote}
+                    onChange={(event) => updateSelectedDraft({ buyerNote: event.target.value })}
+                    maxLength={800}
+                    disabled={drafting || sending}
+                    className="min-h-11 w-full rounded-xl border border-[var(--wp-border-strong)] bg-white px-3.5 py-2 text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]/40"
+                    placeholder="For example, a relevant question you want to ask"
+                  />
+                </label>
+              </div>
               <label className="block space-y-2 text-sm">
                 <span className="font-medium text-[var(--charcoal)]">
                   Message to {selectedCandidate.displayName}
@@ -322,11 +437,12 @@ export function TaskConversationsPanel({
                 <textarea
                   value={initialMessage}
                   onChange={(event) => {
-                    setInitialMessage(event.target.value);
-                    setContactApproved(false);
+                    updateSelectedDraft({ message: event.target.value });
+                    setContactApproval(null);
                   }}
                   rows={4}
                   maxLength={5_000}
+                  disabled={drafting || sending}
                   className="w-full resize-y rounded-xl border border-[var(--wp-border-strong)] bg-white px-3.5 py-3 text-sm leading-relaxed text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]/40"
                   placeholder="Introduce yourself and ask any remaining non-binding questions."
                 />
@@ -334,19 +450,57 @@ export function TaskConversationsPanel({
                   {initialMessage.length} / 5,000
                 </span>
               </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={drafting || sending}
+                  onClick={() => void draftWithAI()}
+                  className="min-h-10"
+                  aria-live="polite"
+                >
+                  {drafting
+                    ? "Preparing a draft…"
+                    : initialMessage.trim()
+                      ? "Improve draft with AI"
+                      : "Draft with AI"}
+                </Button>
+                <span className="text-xs leading-relaxed text-[var(--text-muted)]">
+                  The approved task, selected profile, your note, and current draft are sent to
+                  WorkPay’s configured AI provider. Generated text stays editable and unsent.
+                </span>
+              </div>
+              {draftError ? (
+                <p
+                  className="rounded-lg border border-[var(--wp-danger)]/25 bg-[var(--wp-danger-subtle)] px-3 py-2.5 text-sm text-[var(--wp-danger)]"
+                  role="alert"
+                >
+                  {draftError}
+                </p>
+              ) : null}
               <p className="rounded-lg bg-[var(--wp-surface-subtle)] px-3 py-2.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
-                Nothing is sent until you approve the exact message below. This request does not
-                change the agreement or authorize a payment.
+                Nothing is sent until you approve the exact message shown here. This request does
+                not change the agreement or authorize a payment.
               </p>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--wp-border)] bg-white p-3.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
                 <input
                   type="checkbox"
                   checked={contactApproved}
-                  onChange={(event) => setContactApproved(event.target.checked)}
+                  onChange={(event) =>
+                    setContactApproval(
+                      event.target.checked && contract
+                        ? {
+                            providerId,
+                            contractHash: contract.contractHash,
+                            message: initialMessage,
+                          }
+                        : null,
+                    )
+                  }
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--wp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wp-accent)]"
                 />
                 <span>
-                  I approve sending this exact message to{" "}
+                  I approve sending the exact message shown above to{" "}
                   <span className="font-semibold text-[var(--charcoal)]">
                     {selectedCandidate.displayName}
                   </span>{" "}
@@ -356,7 +510,9 @@ export function TaskConversationsPanel({
               </label>
               <Button
                 type="button"
-                disabled={!providerId || !initialMessage.trim() || !contactApproved || sending}
+                disabled={
+                  !providerId || !initialMessage.trim() || !contactApproved || sending || drafting
+                }
                 onClick={() => void beginContact()}
                 className="min-h-11 w-full"
               >

@@ -6,6 +6,7 @@ import {
   scopeAssessmentOutputSchema,
 } from "../../domain/intake/model.js";
 import {
+  firstContactMessageOutputSchema,
   findCloudflareGroundingIssues,
   findProfessionalBriefCoverageIssues,
   findProfessionalBriefOrganizationIssues,
@@ -28,6 +29,26 @@ describe("Cloudflare quota fallback classification", () => {
 });
 
 describe("intake output JSON schemas", () => {
+  it("accepts only a concise first-contact message", () => {
+    expect(
+      firstContactMessageOutputSchema.parse({
+        message:
+          "Hi Alex, I’m looking for help with the task described in the approved agreement. The full scope and acceptance details are included with this request. Would you be interested and available to discuss it? Thanks, Sam",
+      }),
+    ).toMatchObject({ message: expect.stringMatching(/^Hi Alex/) });
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message: "Hi Alex",
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message: "Hi Alex, I would like to discuss the approved task scope with you.",
+        inventedFact: true,
+      }).success,
+    ).toBe(false);
+  });
+
   it("unwraps object and JSON-string response envelopes without accepting prose", () => {
     expect(normalizeCloudflareResponseEnvelope({ response: { title: "Task" } })).toEqual({
       title: "Task",

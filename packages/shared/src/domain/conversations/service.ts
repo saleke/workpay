@@ -103,21 +103,17 @@ async function loadSelectedContract(
   };
 }
 
-export async function startTaskConversation(
-  tx: Database,
+export async function getFirstContactContext(
+  db: Database,
   input: {
     taskId: string;
     buyerUserId: string;
     providerId: string;
     expectedContractVersion: number;
     expectedContractHash: string;
-    initialMessage: string;
-    clientMessageId: string;
-    actor: Actor;
-    correlationId: string;
   },
 ) {
-  const { task, contract, snapshot } = await loadSelectedContract(tx, input.taskId);
+  const { task, contract, snapshot } = await loadSelectedContract(db, input.taskId);
   if (task.userId !== input.buyerUserId) throw notFound("Task");
   if (
     contract.version !== input.expectedContractVersion ||
@@ -128,7 +124,7 @@ export async function startTaskConversation(
     );
   }
 
-  const [selection] = await tx
+  const [selection] = await db
     .select()
     .from(providerSelections)
     .where(eq(providerSelections.taskId, input.taskId))
@@ -143,24 +139,19 @@ export async function startTaskConversation(
   }
 
   const candidates = Array.isArray(selection.candidates)
-    ? (selection.candidates as Array<{ providerId?: unknown; eligible?: unknown }>)
+    ? (selection.candidates as Array<Record<string, unknown>>)
     : [];
   const candidate = candidates.find((item) => item.providerId === input.providerId);
-  if (
-    !candidate ||
-    candidate.eligible !== true ||
-    !selection.candidates ||
-    typeof selection.candidates !== "object"
-  ) {
+  if (!candidate || candidate.eligible !== true) {
     throw conflict("That professional is not an eligible candidate for this task.");
   }
 
-  const [provider] = await tx
+  const [provider] = await db
     .select()
     .from(providers)
     .where(eq(providers.id, input.providerId))
     .limit(1);
-  const [providerAvailability] = await tx
+  const [providerAvailability] = await db
     .select()
     .from(availability)
     .where(eq(availability.providerId, input.providerId))
@@ -174,8 +165,9 @@ export async function startTaskConversation(
   ) {
     throw conflict("This professional is no longer available to receive contact.");
   }
+  const providerUserId = provider.userId;
 
-  const [existing] = await tx
+  const [existing] = await db
     .select({ id: taskConversations.id })
     .from(taskConversations)
     .where(
@@ -189,6 +181,51 @@ export async function startTaskConversation(
   if (existing)
     throw conflict("A contact request or conversation already exists with this professional.");
 
+  const candidateBio = typeof candidate.bio === "string" ? candidate.bio : null;
+  const candidateCapabilities = Array.isArray(candidate.capabilities)
+    ? candidate.capabilities
+        .map((item) =>
+          typeof item === "object" && item !== null && "tag" in item && typeof item.tag === "string"
+            ? item.tag
+            : null,
+        )
+        .filter((tag): tag is string => tag !== null)
+    : [];
+
+  return {
+    task,
+    contract,
+    snapshot,
+    provider,
+    providerUserId,
+    professional: {
+      displayName:
+        typeof candidate.displayName === "string" ? candidate.displayName : provider.displayName,
+      bio: candidateBio,
+      capabilities: candidateCapabilities,
+    },
+  };
+}
+
+export async function startTaskConversation(
+  tx: Database,
+  input: {
+    taskId: string;
+    buyerUserId: string;
+    providerId: string;
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    initialMessage: string;
+    clientMessageId: string;
+    actor: Actor;
+    correlationId: string;
+  },
+) {
+  const { task, contract, snapshot, provider, providerUserId } = await getFirstContactContext(
+    tx,
+    input,
+  );
+
   const conversationId = newId("conv");
   const messageId = newId("msg");
   const now = new Date();
@@ -197,7 +234,7 @@ export async function startTaskConversation(
     taskId: task.id,
     buyerUserId: task.userId,
     providerId: provider.id,
-    providerUserId: provider.userId,
+    providerUserId,
     status: "CONTACT_PENDING",
     messageCounter: 1,
     initialContactMessageId: messageId,
