@@ -11,6 +11,7 @@ import type {
   IndependentReviewReportDto,
   NotificationDto,
   PaymentDto,
+  ProviderInboxSummaryDto,
   ProviderSelectionDto,
   ProviderWorkDto,
   ReviewerProfileDto,
@@ -159,6 +160,10 @@ export function draftFirstContactMessage(
 
 export function listProviderConversations(): Promise<ApiResponse<TaskConversationDto[]>> {
   return apiFetch<TaskConversationDto[]>(`${BASE}/provider/conversations`);
+}
+
+export function getProviderInboxSummary(): Promise<ApiResponse<ProviderInboxSummaryDto>> {
+  return apiFetch<ProviderInboxSummaryDto>(`${BASE}/provider/inbox-summary`);
 }
 
 export function respondToTaskConversation(

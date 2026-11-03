@@ -24,6 +24,7 @@ import {
   captureIfAllowed,
   ensureAgent,
   getPaymentForTask,
+  projectConversationNotification,
   systemActor,
   transitionTask,
 } from "@workpay/shared/domain";
@@ -43,7 +44,9 @@ async function startHealthServer(): Promise<Server> {
     response.setHeader("Cache-Control", "no-store");
     if (request.url === "/health") {
       response.statusCode = isRunning ? 200 : 503;
-      response.end(JSON.stringify({ status: isRunning ? "ok" : "stopping", service: "workpay-worker" }));
+      response.end(
+        JSON.stringify({ status: isRunning ? "ok" : "stopping", service: "workpay-worker" }),
+      );
       return;
     }
     if (request.url === "/ready") {
@@ -83,10 +86,7 @@ async function startHealthServer(): Promise<Server> {
   return server;
 }
 
-async function captureAndCompleteIfAllowed(
-  taskId: string,
-  correlationId: string,
-): Promise<void> {
+async function captureAndCompleteIfAllowed(taskId: string, correlationId: string): Promise<void> {
   const db = getDb();
   const payment = await getPaymentForTask(db, taskId);
   if (payment?.status === "AUTHORIZED") {
@@ -247,19 +247,27 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
 
         // 4. Generate notification if applicable
         if (task) {
-          const content = getNotificationContent(ev.type, task.title, payload);
+          const conversationNotification = projectConversationNotification({
+            eventType: ev.type,
+            taskId: task.id,
+            taskTitle: task.title,
+            taskOwnerUserId: task.userId,
+            payload,
+          });
+          const content =
+            conversationNotification ?? getNotificationContent(ev.type, task.title, payload);
           if (content) {
             await db
               .insert(notifications)
               .values({
                 id: newId("notif"),
-                userId: task.userId,
+                userId: conversationNotification?.userId ?? task.userId,
                 taskId: task.id,
                 eventId: ev.id,
                 type: ev.type,
                 title: content.title,
                 body: content.body,
-                href: `/tasks/${task.id}`,
+                href: conversationNotification?.href ?? `/tasks/${task.id}`,
               })
               .onConflictDoNothing();
           }
@@ -277,7 +285,10 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
 
             let verificationOutcome = existingRuns[0]?.outcome ?? null;
             if (existingRuns.length === 0) {
-              logger.info({ taskId: task.id, submissionId }, "Triggering async verification for submission");
+              logger.info(
+                { taskId: task.id, submissionId },
+                "Triggering async verification for submission",
+              );
               const { actor: agentActor } = await ensureAgent({
                 taskId: task.id,
                 userId: task.userId,
@@ -297,11 +308,7 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
           }
         }
 
-        if (
-          ev.type === "INDEPENDENT_REVIEW_REPORTED" &&
-          task &&
-          payload.outcome === "PASS"
-        ) {
+        if (ev.type === "INDEPENDENT_REVIEW_REPORTED" && task && payload.outcome === "PASS") {
           await captureAndCompleteIfAllowed(task.id, ev.correlationId);
         }
       }

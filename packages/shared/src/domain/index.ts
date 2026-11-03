@@ -38,6 +38,7 @@ export * from "./reviewers/recommendation.js";
 export * from "./reviewers/service.js";
 export * from "./reviewers/independent-review-service.js";
 export * from "./conversations/service.js";
+export * from "./notifications/conversation.js";
 
 // Negotiation
 export * from "./negotiation/guardrails.js";

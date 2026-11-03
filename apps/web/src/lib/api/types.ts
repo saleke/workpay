@@ -610,6 +610,12 @@ export interface TaskConversationDto {
   messages: TaskConversationMessageDto[];
 }
 
+export interface ProviderInboxSummaryDto {
+  pendingCount: number;
+  openCount: number;
+  totalCount: number;
+}
+
 export interface ContractChangeTermsDto {
   title: string;
   summary: string;

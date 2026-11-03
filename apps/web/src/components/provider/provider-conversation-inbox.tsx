@@ -37,6 +37,7 @@ export function ProviderConversationInbox() {
       setError(result.error.message);
       return;
     }
+    window.dispatchEvent(new Event("workpay_provider_inbox_change"));
     await refresh();
   };
 
@@ -47,11 +48,11 @@ export function ProviderConversationInbox() {
           id="provider-conversations-heading"
           className="text-xl font-semibold text-[var(--charcoal)]"
         >
-          Buyer contact requests
+          Incoming work requests
         </h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Review the buyer’s message and exact approved agreement before opening a private
-          conversation.
+          Review each buyer’s message and exact approved agreement, then accept or decline the
+          request. Accepting opens a private conversation; it does not start work or move funds.
         </p>
       </div>
       {error ? (
@@ -69,12 +70,20 @@ export function ProviderConversationInbox() {
       ) : null}
       {!loading && conversations.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[var(--border-subtle)] p-5 text-sm text-[var(--text-muted)]">
-          No buyer contact requests yet.
+          No incoming work requests yet.
         </p>
       ) : null}
       <div className="space-y-4">
         {conversations.map((conversation) => (
-          <article key={conversation.id} className="workpay-card space-y-4 p-5">
+          <article
+            key={conversation.id}
+            id={`conversation-${conversation.id}`}
+            className={`workpay-card space-y-4 p-5 ${
+              conversation.status === "CONTACT_PENDING"
+                ? "border-[var(--wp-accent)]/50 shadow-sm"
+                : ""
+            }`}
+          >
             <header>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-semibold">{conversation.contractSnapshot.title}</h3>

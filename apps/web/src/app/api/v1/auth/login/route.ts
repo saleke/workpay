@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, jsonError } from "@/lib/server/api";
 import { users } from "@workpay/shared/db/schema/identity";
+import { taskConversations } from "@workpay/shared/db/schema/conversations";
 import { verifyPassword } from "@workpay/shared/platform";
 import { createSession, setSessionCookie } from "@/lib/server/session";
 
@@ -45,6 +46,17 @@ export async function POST(req: Request) {
       return jsonError({ code: "AUTHORIZATION_ERROR", message: "Invalid email or password" }, 401);
     }
 
+    const [professionalConversation] = await db
+      .select({ id: taskConversations.id })
+      .from(taskConversations)
+      .where(
+        and(
+          eq(taskConversations.providerUserId, user.id),
+          inArray(taskConversations.status, ["CONTACT_PENDING", "OPEN"]),
+        ),
+      )
+      .limit(1);
+    const redirect = professionalConversation ? "/provider" : "/";
     const sessionToken = await createSession(user.id);
     const res = NextResponse.json({
       data: {
@@ -66,6 +78,7 @@ export async function POST(req: Request) {
           paypalVerified: Boolean(user.paypalVerified),
           paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
         },
+        redirect,
       },
     });
 

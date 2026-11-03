@@ -66,7 +66,12 @@ export const eventCatalog = {
     aggregateType: "TASK",
     visibility: "USER",
     description: "Professional contact requested",
-    payload: z.object({ taskId: z.string(), conversationId: z.string(), providerId: z.string() }),
+    payload: z.object({
+      taskId: z.string(),
+      conversationId: z.string(),
+      providerId: z.string(),
+      providerUserId: z.string(),
+    }),
   },
   TASK_CONVERSATION_ACCEPTED: {
     type: "TASK_CONVERSATION_ACCEPTED",
@@ -90,7 +95,12 @@ export const eventCatalog = {
     aggregateType: "TASK",
     visibility: "USER",
     description: "A private task message was sent",
-    payload: z.object({ taskId: z.string(), conversationId: z.string(), messageId: z.string() }),
+    payload: z.object({
+      taskId: z.string(),
+      conversationId: z.string(),
+      messageId: z.string(),
+      recipientUserId: z.string(),
+    }),
   },
 
   // ── Planning ───────────────────────────────────────────────────────────────

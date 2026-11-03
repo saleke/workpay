@@ -263,7 +263,7 @@ export async function startTaskConversation(
     taskId: task.id,
     actor: toEventActor(input.actor),
     correlationId: input.correlationId,
-    payload: { taskId: task.id, conversationId, providerId: provider.id },
+    payload: { taskId: task.id, conversationId, providerId: provider.id, providerUserId },
   });
   return { conversationId, status: "CONTACT_PENDING" as const, contract: snapshot };
 }
@@ -394,7 +394,15 @@ export async function sendTaskMessage(
     taskId: conversation.taskId,
     actor: toEventActor(input.actor),
     correlationId: input.correlationId,
-    payload: { taskId: conversation.taskId, conversationId: conversation.id, messageId },
+    payload: {
+      taskId: conversation.taskId,
+      conversationId: conversation.id,
+      messageId,
+      recipientUserId:
+        input.authorUserId === conversation.buyerUserId
+          ? conversation.providerUserId
+          : conversation.buyerUserId,
+    },
   });
   return message;
 }

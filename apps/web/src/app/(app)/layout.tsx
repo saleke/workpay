@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Menu, X } from "lucide-react";
 import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
 import { UserNav } from "@/components/nav/user-nav";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
 import { WorkPayLogoMark } from "@/components/brand/logo";
-import { useSystemMode } from "@/lib/mode";
 import { cn } from "@/lib/utils";
+import { getProviderInboxSummary } from "@/lib/api/endpoints";
 
 interface NavLinkItem {
   href: string;
@@ -30,8 +30,24 @@ const navItems: NavLinkItem[] = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isDemo } = useSystemMode();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingContactCount, setPendingContactCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      const response = await getProviderInboxSummary();
+      if (active && response.data) setPendingContactCount(response.data.pendingCount);
+    };
+    void refresh();
+    window.addEventListener("workpay_provider_inbox_change", refresh);
+    const timer = window.setInterval(() => void refresh(), 10_000);
+    return () => {
+      active = false;
+      window.removeEventListener("workpay_provider_inbox_change", refresh);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[var(--wp-canvas)] text-[var(--wp-text-primary)] flex flex-col font-sans">
@@ -73,7 +89,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] border border-transparent",
                     )}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.href === "/provider" && pendingContactCount > 0 ? (
+                      <span className="ml-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-[var(--wp-accent)] px-1 text-[10px] font-bold leading-4 text-white">
+                        {pendingContactCount > 9 ? "9+" : pendingContactCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}
@@ -123,7 +144,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)]",
                   )}
                 >
-                  <span>{item.label}</span>
+                  <span className="flex items-center gap-2">
+                    <span>{item.label}</span>
+                    {item.href === "/provider" && pendingContactCount > 0 ? (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--wp-accent)] px-1.5 text-[10px] font-bold leading-5 text-white">
+                        {pendingContactCount > 9 ? "9+" : pendingContactCount}
+                      </span>
+                    ) : null}
+                  </span>
                   {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)]" />}
                 </Link>
               );
@@ -131,6 +159,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
+
+      {pendingContactCount > 0 && !pathname.startsWith("/provider") ? (
+        <div className="border-b border-[var(--wp-accent)]/25 bg-[var(--wp-accent-subtle)] px-4 py-2.5 sm:px-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5 text-sm text-[var(--wp-text-primary)]">
+              <BriefcaseBusiness className="h-4 w-4 shrink-0 text-[var(--wp-accent)]" />
+              <span>
+                <strong>
+                  {pendingContactCount} pending buyer contact request
+                  {pendingContactCount === 1 ? "" : "s"}
+                </strong>{" "}
+                waiting for your response.
+              </span>
+            </div>
+            <Link
+              href="/provider"
+              className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--wp-text-primary)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-black"
+            >
+              Review in Work Studio
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       {/* Main Content Area */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">{children}</main>

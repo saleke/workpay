@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Bell,
   BellOff,
+  BriefcaseBusiness,
   CheckCheck,
   Coins,
   ExternalLink,
@@ -31,6 +32,9 @@ import type { NotificationDto } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 function getNotificationIcon(type: string) {
+  if (type.includes("CONVERSATION") || type.includes("MESSAGE")) {
+    return <BriefcaseBusiness className="h-4 w-4 text-[var(--wp-accent)]" />;
+  }
   if (type.includes("PAYMENT") || type.includes("MONEY") || type.includes("CAPTURE")) {
     return <Coins className="h-4 w-4 text-emerald-500" />;
   }
@@ -43,7 +47,12 @@ function getNotificationIcon(type: string) {
   if (type.includes("PROVIDER") || type.includes("SPECIALIST") || type.includes("OFFER")) {
     return <UserCheck className="h-4 w-4 text-purple-500" />;
   }
-  if (type.includes("CASE") || type.includes("DISPUTE") || type.includes("REVISION") || type.includes("ARBITRATION")) {
+  if (
+    type.includes("CASE") ||
+    type.includes("DISPUTE") ||
+    type.includes("REVISION") ||
+    type.includes("ARBITRATION")
+  ) {
     return <Scale className="h-4 w-4 text-amber-500" />;
   }
   return <Bell className="h-4 w-4 text-primary" />;
@@ -53,7 +62,9 @@ export function NotificationsBell() {
   const { data, reload } = useApi(() => listNotifications(), [], "notifications");
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationDto[]>([]);
-  const [filterTab, setFilterTab] = useState<"ALL" | "UNREAD" | "PAYMENTS" | "VERIFICATIONS">("ALL");
+  const [filterTab, setFilterTab] = useState<
+    "ALL" | "UNREAD" | "WORK" | "PAYMENTS" | "VERIFICATIONS"
+  >("ALL");
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -67,13 +78,31 @@ export function NotificationsBell() {
     reload();
   }, [open, reload]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => reload(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
+
   const unreadCount = items.filter((n) => !n.readAt).length;
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (filterTab === "UNREAD") return !item.readAt;
-      if (filterTab === "PAYMENTS") return item.type.includes("PAYMENT") || item.type.includes("MONEY") || item.type.includes("CAPTURE");
-      if (filterTab === "VERIFICATIONS") return item.type.includes("VERIF") || item.type.includes("SUBMITTED") || item.type.includes("CASE") || item.type.includes("REVISION");
+      if (filterTab === "WORK")
+        return item.type.includes("CONVERSATION") || item.type.includes("MESSAGE");
+      if (filterTab === "PAYMENTS")
+        return (
+          item.type.includes("PAYMENT") ||
+          item.type.includes("MONEY") ||
+          item.type.includes("CAPTURE")
+        );
+      if (filterTab === "VERIFICATIONS")
+        return (
+          item.type.includes("VERIF") ||
+          item.type.includes("SUBMITTED") ||
+          item.type.includes("CASE") ||
+          item.type.includes("REVISION")
+        );
       return true;
     });
   }, [items, filterTab]);
@@ -127,7 +156,9 @@ export function NotificationsBell() {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/70">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--wp-text-primary)]">Notifications</span>
+            <span className="text-sm font-semibold text-[var(--wp-text-primary)]">
+              Notifications
+            </span>
             {unreadCount > 0 ? (
               <span className="rounded-full bg-[var(--wp-accent-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--wp-accent)]">
                 {unreadCount} new
@@ -149,7 +180,7 @@ export function NotificationsBell() {
         </div>
 
         {/* Category Filter Tabs */}
-        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs">
+        <div className="flex items-center gap-1 overflow-x-auto px-3 py-1.5 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs">
           <button
             type="button"
             onClick={() => setFilterTab("ALL")}
@@ -173,6 +204,18 @@ export function NotificationsBell() {
             )}
           >
             Unread ({unreadCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("WORK")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "WORK"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            Work
           </button>
           <button
             type="button"
@@ -209,14 +252,17 @@ export function NotificationsBell() {
               <p className="text-sm font-medium text-foreground">
                 {filterTab === "UNREAD"
                   ? "No unread notifications"
-                  : filterTab === "PAYMENTS"
-                    ? "No payment notifications"
-                    : filterTab === "VERIFICATIONS"
-                      ? "No verification notifications"
-                      : "All caught up"}
+                  : filterTab === "WORK"
+                    ? "No work requests or messages"
+                    : filterTab === "PAYMENTS"
+                      ? "No payment notifications"
+                      : filterTab === "VERIFICATIONS"
+                        ? "No verification notifications"
+                        : "All caught up"}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                New payment authorizations and verification updates will appear here.
+                New work requests, messages, payment updates, and verification results will appear
+                here.
               </p>
             </div>
           ) : (
@@ -242,7 +288,9 @@ export function NotificationsBell() {
                       <span
                         className={cn(
                           "text-xs leading-snug truncate",
-                          isUnread ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
+                          isUnread
+                            ? "font-semibold text-foreground"
+                            : "font-medium text-muted-foreground",
                         )}
                       >
                         {n.title}
