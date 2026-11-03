@@ -52,7 +52,6 @@ type ProfessionalBriefDraft = z.infer<typeof professionalBriefDraftSchema>;
 type IntakeError = {
   message: string;
   code?: string;
-  canForgetSavedShortcut?: boolean;
 };
 type BudgetOption = "proposal" | "undecided" | "ceiling" | "target" | "range";
 type BusyAction =
@@ -275,10 +274,20 @@ export function IntakeWorkspace() {
       .catch((restoreError: unknown) => {
         if (active) {
           const failure = getIntakeError(restoreError);
-          setError({
-            ...failure,
-            canForgetSavedShortcut: failure.code === "NOT_FOUND",
-          });
+          if (failure.code === "NOT_FOUND") {
+            try {
+              window.localStorage.removeItem(SESSION_STORAGE_KEY);
+              setStorageWarning(null);
+            } catch {
+              setStorageWarning(
+                "There is no saved intake to reopen, and this browser could not remove its outdated draft shortcut.",
+              );
+            }
+            setSession(null);
+            setError(null);
+            return;
+          }
+          setError(failure);
         }
       })
       .finally(() => {
@@ -560,17 +569,6 @@ export function IntakeWorkspace() {
     router.push(`/tasks/${encodeURIComponent(result.data.taskId)}`);
   };
 
-  const forgetLocalSession = () => {
-    try {
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch {
-      setStorageWarning("This browser could not remove the saved draft shortcut.");
-      return;
-    }
-    setSession(null);
-    setError(null);
-  };
-
   if (restoring) {
     return (
       <div className="mx-auto max-w-3xl py-16 text-center" role="status">
@@ -607,26 +605,16 @@ export function IntakeWorkspace() {
               <Link href="/login?from=%2Fintake">Sign in to continue</Link>
             </Button>
           )}
-          {error.canForgetSavedShortcut && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-2 px-0 text-red-700"
-              onClick={forgetLocalSession}
-            >
-              Forget the missing draft shortcut and start over
-            </Button>
-          )}
-          {storageWarning && (
-            <p
-              className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-900"
-              role="status"
-            >
-              {storageWarning}
-            </p>
-          )}
         </div>
+      )}
+
+      {storageWarning && (
+        <p
+          className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-900"
+          role="status"
+        >
+          {storageWarning}
+        </p>
       )}
 
       {!session ? (
