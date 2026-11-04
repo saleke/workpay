@@ -220,6 +220,32 @@ export default function TasksPage() {
               amountMinor: task.budgetMinor,
               currency: task.currency,
             });
+            const nextAction =
+              task.status === "AWAITING_CLARIFICATION"
+                ? "Answer the open question"
+                : task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY"
+                  ? "Review and approve the scope"
+                  : task.status === "APPROVED" || task.status === "PROVIDER_SEARCH"
+                    ? "Review professionals and choose who to contact"
+                    : task.status === "NEGOTIATION"
+                      ? "Open the task to follow contact discussions"
+                      : task.status === "PAYMENT_AUTHORIZATION"
+                        ? "Review payment simulation status"
+                        : task.status === "WORK_IN_PROGRESS"
+                          ? "Track the assigned work"
+                          : task.status === "SUBMITTED" || task.status === "VERIFYING"
+                            ? "Review delivery checks"
+                            : task.status === "REVISION_REQUIRED"
+                              ? "Review the requested revision"
+                              : task.status === "HUMAN_REVIEW"
+                                ? "Choose an independent reviewer"
+                                : task.status === "PAYMENT_RELEASE"
+                                  ? "Review settlement status"
+                                  : task.status === "COMPLETED"
+                                    ? "Review completed task"
+                                    : task.status === "CANCELLED" || task.status === "EXPIRED"
+                                      ? "View task history"
+                                      : "Continue task setup";
 
             let statusBadge = "bg-blue-50 text-blue-700";
             let statusLabel = "In Execution";
@@ -239,18 +265,21 @@ export default function TasksPage() {
                 statusLabel = "Clarification Needed";
                 break;
               case "CONTRACT_REVIEW":
-              case "AGREEMENT_READY":
                 statusBadge = "bg-amber-100 text-amber-800";
-                statusLabel = "Awaiting Sign-off";
+                statusLabel = "Scope needs approval";
                 break;
               case "APPROVED":
               case "PROVIDER_SEARCH":
                 statusBadge = "bg-indigo-50 text-indigo-700";
-                statusLabel = "Matching Specialist";
+                statusLabel = "Choose a professional";
                 break;
               case "NEGOTIATION":
                 statusBadge = "bg-indigo-50 text-indigo-700";
-                statusLabel = "Negotiating Terms";
+                statusLabel = "Contact discussion";
+                break;
+              case "AGREEMENT_READY":
+                statusBadge = "bg-amber-50 text-amber-700";
+                statusLabel = "Terms ready for payment simulation";
                 break;
               case "PAYMENT_AUTHORIZATION":
                 statusBadge = "bg-amber-50 text-amber-700";
@@ -313,13 +342,16 @@ export default function TasksPage() {
                   <p className="text-xs text-[var(--text-muted)] line-clamp-1 max-w-2xl">
                     {task.rawRequest}
                   </p>
+                  <p className="pt-1 text-xs font-medium text-[var(--wp-text-secondary)]">
+                    Next: {nextAction}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-6 sm:border-l sm:border-[var(--border-subtle)] sm:pl-6 shrink-0">
                   <div className="text-right">
                     <div className="text-base font-bold text-[var(--charcoal)]">{moneyStr}</div>
                     <div className="text-[11px] text-[var(--text-muted)]">
-                      {isCompleted ? "Simulation completed" : "Agreed budget"}
+                      {isCompleted ? "Task budget ceiling" : "Buyer budget ceiling"}
                     </div>
                   </div>
 

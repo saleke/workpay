@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight } from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { getTaskReviewerRecommendations } from "@/lib/api/endpoints";
@@ -59,10 +60,25 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
       </header>
 
       {!taskId ? (
-        <Card>
-          <CardContent className="py-8 text-sm text-muted-foreground">
-            Open reviewer discovery from a task workspace to match reviewers against its approved
-            contract criteria.
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-base">Start with a task</CardTitle>
+            <CardDescription>
+              Reviewer suggestions are matched to an approved task scope. Choose a task first so the
+              review criteria and evidence can be shown in context.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 border-t bg-muted/20 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-xl text-sm text-muted-foreground">
+              Opening a task will not contact or engage a reviewer. You choose whether to proceed.
+            </p>
+            <Link
+              href="/tasks"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--charcoal)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black"
+            >
+              Choose a task
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </CardContent>
         </Card>
       ) : (

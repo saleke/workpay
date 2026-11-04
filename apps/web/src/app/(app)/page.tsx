@@ -100,11 +100,11 @@ export default function HomeDashboardPage() {
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
             {activeTasks.length === 0
-              ? "All active work agreements are settled. Ready for your next objective."
+              ? "No active tasks right now. Start with the outcome you want to achieve."
               : `${activeTasks.length} active task${activeTasks.length === 1 ? "" : "s"} in flight. ${
                   attentionTasks.length > 0
                     ? `${attentionTasks.length} require${attentionTasks.length === 1 ? "s" : ""} your review.`
-                    : "All milestones running smoothly."
+                    : "Open a task to see its current stage and next action."
                 }`}
           </p>
         </div>
@@ -150,14 +150,15 @@ export default function HomeDashboardPage() {
 
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Active Commitments</span>
+            <span>Active tasks</span>
             <Clock className="h-4 w-4 text-[var(--blue)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {commitments.activeCount}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Tasks currently in planning, provider matching, execution, or verification.
+            Tasks in setup, professional selection, discussion, delivery, or review. A task is not a
+            work commitment until exact terms are accepted.
           </p>
         </div>
       </div>

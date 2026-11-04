@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
@@ -25,6 +25,13 @@ interface FirstContactDraft {
   buyerNote: string;
 }
 
+interface ConversationLifecycleSummary {
+  pending: number;
+  open: number;
+  declined: number;
+  withdrawn: number;
+}
+
 export function TaskConversationsPanel({
   taskId,
   buyerUserId,
@@ -32,6 +39,7 @@ export function TaskConversationsPanel({
   selection,
   onSelectionChanged,
   onTaskChanged,
+  onLifecycleChange,
 }: {
   taskId: string;
   buyerUserId: string;
@@ -39,6 +47,7 @@ export function TaskConversationsPanel({
   selection: ProviderSelectionDto | null;
   onSelectionChanged?: () => void;
   onTaskChanged?: () => void;
+  onLifecycleChange?: (summary: ConversationLifecycleSummary) => void;
 }) {
   const [conversations, setConversations] = useState<TaskConversationDto[]>([]);
   const [providerId, setProviderId] = useState("");
@@ -54,6 +63,7 @@ export function TaskConversationsPanel({
   const [discovering, setDiscovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const scrolledConversationRef = useRef<string | null>(null);
 
   const candidates = [
     ...(selection?.provider ? [selection.provider] : []),
@@ -70,6 +80,21 @@ export function TaskConversationsPanel({
       return leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
     });
   const selectedCandidate = candidates.find((candidate) => candidate.providerId === providerId);
+  const activeProviderIds = new Set(
+    conversations
+      .filter(
+        (conversation) =>
+          conversation.status === "CONTACT_PENDING" || conversation.status === "OPEN",
+      )
+      .map((conversation) => conversation.providerId),
+  );
+  const lifecycleSummary: ConversationLifecycleSummary = {
+    pending: conversations.filter((conversation) => conversation.status === "CONTACT_PENDING")
+      .length,
+    open: conversations.filter((conversation) => conversation.status === "OPEN").length,
+    declined: conversations.filter((conversation) => conversation.status === "DECLINED").length,
+    withdrawn: conversations.filter((conversation) => conversation.status === "WITHDRAWN").length,
+  };
   const selectedDraft = draftsByProvider[providerId] ?? {
     message: "",
     tone: "warm" as const,
@@ -117,11 +142,34 @@ export function TaskConversationsPanel({
   }, [taskId]);
 
   useEffect(() => {
+    if (loading || conversations.length === 0) return;
+    const conversationId = new URLSearchParams(window.location.search).get("conversation");
+    if (!conversationId || scrolledConversationRef.current === conversationId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(`conversation-${conversationId}`);
+      if (!target || target.offsetParent === null) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrolledConversationRef.current = conversationId;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [conversations, loading]);
+
+  useEffect(() => {
     setProviderId("");
     setDraftsByProvider({});
     setContactApproval(null);
     setDraftError(null);
   }, [taskId]);
+
+  useEffect(() => {
+    onLifecycleChange?.(lifecycleSummary);
+  }, [
+    lifecycleSummary.pending,
+    lifecycleSummary.open,
+    lifecycleSummary.declined,
+    lifecycleSummary.withdrawn,
+    onLifecycleChange,
+  ]);
 
   const beginContact = async () => {
     if (!contract || !selectedCandidate || !initialMessage.trim()) return;
@@ -207,17 +255,30 @@ export function TaskConversationsPanel({
             whether to reach out; WorkPay does not endorse or contact anyone on your behalf.
           </p>
         </div>
-        {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
-          <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
-            {candidates.length} {candidates.length === 1 ? "profile" : "profiles"} to review
-          </span>
-        ) : null}
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {lifecycleSummary.pending > 0 ? (
+            <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+              {lifecycleSummary.pending} awaiting response
+            </span>
+          ) : null}
+          {lifecycleSummary.open > 0 ? (
+            <span className="inline-flex w-fit items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-900">
+              {lifecycleSummary.open} discussion{lifecycleSummary.open === 1 ? "" : "s"} open
+            </span>
+          ) : null}
+          {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
+            <span className="inline-flex w-fit items-center rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
+              {candidates.length} available
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {conversations.map((conversation) => (
         <div
           key={conversation.id}
-          className="space-y-3 border-t border-[var(--border-subtle)] pt-4"
+          id={`conversation-${conversation.id}`}
+          className="scroll-mt-24 space-y-3 border-t border-[var(--border-subtle)] pt-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-medium">{candidateName(candidates, conversation.providerId)}</h3>
@@ -225,10 +286,14 @@ export function TaskConversationsPanel({
               {conversation.status === "CONTACT_PENDING"
                 ? "Waiting for professional"
                 : conversation.status === "OPEN"
-                  ? "Conversation open"
+                  ? conversation.hasWorkExecution
+                    ? "Assignment created"
+                    : "Discussion open · not committed"
                   : conversation.status === "DECLINED"
                     ? "Contact declined"
-                    : "Closed"}
+                    : conversation.status === "WITHDRAWN"
+                      ? "Professional withdrew"
+                      : "Closed"}
             </span>
           </div>
           <ConversationThread
@@ -242,15 +307,28 @@ export function TaskConversationsPanel({
         </div>
       ))}
 
+      {conversations.some(
+        (conversation) => conversation.status === "DECLINED" || conversation.status === "WITHDRAWN",
+      ) ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          A professional is no longer available for at least one conversation. Your approved scope
+          remains unchanged; you can contact another available profile. No work commitment was made.
+        </p>
+      ) : null}
+
       {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
         <div className="space-y-5 border-t border-[var(--wp-border)] pt-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold tracking-tight text-[var(--charcoal)]">
-                Available professional profiles
+                {lifecycleSummary.pending > 0 || lifecycleSummary.open > 0
+                  ? "Other available professionals"
+                  : "Available professionals"}
               </h3>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Select a profile to review the agreement and prepare a contact request.
+                {lifecycleSummary.pending > 0 || lifecycleSummary.open > 0
+                  ? "Your existing requests and discussions are listed above. You can contact another available person without changing the approved scope."
+                  : "Compare profiles, then choose who you want to contact."}
               </p>
             </div>
             <span className="rounded-lg border border-[var(--wp-border)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--wp-text-secondary)]">
@@ -301,6 +379,15 @@ export function TaskConversationsPanel({
                       ) : null}
                     </span>
                   ) : null}
+                  {activeProviderIds.has(candidate.providerId) ? (
+                    <span className="mt-2 block text-xs font-medium text-[var(--wp-accent)]">
+                      {conversations.find(
+                        (conversation) => conversation.providerId === candidate.providerId,
+                      )?.status === "CONTACT_PENDING"
+                        ? "Request already sent"
+                        : "Discussion already open"}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex shrink-0 flex-col items-center gap-1">
                   <input
@@ -308,6 +395,7 @@ export function TaskConversationsPanel({
                     name={`professional-${taskId}`}
                     value={candidate.providerId}
                     checked={providerId === candidate.providerId}
+                    disabled={activeProviderIds.has(candidate.providerId)}
                     onChange={() => {
                       setProviderId(candidate.providerId);
                       setContactApproval(null);
@@ -348,9 +436,12 @@ export function TaskConversationsPanel({
                   </dd>
                 </div>
                 <div className="rounded-xl border border-[var(--wp-border)] bg-white p-3">
-                  <dt className="text-xs text-[var(--text-muted)]">Agreed budget</dt>
+                  <dt className="text-xs text-[var(--text-muted)]">Buyer budget ceiling</dt>
                   <dd className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
                     {contract.currency} {formatAmount(contract.budgetMinor)}
+                  </dd>
+                  <dd className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
+                    Approved maximum, not a price accepted by the professional.
                   </dd>
                 </div>
               </dl>

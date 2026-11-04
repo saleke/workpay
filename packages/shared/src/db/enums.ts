@@ -79,6 +79,7 @@ export const taskConversationStatusEnum = pgEnum("task_conversation_status", [
   "CONTACT_PENDING",
   "OPEN",
   "DECLINED",
+  "WITHDRAWN",
   "CLOSED",
 ]);
 

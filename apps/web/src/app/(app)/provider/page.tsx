@@ -69,6 +69,15 @@ export default function ProviderPortalPage() {
   if (works.length === 0) {
     return (
       <div className="space-y-8 py-8">
+        <header className="border-b border-[var(--border-subtle)] pb-5">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--charcoal)] sm:text-3xl">
+            Work Studio
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-[var(--text-muted)]">
+            Review buyer contact requests first. A discussion is not a work commitment; confirmed
+            assignments appear here when you accept the exact terms.
+          </p>
+        </header>
         <ProviderConversationInbox />
         <div className="py-12 text-center max-w-md mx-auto">
           <Briefcase className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
@@ -76,7 +85,8 @@ export default function ProviderPortalPage() {
             No active work assignments
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1.5">
-            New work appears here after an agreement is accepted and payment is ready.
+            No accepted assignment is active. If you have an open discussion, continue it above;
+            work begins only after an exact assignment is accepted.
           </p>
         </div>
       </div>
@@ -88,11 +98,11 @@ export default function ProviderPortalPage() {
       {/* 1. Header */}
       <div className="border-b border-[var(--border-subtle)] pb-5">
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-          Specialist Work Studio
+          Work Studio
         </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Review assignments, deliver verifiable outputs, inspect cryptographic criteria proofs, and
-          track settlement.
+          Review contact requests, manage accepted assignments, submit work, and follow the agreed
+          review process.
         </p>
       </div>
 

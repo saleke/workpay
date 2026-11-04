@@ -213,6 +213,42 @@ export function ConversationThread({
           Contact request sent. Messaging opens after the professional accepts.
         </p>
       ) : null}
+      {conversation.status === "OPEN" && conversation.hasWorkExecution ? (
+        <p
+          className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
+          role="status"
+        >
+          A work assignment exists. {currentUserId === conversation.providerUserId
+            ? "You become committed only after accepting the exact assigned contract."
+            : "The professional must still explicitly accept the exact assigned contract before work starts."}
+        </p>
+      ) : null}
+      {conversation.status === "OPEN" && !conversation.hasWorkExecution ? (
+        <p
+          className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
+          role="status"
+        >
+          This is a non-binding discussion, not a work commitment. Work starts only after the buyer
+          authorizes the agreed amount and the professional accepts the exact assignment.
+        </p>
+      ) : null}
+      {conversation.status === "DECLINED" ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          The professional declined this contact request. The approved scope remains unchanged; you
+          can review other profiles below.
+        </p>
+      ) : null}
+      {conversation.status === "WITHDRAWN" ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          The professional withdrew before a work assignment was created. No work commitment was
+          made; you can review other profiles below.
+        </p>
+      ) : null}
+      {conversation.status === "CLOSED" ? (
+        <p className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
+          This conversation is closed. Its messages remain available for your records.
+        </p>
+      ) : null}
       <ol
         className="max-h-96 space-y-3 overflow-y-auto rounded-lg border border-border p-3"
         aria-live="polite"
@@ -265,9 +301,15 @@ export function ConversationThread({
           <div>
             <h3 className="font-medium">Proposed agreement changes</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Discuss freely in chat. A change only becomes active after both of you agree and
+              Chat is for discussion. A change becomes active only after both of you agree and
               WorkPay completes the required contract and PayPal steps.
             </p>
+            {!conversation.currentContractSnapshot.agreedPrice ? (
+              <p className="mt-2 text-sm text-amber-800" role="status">
+                No agreed price is recorded for this professional. Before authorizing payment, both
+                participants must agree to a proposed price and activate the updated terms.
+              </p>
+            ) : null}
           </div>
           {changeRequests.map((request) => (
             <article key={request.id} className="space-y-3 rounded-lg border border-border p-3">

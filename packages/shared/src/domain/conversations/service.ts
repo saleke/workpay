@@ -8,6 +8,7 @@ import {
   acceptanceRules,
 } from "../../db/schema/contracts.js";
 import { commercialAgreements } from "../../db/schema/negotiation.js";
+import { workExecutions } from "../../db/schema/execution.js";
 import { availability, providers, providerSelections } from "../../db/schema/providers.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
@@ -36,6 +37,52 @@ export interface ConversationContractSnapshot {
   deadline: string | null;
 }
 
+export type ConversationWithMessages = typeof taskConversations.$inferSelect & {
+  hasWorkExecution: boolean;
+  messages: Array<typeof taskConversationMessages.$inferSelect>;
+};
+
+async function hydrateConversationRows<T extends typeof taskConversations.$inferSelect>(
+  db: Database,
+  conversations: T[],
+): Promise<Array<T & { hasWorkExecution: boolean }>> {
+  if (conversations.length === 0) return [];
+  const taskIds = [...new Set(conversations.map((conversation) => conversation.taskId))];
+  const [executions, agreements] = await Promise.all([
+    db
+      .select({ taskId: workExecutions.taskId })
+      .from(workExecutions)
+      .where(inArray(workExecutions.taskId, taskIds)),
+    db
+      .select({
+        taskId: commercialAgreements.taskId,
+        providerId: commercialAgreements.providerId,
+      })
+      .from(commercialAgreements)
+      .where(inArray(commercialAgreements.taskId, taskIds)),
+  ]);
+  const tasksWithExecutions = new Set(executions.map((execution) => execution.taskId));
+  const agreementProviderByTask = new Map(
+    agreements.map((agreement) => [agreement.taskId, agreement.providerId]),
+  );
+  return conversations.map((conversation) => {
+    const agreementProviderId = agreementProviderByTask.get(conversation.taskId);
+    const hasWorkExecution = tasksWithExecutions.has(conversation.taskId);
+    if (agreementProviderId === conversation.providerId) {
+      return { ...conversation, hasWorkExecution };
+    }
+    const contractSnapshot = conversation.contractSnapshot as ConversationContractSnapshot;
+    const currentContractSnapshot =
+      conversation.currentContractSnapshot as ConversationContractSnapshot;
+    return {
+      ...conversation,
+      contractSnapshot: { ...contractSnapshot, agreedPrice: null },
+      currentContractSnapshot: { ...currentContractSnapshot, agreedPrice: null },
+      hasWorkExecution,
+    };
+  });
+}
+
 async function loadSelectedContract(
   db: Database,
   taskId: string,
@@ -43,6 +90,7 @@ async function loadSelectedContract(
   task: typeof tasks.$inferSelect;
   contract: typeof workContracts.$inferSelect;
   snapshot: ConversationContractSnapshot;
+  agreementProviderId: string | null;
 }> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) throw notFound("Task");
@@ -100,6 +148,7 @@ async function loadSelectedContract(
         : null,
       deadline: contract.deadline?.toISOString() ?? null,
     },
+    agreementProviderId: agreement[0]?.providerId ?? null,
   };
 }
 
@@ -113,7 +162,10 @@ export async function getFirstContactContext(
     expectedContractHash: string;
   },
 ) {
-  const { task, contract, snapshot } = await loadSelectedContract(db, input.taskId);
+  const { task, contract, snapshot, agreementProviderId } = await loadSelectedContract(
+    db,
+    input.taskId,
+  );
   if (task.userId !== input.buyerUserId) throw notFound("Task");
   if (
     contract.version !== input.expectedContractVersion ||
@@ -166,6 +218,8 @@ export async function getFirstContactContext(
     throw conflict("This professional is no longer available to receive contact.");
   }
   const providerUserId = provider.userId;
+  const providerContractSnapshot =
+    agreementProviderId === provider.id ? snapshot : { ...snapshot, agreedPrice: null };
 
   const [existing] = await db
     .select({ id: taskConversations.id })
@@ -195,7 +249,7 @@ export async function getFirstContactContext(
   return {
     task,
     contract,
-    snapshot,
+    snapshot: providerContractSnapshot,
     provider,
     providerUserId,
     professional: {
@@ -318,6 +372,104 @@ export async function respondToTaskConversation(
   return updated;
 }
 
+export async function withdrawTaskConversation(
+  tx: Database,
+  input: {
+    conversationId: string;
+    providerUserId: string;
+    note?: string;
+    actor: Actor;
+    correlationId: string;
+  },
+) {
+  const [initialConversation] = await tx
+    .select()
+    .from(taskConversations)
+    .where(eq(taskConversations.id, input.conversationId))
+    .limit(1);
+  if (!initialConversation) throw notFound("Conversation");
+  if (initialConversation.providerUserId !== input.providerUserId) throw notFound("Conversation");
+
+  const [task] = await tx
+    .select({ id: tasks.id, userId: tasks.userId })
+    .from(tasks)
+    .where(eq(tasks.id, initialConversation.taskId))
+    .for("update")
+    .limit(1);
+  if (!task) throw notFound("Task");
+
+  const [conversation] = await tx
+    .select()
+    .from(taskConversations)
+    .where(eq(taskConversations.id, initialConversation.id))
+    .for("update")
+    .limit(1);
+  if (!conversation || conversation.providerUserId !== input.providerUserId) {
+    throw notFound("Conversation");
+  }
+  if (conversation.status !== "OPEN") {
+    throw conflict("Only an open discussion can be withdrawn.");
+  }
+
+  const [execution] = await tx
+    .select({ id: workExecutions.id })
+    .from(workExecutions)
+    .where(eq(workExecutions.taskId, task.id))
+    .limit(1);
+  if (execution) {
+    throw conflict(
+      "A work assignment already exists. Contact the buyer in the conversation; this discussion cannot be withdrawn as a substitute for handling an assignment.",
+    );
+  }
+
+  const now = new Date();
+  const note = input.note?.trim();
+  const body = [
+    "I’m no longer available to continue this discussion.",
+    note,
+    "No work commitment was made through this conversation. Please choose another professional if you still need help.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const [updated] = await tx
+    .update(taskConversations)
+    .set({
+      status: "WITHDRAWN",
+      closedAt: now,
+      updatedAt: now,
+      messageCounter: sql`${taskConversations.messageCounter} + 1`,
+    })
+    .where(and(eq(taskConversations.id, conversation.id), eq(taskConversations.status, "OPEN")))
+    .returning({
+      status: taskConversations.status,
+      messageCounter: taskConversations.messageCounter,
+    });
+  if (!updated) throw conflict("This discussion was updated concurrently.");
+
+  await tx.insert(taskConversationMessages).values({
+    id: newId("msg"),
+    conversationId: conversation.id,
+    sequence: updated.messageCounter,
+    clientMessageId: newId("cmsg"),
+    authorUserId: input.providerUserId,
+    body,
+    createdAt: now,
+  });
+  await appendEvent(tx, {
+    type: "TASK_CONVERSATION_WITHDRAWN",
+    aggregateId: task.id,
+    taskId: task.id,
+    actor: toEventActor(input.actor),
+    correlationId: input.correlationId,
+    payload: {
+      taskId: task.id,
+      conversationId: conversation.id,
+      buyerUserId: task.userId,
+    },
+  });
+  return updated;
+}
+
 export async function sendTaskMessage(
   tx: Database,
   input: {
@@ -420,7 +572,7 @@ export async function listTaskConversations(
       and(eq(taskConversations.taskId, task.id), eq(taskConversations.buyerUserId, input.userId)),
     )
     .orderBy(desc(taskConversations.createdAt));
-  return Promise.all(
+  const conversations = await Promise.all(
     rows.map(async (conversation) => {
       const messages = await db
         .select()
@@ -438,20 +590,17 @@ export async function listTaskConversations(
       return { ...conversation, contractSnapshot: conversation.contractSnapshot, messages };
     }),
   );
+  return hydrateConversationRows(db, conversations);
 }
 
 export async function listProviderConversations(db: Database, providerUserId: string) {
-  return db
+  const conversations = await db
     .select()
     .from(taskConversations)
-    .where(
-      and(
-        eq(taskConversations.providerUserId, providerUserId),
-        inArray(taskConversations.status, ["CONTACT_PENDING", "OPEN"]),
-      ),
-    )
+    .where(eq(taskConversations.providerUserId, providerUserId))
     .orderBy(desc(taskConversations.updatedAt))
     .limit(50);
+  return hydrateConversationRows(db, conversations);
 }
 
 export async function getConversationForParticipant(
@@ -482,5 +631,6 @@ export async function getConversationForParticipant(
     )
     .orderBy(asc(taskConversationMessages.sequence))
     .limit(100);
-  return { ...conversation, messages };
+  const [hydratedConversation] = await hydrateConversationRows(db, [conversation]);
+  return { ...hydratedConversation, messages };
 }

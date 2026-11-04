@@ -596,8 +596,9 @@ export interface TaskConversationDto {
   providerId: string;
   providerUserId: string;
   providerDisplayName?: string;
-  status: "CONTACT_PENDING" | "OPEN" | "DECLINED" | "CLOSED";
-  contactApprovedAt: string;
+  status: "CONTACT_PENDING" | "OPEN" | "DECLINED" | "WITHDRAWN" | "CLOSED";
+  hasWorkExecution?: boolean;
+  contactApprovedAt: string | null;
   contactApprovedContractVersion: number;
   contactApprovedContractHash: string;
   currentContractVersion: number;
@@ -605,8 +606,8 @@ export interface TaskConversationDto {
   currentContractSnapshot: ConversationContractSnapshotDto;
   contractSnapshot: ConversationContractSnapshotDto;
   providerRespondedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
   messages: TaskConversationMessageDto[];
 }
 

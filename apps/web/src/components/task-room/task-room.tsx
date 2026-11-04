@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -58,6 +58,28 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const [activeTab, setActiveTab] = useState<
     "contract" | "execution" | "verification" | "payment" | "activity" | null
   >(null);
+  const [conversationLifecycle, setConversationLifecycle] = useState({
+    taskId,
+    pending: 0,
+    open: 0,
+    declined: 0,
+    withdrawn: 0,
+  });
+  const updateConversationLifecycle = useCallback(
+    (summary: { pending: number; open: number; declined: number; withdrawn: number }) => {
+      setConversationLifecycle({ taskId, ...summary });
+    },
+    [taskId],
+  );
+  const lifecycle =
+    conversationLifecycle.taskId === taskId
+      ? conversationLifecycle
+      : { taskId, pending: 0, open: 0, declined: 0, withdrawn: 0 };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("section") === "execution") setActiveTab("execution");
+  }, [taskId]);
 
   const [signing, setSigning] = useState(false);
   const [editingRequirements, setEditingRequirements] = useState(false);
@@ -226,7 +248,10 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const { task, activeContract, workSpecification, providerSelection, execution } = room.data;
   const currentTab = activeTab ?? (activeContract?.status === "ACTIVE" ? "execution" : "contract");
   const isPaymentCaptured = payment.data?.status === "CAPTURED";
-  const moneyAmount = formatMinorMoney({ amountMinor: task.budgetMinor, currency: task.currency });
+  const moneyAmount = formatMinorMoney({
+    amountMinor: activeContract?.budgetMinor ?? task.budgetMinor,
+    currency: activeContract?.currency ?? task.currency,
+  });
 
   const isDraftOrAwaiting =
     task.status === "DRAFT" ||
@@ -265,6 +290,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
     statusText = "Review in progress";
+  } else if (
+    (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") &&
+    lifecycle.pending > 0
+  ) {
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
+    statusText = `Awaiting ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`;
+  } else if (
+    (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") &&
+    lifecycle.open > 0
+  ) {
+    statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
+    statusText = "Discussion open · not committed";
   } else if (task.status === "AGREEMENT_READY") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Ready for payment test";
@@ -296,27 +333,35 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       ? "Review and approve the scope"
       : task.status === "HUMAN_REVIEW"
         ? "Choose an independent reviewer"
-        : task.status === "AGREEMENT_READY"
-          ? "Run the payment test"
-          : task.status === "PROVIDER_SEARCH"
-            ? "Review professional profiles"
-            : task.status === "NEGOTIATION"
-              ? "Continue your conversation"
-              : task.status === "WORK_IN_PROGRESS"
-                ? "Work is in progress"
-                : task.status === "SUBMITTED" || task.status === "VERIFYING"
-                  ? "Deliverables are being verified"
-                  : task.status === "REVISION_REQUIRED"
-                    ? "A revision has been requested"
-                    : task.status === "PAYMENT_RELEASE"
-                      ? "Review payment status"
-                      : task.status === "COMPLETED"
-                        ? "Task is complete"
-                        : task.status === "CANCELLED"
-                          ? "Task cancelled"
-                          : task.status === "EXPIRED"
-                            ? "Task expired"
-                            : "Review task details";
+        : task.status === "REVISION_REQUIRED"
+          ? "Review the requested revision"
+          : task.status === "SUBMITTED" || task.status === "VERIFYING"
+            ? "Deliverables are being reviewed"
+            : task.status === "PAYMENT_RELEASE"
+              ? "Review payment status"
+              : task.status === "COMPLETED"
+                ? "Task is complete"
+                : task.status === "CANCELLED"
+                  ? "Task cancelled"
+                  : task.status === "EXPIRED"
+                    ? "Task expired"
+                    : !execution && lifecycle.pending > 0
+                      ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
+                      : !execution && lifecycle.open > 0
+                        ? "Continue the discussion; work is not committed"
+                        : execution?.status === "ASSIGNED"
+                          ? "Review the assignment and accept to begin"
+                          : execution?.status === "ACCEPTED" || execution?.status === "IN_PROGRESS"
+                            ? "Work is in progress"
+                            : task.status === "AGREEMENT_READY"
+                              ? "Run the payment simulation"
+                              : task.status === "PROVIDER_SEARCH"
+                                ? profileCount > 0
+                                  ? "Choose a professional to contact"
+                                  : "Finding available professionals"
+                                : task.status === "NEGOTIATION"
+                                  ? "Continue your contact discussion"
+                                  : "Review task details";
 
   const workspaceSections = [
     {
@@ -332,23 +377,33 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       title: "Professional",
       description: "Profiles and conversations",
       status:
-        profileCount > 0
-          ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} to review`
-          : "No profiles yet",
+        lifecycle.pending > 0
+          ? `${lifecycle.pending} awaiting response`
+          : lifecycle.open > 0
+            ? `${lifecycle.open} non-binding discussion${lifecycle.open === 1 ? "" : "s"}`
+            : profileCount > 0
+              ? `${profileCount} available`
+              : "No profiles yet",
     },
     {
       id: "verification" as const,
       icon: CheckSquare,
-      title: "Work & review",
+      title: "Assignment & delivery",
       description: "Deliverables and agreed checks",
       status:
-        task.status === "HUMAN_REVIEW"
-          ? "Independent review needed"
-          : verification.data?.outcome === "PASS"
-            ? "Checks passed"
-            : verification.data?.outcome === "FAIL"
-              ? "Checks need attention"
-              : `${requirements.length} ${requirements.length === 1 ? "check" : "checks"}`,
+        execution?.status === "ASSIGNED"
+          ? "Awaiting professional acceptance"
+          : execution?.status === "ACCEPTED"
+            ? "Accepted · ready to start"
+            : execution?.status === "IN_PROGRESS"
+              ? "Work in progress"
+              : task.status === "HUMAN_REVIEW"
+                ? "Independent review needed"
+                : verification.data?.outcome === "PASS"
+                  ? "Checks passed"
+                  : verification.data?.outcome === "FAIL"
+                    ? "Checks need attention"
+                    : `${requirements.length} ${requirements.length === 1 ? "check" : "checks"}`,
     },
     {
       id: "payment" as const,
@@ -465,11 +520,45 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 <AlertTriangle className="h-4 w-4" />
                 Browse reviewers
               </Link>
+            ) : !execution && (lifecycle.pending > 0 || lifecycle.open > 0) ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  {lifecycle.pending > 0
+                    ? "Your contact request is waiting for a professional. Follow the response in your conversation."
+                    : "A professional accepted your request to discuss. Work starts only after exact terms and an assignment are accepted."}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab("execution")}
+                  className="mt-4 w-full"
+                >
+                  {lifecycle.pending > 0 ? "View contact requests" : "Open discussion"}
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </>
+            ) : !execution &&
+              profileCount > 0 &&
+              (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Compare profiles and choose who to contact. Your approved scope stays unchanged.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab("execution")}
+                  className="mt-4 w-full"
+                >
+                  Review professionals
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </>
             ) : task.status === "AGREEMENT_READY" ? (
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Record a payment-policy simulation to continue. No funds move, and you still
-                  choose whom to contact.
+                  This records a payment-policy simulation only. It does not charge, hold, or pay
+                  funds.
                 </p>
                 <Button
                   type="button"
@@ -535,12 +624,22 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             <Users className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
           </div>
           <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {profileCount > 0 ? "Profiles to review" : "Choose a professional"}
+            {lifecycle.pending > 0
+              ? "Waiting for responses"
+              : lifecycle.open > 0
+                ? "Discussion open"
+                : profileCount > 0
+                  ? "Choose a professional"
+                  : "Finding professionals"}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-            {profileCount > 0
-              ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} available`
-              : "No professional has been selected"}
+            {lifecycle.pending > 0
+              ? `${lifecycle.pending} awaiting response · ${profileCount} other profiles available`
+              : lifecycle.open > 0
+                ? `${lifecycle.open} non-binding discussion${lifecycle.open === 1 ? "" : "s"} · ${profileCount} profiles available`
+                : profileCount > 0
+                  ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} available`
+                  : "No professional has been selected"}
           </p>
         </div>
 
@@ -548,26 +647,32 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
               <span className="mr-2 font-mono text-[var(--wp-text-muted)]">03</span>
-              Work & review
+              Assignment & delivery
             </p>
             <CheckSquare className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
           </div>
           <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {task.status === "HUMAN_REVIEW"
-              ? "Independent review needed"
-              : task.status === "REVISION_REQUIRED"
-                ? "Revision requested"
-                : task.status === "SUBMITTED" || task.status === "VERIFYING"
-                  ? "Review in progress"
-                  : task.status === "PAYMENT_RELEASE"
-                    ? "Payment review"
-                    : verification.data?.outcome === "PASS"
-                      ? "Checks passed"
-                      : verification.data?.outcome === "FAIL"
-                        ? "Checks need attention"
-                        : execution?.status === "COMPLETED"
-                          ? "Work submitted"
-                          : "Awaiting work"}
+            {execution?.status === "ASSIGNED"
+              ? "Awaiting professional acceptance"
+              : execution?.status === "ACCEPTED"
+                ? "Accepted · ready to start"
+                : execution?.status === "IN_PROGRESS"
+                  ? "Work in progress"
+                  : task.status === "HUMAN_REVIEW"
+                    ? "Independent review needed"
+                    : task.status === "REVISION_REQUIRED"
+                      ? "Revision requested"
+                      : task.status === "SUBMITTED" || task.status === "VERIFYING"
+                        ? "Review in progress"
+                        : task.status === "PAYMENT_RELEASE"
+                          ? "Payment review"
+                          : verification.data?.outcome === "PASS"
+                            ? "Checks passed"
+                            : verification.data?.outcome === "FAIL"
+                              ? "Checks need attention"
+                              : execution?.status === "COMPLETED"
+                                ? "Work submitted"
+                                : "Awaiting work"}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
             {requirements.length} agreed {requirements.length === 1 ? "check" : "checks"}
@@ -718,6 +823,36 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                         {activeContract.summary}
                       </p>
                     ) : null}
+                    {activeContract ? (
+                      <dl className="mb-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-3.5">
+                          <dt className="text-xs font-medium text-[var(--text-muted)]">
+                            Buyer budget ceiling
+                          </dt>
+                          <dd className="mt-1 text-base font-semibold text-[var(--charcoal)]">
+                            {formatMinorMoney({
+                              amountMinor: activeContract.budgetMinor,
+                              currency: activeContract.currency,
+                            })}
+                          </dd>
+                          <dd className="mt-1 text-xs text-[var(--text-muted)]">
+                            Approved maximum; not yet a professional-accepted price.
+                          </dd>
+                        </div>
+                        <div className="rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-3.5">
+                          <dt className="text-xs font-medium text-[var(--text-muted)]">
+                            Target delivery
+                          </dt>
+                          <dd className="mt-1 text-base font-semibold text-[var(--charcoal)]">
+                            {activeContract.deadline
+                              ? new Date(activeContract.deadline).toLocaleDateString(undefined, {
+                                  dateStyle: "medium",
+                                })
+                              : "Not specified"}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : null}
                     <p className="mb-3 text-sm text-[var(--text-muted)]">
                       The following checks describe how the work will be reviewed:
                     </p>
@@ -812,6 +947,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                 selection={providerSelection}
                 onSelectionChanged={() => room.reload()}
                 onTaskChanged={refresh}
+                onLifecycleChange={updateConversationLifecycle}
               />
             </div>
 
@@ -919,7 +1055,34 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             )}
 
             {/* Payment status and simulation details */}
-            {currentTab === "payment" && <PaymentPanel payment={payment.data ?? null} />}
+            {currentTab === "payment" && (
+              <div className="space-y-3">
+                <PaymentPanel payment={payment.data ?? null} />
+                {!payment.loading && !payment.data ? (
+                  <div className="rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4">
+                    <p className="text-sm font-semibold text-[var(--charcoal)]">
+                      What happens next?
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
+                      {task.status === "AGREEMENT_READY"
+                        ? "The agreed terms are ready for a payment-policy simulation. Use the Next step action above to record this test; no real funds move."
+                        : "Payment activity follows an agreed work arrangement. Contact and discussion alone do not authorize a payment or commit either party."}
+                    </p>
+                    {!execution && task.status !== "AGREEMENT_READY" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setActiveTab("execution")}
+                        className="mt-3"
+                      >
+                        Return to professional discussions
+                        <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )}
 
             {/* Recorded task activity */}
             {currentTab === "activity" && (

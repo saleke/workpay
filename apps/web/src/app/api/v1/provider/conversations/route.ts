@@ -10,33 +10,40 @@ export async function GET(req: Request) {
     const actor = await requireProviderActor(req);
     const db = getDb();
     const conversations = await listProviderConversations(db, actor.id);
-    const data = await Promise.all(
-      conversations.map(async (conversation) => {
-        const [detail, provider] = await Promise.all([
-          getConversationForParticipant(db, {
-            conversationId: conversation.id,
-            userId: actor.id,
-          }),
-          db
-            .select({ displayName: providers.displayName })
-            .from(providers)
-            .where(eq(providers.id, conversation.providerId))
-            .limit(1),
-        ]);
-        return {
-          ...detail,
-          providerDisplayName: provider[0]?.displayName ?? "Professional",
-          contactApprovedAt: detail.contactApprovedAt.toISOString(),
-          providerRespondedAt: detail.providerRespondedAt?.toISOString() ?? null,
-          createdAt: detail.createdAt.toISOString(),
-          updatedAt: detail.updatedAt.toISOString(),
-          messages: detail.messages.map((message): TaskConversationDto["messages"][number] => ({
-            ...message,
-            createdAt: message.createdAt.toISOString(),
-          })),
-        };
-      }),
-    );
+    const data = (
+      await Promise.all(
+        conversations.map(async (conversation) => {
+          const [detail, provider] = await Promise.all([
+            getConversationForParticipant(db, {
+              conversationId: conversation.id,
+              userId: actor.id,
+            }),
+            db
+              .select({ displayName: providers.displayName })
+              .from(providers)
+              .where(eq(providers.id, conversation.providerId))
+              .limit(1),
+          ]);
+          if (!detail) {
+            return null;
+          }
+
+          return {
+            ...detail,
+            hasWorkExecution: conversation.hasWorkExecution,
+            providerDisplayName: provider[0]?.displayName ?? "Professional",
+            contactApprovedAt: detail.contactApprovedAt?.toISOString() ?? null,
+            providerRespondedAt: detail.providerRespondedAt?.toISOString() ?? null,
+            createdAt: detail.createdAt?.toISOString() ?? null,
+            updatedAt: detail.updatedAt?.toISOString() ?? null,
+            messages: detail.messages.map((message): TaskConversationDto["messages"][number] => ({
+              ...message,
+              createdAt: message.createdAt.toISOString(),
+            })),
+          };
+        }),
+      )
+    ).filter((item): item is NonNullable<typeof item> => item !== null);
     return jsonOk(data);
   } catch (error) {
     return jsonError(error);

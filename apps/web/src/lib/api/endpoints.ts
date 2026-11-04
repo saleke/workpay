@@ -176,6 +176,16 @@ export function respondToTaskConversation(
   });
 }
 
+export function withdrawTaskConversation(
+  conversationId: string,
+  note?: string,
+): Promise<ApiResponse<{ id: string; status: "WITHDRAWN" }>> {
+  return apiFetch(`${BASE}/provider/conversations/${conversationId}/withdraw`, {
+    method: "POST",
+    body: note ? { note } : {},
+  });
+}
+
 export function sendTaskConversationMessage(
   conversationId: string,
   input: { clientMessageId: string; body: string },

@@ -74,7 +74,11 @@ async function loadCurrentContract(tx: Database, conversationId: string) {
   return { conversation, contract };
 }
 
-async function readContractTerms(tx: Database, contract: typeof workContracts.$inferSelect) {
+async function readContractTerms(
+  tx: Database,
+  contract: typeof workContracts.$inferSelect,
+  providerId: string,
+) {
   const [requirements, scopes, rules, agreement] = await Promise.all([
     tx.select().from(contractRequirements).where(eq(contractRequirements.contractId, contract.id)),
     tx.select().from(scopeItems).where(eq(scopeItems.contractId, contract.id)),
@@ -106,7 +110,8 @@ async function readContractTerms(tx: Database, contract: typeof workContracts.$i
       ...(rule.instructions ? { instructions: rule.instructions } : {}),
     })),
     budget: { amountMinor: contract.budgetMinor, currency: contract.currency },
-    agreedPriceMinor: agreement[0]?.agreedPriceMinor ?? null,
+    agreedPriceMinor:
+      agreement[0]?.providerId === providerId ? (agreement[0]?.agreedPriceMinor ?? null) : null,
     deadline: contract.deadline?.toISOString() ?? null,
   } satisfies ContractChangeTerms;
 }
@@ -168,7 +173,7 @@ export async function createContractChangeRequest(
     throw conflict("Resolve the existing task change proposal before starting another.");
   }
 
-  const baseTerms = await readContractTerms(tx, contract);
+  const baseTerms = await readContractTerms(tx, contract, conversation.providerId);
   const proposed = applyContractChange(baseTerms, patch, conversation.taskId);
   const [payment] = await tx
     .select()
@@ -513,6 +518,27 @@ async function finalizeContractChangeRequest(
     .for("update")
     .limit(1);
   const targetPrice = terms.agreedPriceMinor;
+  const providerChanged = Boolean(agreement && agreement.providerId !== conversation.providerId);
+  const [execution] = await tx
+    .select()
+    .from(workExecutions)
+    .where(eq(workExecutions.taskId, task.id))
+    .for("update")
+    .limit(1);
+  if (providerChanged && execution) {
+    throw conflict(
+      "A work assignment already exists for another professional. It cannot be reassigned through a discussion; resolve the assignment before contacting someone else.",
+    );
+  }
+  if (
+    providerChanged &&
+    payment &&
+    !["PENDING", "FAILED", "VOIDED"].includes(payment.status)
+  ) {
+    throw conflict(
+      "Payment authorization has already started for another professional. The assignment cannot be switched through this discussion.",
+    );
+  }
   if ((agreement || payment) && targetPrice === null) {
     throw conflict("A change to a funded agreement must include its agreed price.");
   }
@@ -622,7 +648,7 @@ async function finalizeContractChangeRequest(
       contractId,
       contractVersion: nextVersion,
       contractHash: compiled.contractHash,
-      providerId: agreement.providerId,
+      providerId: conversation.providerId,
       agreedPriceMinor: targetPrice,
       currency: agreement.currency,
       deliveryDeadline: terms.deadline,
@@ -635,6 +661,8 @@ async function finalizeContractChangeRequest(
         contractVersion: nextVersion,
         agreedPriceMinor: targetPrice,
         currency: terms.budget.currency,
+        providerId: conversation.providerId,
+        sourceConversationId: conversation.id,
         deliveryDeadline: terms.deadline ? new Date(terms.deadline) : null,
         agreementHash,
         status: preAuthorizationState ? "PENDING_AUTHORIZATION" : agreement.status,
@@ -647,6 +675,8 @@ async function finalizeContractChangeRequest(
       contractVersion: nextVersion,
       agreedPriceMinor: targetPrice,
       currency: terms.budget.currency,
+      providerId: conversation.providerId,
+      sourceConversationId: conversation.id,
       deliveryDeadline: terms.deadline ? new Date(terms.deadline) : null,
       agreementHash,
       status: preAuthorizationState ? "PENDING_AUTHORIZATION" : agreement.status,
@@ -708,12 +738,6 @@ async function finalizeContractChangeRequest(
       .where(eq(payments.id, payment.id));
   }
 
-  const [execution] = await tx
-    .select()
-    .from(workExecutions)
-    .where(eq(workExecutions.taskId, task.id))
-    .for("update")
-    .limit(1);
   if (execution) {
     await tx
       .update(workExecutions)

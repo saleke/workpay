@@ -89,6 +89,18 @@ export const eventCatalog = {
     description: "Professional declined the conversation",
     payload: z.object({ taskId: z.string(), conversationId: z.string() }),
   },
+  TASK_CONVERSATION_WITHDRAWN: {
+    type: "TASK_CONVERSATION_WITHDRAWN",
+    version: 1,
+    aggregateType: "TASK",
+    visibility: "USER",
+    description: "Professional withdrew from a discussion",
+    payload: z.object({
+      taskId: z.string(),
+      conversationId: z.string(),
+      buyerUserId: z.string(),
+    }),
+  },
   TASK_MESSAGE_SENT: {
     type: "TASK_MESSAGE_SENT",
     version: 1,

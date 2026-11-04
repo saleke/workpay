@@ -10,6 +10,18 @@ function stringValue(payload: Record<string, unknown>, key: string): string | nu
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function conversationHref(taskId: string, conversationId: unknown): string {
+  if (typeof conversationId !== "string" || !conversationId) return `/tasks/${taskId}`;
+  const id = encodeURIComponent(conversationId);
+  return `/tasks/${taskId}?section=execution&conversation=${id}#conversation-${id}`;
+}
+
+function providerConversationHref(conversationId: unknown): string {
+  if (typeof conversationId !== "string" || !conversationId) return "/provider";
+  const id = encodeURIComponent(conversationId);
+  return `/provider?section=conversations&conversation=${id}#conversation-${id}`;
+}
+
 /**
  * Project participant-specific conversation events into in-app notifications.
  * The event remains the authority; this output is only a convenience view.
@@ -29,7 +41,7 @@ export function projectConversationNotification(input: {
         userId: providerUserId,
         title: "New buyer contact request",
         body: `A requester sent an approved agreement and message for “${input.taskTitle}”. Review it in Work Studio and accept or decline.`,
-        href: "/provider",
+        href: providerConversationHref(input.payload.conversationId),
       };
     }
     case "TASK_CONVERSATION_ACCEPTED":
@@ -37,14 +49,21 @@ export function projectConversationNotification(input: {
         userId: input.taskOwnerUserId,
         title: "Professional accepted your request",
         body: `Your contact request for “${input.taskTitle}” was accepted. You can continue the private conversation from the task workspace.`,
-        href: `/tasks/${input.taskId}`,
+        href: conversationHref(input.taskId, input.payload.conversationId),
       };
     case "TASK_CONVERSATION_DECLINED":
       return {
         userId: input.taskOwnerUserId,
         title: "Professional declined your request",
         body: `Your contact request for “${input.taskTitle}” was declined. You can review other available professionals from the task workspace.`,
-        href: `/tasks/${input.taskId}`,
+        href: conversationHref(input.taskId, input.payload.conversationId),
+      };
+    case "TASK_CONVERSATION_WITHDRAWN":
+      return {
+        userId: stringValue(input.payload, "buyerUserId") ?? input.taskOwnerUserId,
+        title: "Professional withdrew from the discussion",
+        body: `The professional is no longer available for “${input.taskTitle}”. No work commitment was made; you can review other available professionals.`,
+        href: conversationHref(input.taskId, input.payload.conversationId),
       };
     case "TASK_MESSAGE_SENT": {
       const recipientUserId = stringValue(input.payload, "recipientUserId");
@@ -53,7 +72,10 @@ export function projectConversationNotification(input: {
         userId: recipientUserId,
         title: "New private task message",
         body: `You received a new message about “${input.taskTitle}”.`,
-        href: recipientUserId === input.taskOwnerUserId ? `/tasks/${input.taskId}` : "/provider",
+        href:
+          recipientUserId === input.taskOwnerUserId
+            ? conversationHref(input.taskId, input.payload.conversationId)
+            : providerConversationHref(input.payload.conversationId),
       };
     }
     default:
