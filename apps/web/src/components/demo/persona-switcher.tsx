@@ -352,7 +352,7 @@ export function PersonaSwitcher() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-primary" />
-              WorkPay validation journey
+              Tenfo validation journey
             </DialogTitle>
             <DialogDescription className="text-xs">
               A user-led flow with explicit consent at every consequential step. Payments are simulated.
@@ -366,7 +366,7 @@ export function PersonaSwitcher() {
                 Alice: define the task and choose who to contact
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Start with <strong>New Task</strong>. Confirm WorkPay's interpretation, answer only material questions, approve the exact brief and terms, then review available professional profiles. Nobody is selected or contacted until Alice approves the recipient and exact first message.
+                Start with <strong>New Task</strong>. Confirm Tenfo's interpretation, answer only material questions, approve the exact brief and terms, then review available professional profiles. Nobody is selected or contacted until Alice approves the recipient and exact first message.
               </p>
             </div>
 

@@ -7,7 +7,7 @@ export interface LogoProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
- * The primary WorkPay mark pairs the deep evergreen surface with a fresh green stroke.
+ * The primary Tenfo mark pairs the deep evergreen surface with a fresh green stroke.
  */
 export function LogoConcept1({ size = 32, className, ...props }: LogoProps) {
   return (
@@ -43,8 +43,8 @@ export function LogoConcept1({ size = 32, className, ...props }: LogoProps) {
 
 /**
  * Concept 2: "The Amber Horizon"
- * WorkPay editorial palette: Deep charcoal tile with warm amber payoff accent.
- * Reflects WorkPay's signature #B7792D brass/gold design token.
+ * Tenfo editorial palette: Deep charcoal tile with warm amber payoff accent.
+ * Reflects Tenfo's signature #B7792D brass/gold design token.
  */
 export function LogoConcept2({ size = 32, className, ...props }: LogoProps) {
   return (
@@ -185,7 +185,7 @@ export function LogoConcept5({ size = 32, className, ...props }: LogoProps) {
 }
 
 /**
- * Standard WorkPay Brand Wordmark + Logo
+ * Standard Tenfo Brand Wordmark + Logo
  */
 export function WorkPayLogo({
   size = 28,
@@ -214,7 +214,7 @@ export function WorkPayLogo({
       <LogoMark size={size} />
       {showWordmark && (
         <span className="font-bold tracking-tight text-lg text-foreground flex items-center gap-1">
-          <span>WorkPay</span>
+          <span>Tenfo</span>
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
         </span>
       )}

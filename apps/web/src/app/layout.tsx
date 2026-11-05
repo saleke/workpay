@@ -17,8 +17,8 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WorkPay",
-  description: "Money follows proof. Bounded economic execution.",
+  title: "Tenfo",
+  description: "Clearer work, faster matches, and trusted collaboration.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

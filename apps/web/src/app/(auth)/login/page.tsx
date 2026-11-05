@@ -107,7 +107,7 @@ export default function LoginPage() {
     <Card className="border-border/80 shadow-lg bg-card">
       <CardHeader className="space-y-1 pb-4">
         <CardTitle className="text-xl font-bold tracking-tight text-foreground">
-          Sign In to WorkPay
+          Sign In to Tenfo
         </CardTitle>
         <CardDescription className="text-xs">
           Enter your email and password to access your account.
@@ -124,9 +124,9 @@ export default function LoginPage() {
         {evaluationEnabled ? (
           <section className="space-y-2 rounded-xl border border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]/60 p-3">
             <div>
-              <div className="text-xs font-semibold text-foreground">Explore WorkPay</div>
+              <div className="text-xs font-semibold text-foreground">Explore Tenfo</div>
               <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                Start from a task perspective. These are not exclusive account roles—every WorkPay
+                Start from a task perspective. These are not exclusive account roles—every Tenfo
                 member may request work, maintain a professional profile, and accept an independent
                 review engagement.
               </p>
