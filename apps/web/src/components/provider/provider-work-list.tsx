@@ -14,7 +14,7 @@ import { listProviderWork } from "@/lib/api/endpoints";
 export function ProviderWorkList() {
   const { data, error, loading, reload } = useApi(() => listProviderWork(), [], "provider-work");
 
-  if (loading && !data) return <LoadingState label="Loading assigned work & payouts..." />;
+  if (loading && !data) return <LoadingState label="Loading accepted work..." />;
   if (error) {
     return (
       <ErrorState
@@ -36,11 +36,16 @@ export function ProviderWorkList() {
   return (
     <div className="grid gap-4">
       {data.map((w) => (
-        <Card key={w.executionId} className="border-border/80 shadow-xs hover:border-primary/40 transition-all">
+        <Card
+          key={w.executionId}
+          className="border-border/80 shadow-xs hover:border-primary/40 transition-all"
+        >
           <CardHeader className="pb-3 border-b border-border/50 bg-muted/10">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-base font-semibold text-foreground">{w.taskTitle}</CardTitle>
+                <CardTitle className="text-base font-semibold text-foreground">
+                  {w.taskTitle}
+                </CardTitle>
                 <CardDescription className="mt-1 max-w-2xl leading-relaxed text-xs sm:text-sm">
                   {w.taskRequest}
                 </CardDescription>
@@ -62,7 +67,7 @@ export function ProviderWorkList() {
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1 font-semibold text-foreground text-sm font-mono">
                 <DollarSign className="h-4 w-4 text-emerald-600 -mr-1" />
-                {formatMinorMoney(w.pay)} Guaranteed Payout
+                {formatMinorMoney(w.pay)} Agreed amount · simulation only
               </span>
               <span className="flex items-center gap-1">
                 <FileCode className="h-3.5 w-3.5 text-primary" />

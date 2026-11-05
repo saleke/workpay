@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { IndependentReviewPanel } from "@/components/task-room/independent-review-panel";
 import {
@@ -23,12 +23,20 @@ export function ConversationThread({
   conversation,
   currentUserId,
   onAgreementChanged,
+  inboxMode = false,
+  onViewed,
+  hideMessages = false,
 }: {
   conversation: TaskConversationDto;
   currentUserId: string;
   onAgreementChanged?: () => void;
+  inboxMode?: boolean;
+  onViewed?: (lastReadSequence: number) => void;
+  hideMessages?: boolean;
 }) {
   const [messages, setMessages] = useState(conversation.messages);
+  const [hasOlderMessages, setHasOlderMessages] = useState(conversation.hasMoreMessages ?? false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -54,10 +62,25 @@ export function ConversationThread({
   );
   const [showChangeForm, setShowChangeForm] = useState(false);
   const [changeBusyId, setChangeBusyId] = useState<string | null>(null);
+  const messageListRef = useRef<HTMLOListElement>(null);
+  const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
 
   useEffect(() => {
     setMessages(conversation.messages);
+    setHasOlderMessages(conversation.hasMoreMessages ?? false);
   }, [conversation.messages, conversation.id]);
+
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list) return;
+    const anchor = scrollAnchorRef.current;
+    if (anchor) {
+      list.scrollTop = anchor.top + list.scrollHeight - anchor.height;
+      scrollAnchorRef.current = null;
+    } else {
+      list.scrollTop = list.scrollHeight;
+    }
+  }, [messages]);
 
   useEffect(() => {
     setChangeSummary(conversation.currentContractSnapshot.summary);
@@ -87,7 +110,7 @@ export function ConversationThread({
   }, [conversation.id, conversation.status]);
 
   useEffect(() => {
-    if (conversation.status !== "OPEN") return;
+    if (conversation.status !== "OPEN" || hideMessages) return;
     const timer = setInterval(() => {
       const lastSequence = messages.at(-1)?.sequence ?? 0;
       void getTaskConversationMessages(conversation.id, lastSequence).then((response) => {
@@ -96,12 +119,18 @@ export function ConversationThread({
           return;
         }
         if (response.data?.messages.length) {
+          const list = messageListRef.current;
+          if (list && list.scrollHeight - list.scrollTop - list.clientHeight > 80) {
+            scrollAnchorRef.current = { height: list.scrollHeight, top: list.scrollTop };
+          }
           setMessages((current) => [...current, ...response.data!.messages]);
+          const lastReadSequence = response.data.messages.at(-1)?.sequence;
+          if (lastReadSequence !== undefined) onViewed?.(lastReadSequence);
         }
       });
     }, 5_000);
     return () => clearInterval(timer);
-  }, [conversation.id, conversation.status, messages]);
+  }, [conversation.id, conversation.status, hideMessages, messages, onViewed]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -120,6 +149,24 @@ export function ConversationThread({
     }
     setMessages((current) => [...current, result.data!]);
     setDraft("");
+    onViewed?.(result.data.sequence);
+  };
+
+  const loadEarlierMessages = async () => {
+    const firstSequence = messages[0]?.sequence;
+    const list = messageListRef.current;
+    if (!firstSequence || !list || loadingOlder) return;
+    scrollAnchorRef.current = { height: list.scrollHeight, top: list.scrollTop };
+    setLoadingOlder(true);
+    const result = await getTaskConversationMessages(conversation.id, undefined, firstSequence);
+    setLoadingOlder(false);
+    if (result.error || !result.data) {
+      scrollAnchorRef.current = null;
+      setError(result.error?.message ?? "Earlier messages could not be loaded.");
+      return;
+    }
+    setHasOlderMessages(result.data.hasMoreMessages ?? false);
+    setMessages((current) => [...result.data!.messages, ...current]);
   };
 
   const submitChange = async (event: FormEvent<HTMLFormElement>) => {
@@ -204,8 +251,22 @@ export function ConversationThread({
   );
 
   return (
-    <section aria-label="Private task conversation" className="space-y-4">
-      {conversation.status === "CONTACT_PENDING" ? (
+    <section
+      aria-label="Private task conversation"
+      className={inboxMode ? "flex min-h-0 flex-col gap-3" : "space-y-4"}
+    >
+      {inboxMode && hasOlderMessages ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="self-center"
+          disabled={loadingOlder}
+          onClick={() => void loadEarlierMessages()}
+        >
+          {loadingOlder ? "Loading earlier messages…" : "Load earlier messages"}
+        </Button>
+      ) : null}
+      {!inboxMode && conversation.status === "CONTACT_PENDING" ? (
         <p
           className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
           role="status"
@@ -213,17 +274,18 @@ export function ConversationThread({
           Contact request sent. Messaging opens after the professional accepts.
         </p>
       ) : null}
-      {conversation.status === "OPEN" && conversation.hasWorkExecution ? (
+      {!inboxMode && conversation.status === "OPEN" && conversation.hasWorkExecution ? (
         <p
           className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
           role="status"
         >
-          A work assignment exists. {currentUserId === conversation.providerUserId
+          A work assignment exists.{" "}
+          {currentUserId === conversation.providerUserId
             ? "You become committed only after accepting the exact assigned contract."
             : "The professional must still explicitly accept the exact assigned contract before work starts."}
         </p>
       ) : null}
-      {conversation.status === "OPEN" && !conversation.hasWorkExecution ? (
+      {!inboxMode && conversation.status === "OPEN" && !conversation.hasWorkExecution ? (
         <p
           className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
           role="status"
@@ -232,47 +294,52 @@ export function ConversationThread({
           authorizes the agreed amount and the professional accepts the exact assignment.
         </p>
       ) : null}
-      {conversation.status === "DECLINED" ? (
+      {!inboxMode && conversation.status === "DECLINED" ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           The professional declined this contact request. The approved scope remains unchanged; you
           can review other profiles below.
         </p>
       ) : null}
-      {conversation.status === "WITHDRAWN" ? (
+      {!inboxMode && conversation.status === "WITHDRAWN" ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           The professional withdrew before a work assignment was created. No work commitment was
           made; you can review other profiles below.
         </p>
       ) : null}
-      {conversation.status === "CLOSED" ? (
+      {!inboxMode && conversation.status === "CLOSED" ? (
         <p className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
           This conversation is closed. Its messages remain available for your records.
         </p>
       ) : null}
-      <ol
-        className="max-h-96 space-y-3 overflow-y-auto rounded-lg border border-border p-3"
-        aria-live="polite"
-      >
-        {messages.map((message) => (
-          <li
-            key={message.id}
-            className={`max-w-[90%] rounded-lg p-3 text-sm ${
-              message.authorUserId === currentUserId
-                ? "ml-auto bg-primary text-primary-foreground"
-                : "bg-muted text-foreground"
-            }`}
-          >
-            <p className="whitespace-pre-wrap break-words">{message.body}</p>
-            <time className="mt-1 block text-xs opacity-70" dateTime={message.createdAt}>
-              {new Date(message.createdAt).toLocaleString()}
-            </time>
-          </li>
-        ))}
-        {messages.length === 0 ? (
-          <li className="text-sm text-muted-foreground">No messages yet.</li>
-        ) : null}
-      </ol>
-      {conversation.status === "OPEN" ? (
+      {!hideMessages ? (
+        <ol
+          ref={messageListRef}
+          className={`space-y-3 overflow-y-auto rounded-lg border border-border p-3 ${
+            inboxMode ? "min-h-64 flex-1 bg-[var(--wp-surface-subtle)]" : "max-h-96"
+          }`}
+          aria-live="polite"
+        >
+          {messages.map((message) => (
+            <li
+              key={message.id}
+              className={`max-w-[90%] rounded-lg p-3 text-sm ${
+                message.authorUserId === currentUserId
+                  ? "ml-auto bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
+              }`}
+            >
+              <p className="whitespace-pre-wrap break-words">{message.body}</p>
+              <time className="mt-1 block text-xs opacity-70" dateTime={message.createdAt}>
+                {new Date(message.createdAt).toLocaleString()}
+              </time>
+            </li>
+          ))}
+          {messages.length === 0 ? (
+            <li className="text-sm text-muted-foreground">No messages yet.</li>
+          ) : null}
+        </ol>
+      ) : null}
+      {!hideMessages && conversation.status === "OPEN" ? (
         <form onSubmit={submit} className="space-y-2">
           <label htmlFor={`message-${conversation.id}`} className="text-sm font-medium">
             Message
@@ -296,7 +363,7 @@ export function ConversationThread({
           </Button>
         </form>
       ) : null}
-      {conversation.status === "OPEN" ? (
+      {!inboxMode && conversation.status === "OPEN" ? (
         <section className="space-y-3 border-t border-border pt-4" aria-label="Agreement changes">
           <div>
             <h3 className="font-medium">Proposed agreement changes</h3>
@@ -555,7 +622,7 @@ export function ConversationThread({
           ) : null}
         </section>
       ) : null}
-      {conversation.status === "OPEN" ? (
+      {!inboxMode && conversation.status === "OPEN" ? (
         <IndependentReviewPanel conversation={conversation} currentUserId={currentUserId} />
       ) : null}
       {error && conversation.status !== "OPEN" ? (

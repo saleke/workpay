@@ -609,6 +609,34 @@ export interface TaskConversationDto {
   createdAt: string | null;
   updatedAt: string | null;
   messages: TaskConversationMessageDto[];
+  hasMoreMessages?: boolean;
+}
+
+export interface MessageInboxConversationDto {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  taskStatus: string;
+  status: TaskConversationDto["status"];
+  hasWorkExecution: boolean;
+  updatedAt: string;
+  otherParticipant: {
+    userId: string;
+    displayName: string;
+    image: string | null;
+    role: "client" | "professional";
+  };
+  lastMessage: {
+    body: string;
+    authorUserId: string;
+    createdAt: string;
+  } | null;
+  unreadCount: number;
+}
+
+export interface MessageInboxDto {
+  currentUserId: string;
+  conversations: MessageInboxConversationDto[];
 }
 
 export interface ProviderInboxSummaryDto {

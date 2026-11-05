@@ -16,14 +16,21 @@ import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { listPayments, listTasks } from "@/lib/api/endpoints";
 import type { TaskDto, PaymentDto } from "@/lib/api/types";
+import { ErrorState } from "@/components/states";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function PaymentsPage() {
-  const { data: paymentsData, loading: paymentsLoading } = useApi(
-    () => listPayments(),
-    [],
-    "payments",
-  );
-  const { data: tasksData } = useApi(() => listTasks(), [], "tasks");
+  const {
+    data: paymentsData,
+    error: paymentsError,
+    loading: paymentsLoading,
+    reload: reloadPayments,
+  } = useApi(() => listPayments(), [], "payments");
+  const {
+    data: tasksData,
+    error: tasksError,
+    reload: reloadTasks,
+  } = useApi(() => listTasks(), [], "tasks");
 
   const payments: PaymentDto[] = paymentsData ?? [];
   const tasks: TaskDto[] = tasksData ?? [];
@@ -76,38 +83,59 @@ export default function PaymentsPage() {
     return payments;
   }, [payments, filter]);
 
+  const header = (
+    <PageHeader
+      eyebrow="Records"
+      title="Payment simulation"
+      description="Inspect policy-validation records for agreed amounts and simulated authorization or capture paths. No entry represents money charged, held, captured, or paid."
+      actions={
+        <Link
+          href="/intake"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--wp-accent)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
+        >
+          + New task
+        </Link>
+      }
+    />
+  );
+
+  if (paymentsError) {
+    return (
+      <div className="space-y-6 pb-12">
+        {header}
+        <ErrorState
+          title="Payment simulation records could not be loaded"
+          description={paymentsError.message}
+          onRetry={reloadPayments}
+        />
+      </div>
+    );
+  }
+
   if (paymentsLoading && payments.length === 0) {
     return (
-      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Opening payment ledger...
+      <div className="space-y-6 pb-12">
+        {header}
+        <div
+          className="workpay-card p-8 text-center text-sm text-[var(--wp-text-secondary)]"
+          role="status"
+        >
+          Loading simulation records…
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Header with explicit simulation notice */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            Payment policy simulation
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-            Review how agreed amounts, authorization states, acceptance evidence, and capture
-            policy behave before live payments are introduced. No entry on this page represents
-            money charged, held, captured, or paid.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/intake"
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium bg-[var(--charcoal)] text-white hover:bg-black px-3.5 py-2 rounded-lg transition-colors"
-          >
-            <span>+ New task</span>
-          </Link>
-        </div>
-      </div>
+      {header}
+      {tasksError ? (
+        <ErrorState
+          title="Task details are unavailable"
+          description="Simulation records are shown below, but task titles may be incomplete."
+          onRetry={reloadTasks}
+        />
+      ) : null}
 
       {/* 2. Authorization & Settlement Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -139,24 +167,29 @@ export default function PaymentsPage() {
 
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Total Agreements</span>
+            <span>Payment records</span>
             <Receipt className="h-4 w-4 text-[var(--blue)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {summary.totalCount}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Authoritative payment records attached to tasks.
+            Simulation records attached to tasks.
           </p>
         </div>
       </div>
 
       {/* 3. Filter tabs */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-2 text-sm font-medium">
+      <div
+        className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] pb-2 text-sm font-medium"
+        role="group"
+        aria-label="Filter payment simulation records"
+      >
         <button
           type="button"
           onClick={() => setFilter("ALL")}
-          className={`px-3 py-1.5 rounded-lg transition-colors ${
+          aria-pressed={filter === "ALL"}
+          className={`min-h-10 rounded-lg px-3 py-1.5 transition-colors ${
             filter === "ALL"
               ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold"
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -167,7 +200,8 @@ export default function PaymentsPage() {
         <button
           type="button"
           onClick={() => setFilter("HELD")}
-          className={`px-3 py-1.5 rounded-lg transition-colors ${
+          aria-pressed={filter === "HELD"}
+          className={`min-h-10 rounded-lg px-3 py-1.5 transition-colors ${
             filter === "HELD"
               ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold"
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -178,7 +212,8 @@ export default function PaymentsPage() {
         <button
           type="button"
           onClick={() => setFilter("CAPTURED")}
-          className={`px-3 py-1.5 rounded-lg transition-colors ${
+          aria-pressed={filter === "CAPTURED"}
+          className={`min-h-10 rounded-lg px-3 py-1.5 transition-colors ${
             filter === "CAPTURED"
               ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold"
               : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -193,10 +228,10 @@ export default function PaymentsPage() {
         <div className="workpay-card p-12 text-center">
           <Receipt className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
           <h2 className="text-base font-semibold text-[var(--charcoal)]">
-            No payment receipts match this filter
+            No simulation records match this filter
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Simulation records appear only after the parties agree terms and a payment test is explicitly started.
+            Records appear only when a policy simulation has been started for a task.
           </p>
         </div>
       ) : (
@@ -221,7 +256,7 @@ export default function PaymentsPage() {
                   hour: "numeric",
                   minute: "2-digit",
                 })
-              : "Recent";
+              : "Not recorded";
 
             let badgeBg = "bg-amber-100 text-amber-800";
             let badgeText = "Simulated authorization";
@@ -287,15 +322,15 @@ export default function PaymentsPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[var(--text-muted)] block">Authorization reference:</span>
+                      <span className="text-[var(--text-muted)] block">Simulation reference:</span>
                       <span className="font-mono font-medium text-[var(--charcoal)] truncate block">
-                        {p.paypalAuthorizationId || "Not created"}
+                        {p.paypalAuthorizationId || "Not available"}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[var(--text-muted)] block">
-                        {isCaptured ? "Captured Timestamp:" : "Authorized Timestamp:"}
+                        {isCaptured ? "Simulation completed:" : "Simulation state recorded:"}
                       </span>
                       <span className="font-medium text-[var(--charcoal)] block">{dateStr}</span>
                     </div>

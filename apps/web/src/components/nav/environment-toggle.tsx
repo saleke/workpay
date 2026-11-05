@@ -1,13 +1,26 @@
 import { FlaskConical } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function EnvironmentToggle() {
+export function EnvironmentToggle({
+  compact = false,
+  className,
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   return (
     <div
-      className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-accent-subtle)] px-2.5 text-xs font-medium text-[var(--wp-accent)]"
-      title="Payment behavior is simulated; no funds move."
+      role="status"
+      aria-label="Payments are simulated; no funds move"
+      className={cn(
+        "flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wp-accent)]/15 bg-[var(--wp-accent-subtle)] px-3 text-xs font-medium text-[var(--wp-accent)]",
+        compact && "min-h-10 w-10 justify-center px-0",
+        className,
+      )}
+      title="Payments are simulated; no funds move."
     >
-      <FlaskConical className="h-3.5 w-3.5" />
-      <span>Simulated Payments</span>
+      <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className={cn(compact ? "sr-only" : "whitespace-nowrap")}>Payments simulated</span>
     </div>
   );
 }

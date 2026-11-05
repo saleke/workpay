@@ -55,12 +55,7 @@ import { useSystemMode } from "@/lib/mode";
 import { ProviderProfileManager } from "@/components/provider/provider-profile-manager";
 import { cn } from "@/lib/utils";
 
-type SettingsTabKey =
-  | "account"
-  | "work-preferences"
-  | "paypal"
-  | "notifications"
-  | "environment";
+type SettingsTabKey = "account" | "work-preferences" | "paypal" | "notifications" | "environment";
 
 interface SettingsTabConfig {
   key: SettingsTabKey;
@@ -89,7 +84,7 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
     key: "paypal",
     title: "Payments",
     shortTitle: "Payments",
-    description: "PayPal account binding for holds and disbursements",
+    description: "Policy simulation records; no accounts are connected",
     icon: Wallet,
   },
   {
@@ -198,13 +193,17 @@ function SettingsContent() {
 
   // Identity Verification via Persona (Government ID & Milestone Threshold)
   const [idModalOpen, setIdModalOpen] = useState(false);
-  const [personaStep, setPersonaStep] = useState<"intro" | "form" | "biometric" | "processing" | "success">("intro");
+  const [personaStep, setPersonaStep] = useState<
+    "intro" | "form" | "biometric" | "processing" | "success"
+  >("intro");
   const [personaInquiryId, setPersonaInquiryId] = useState<string | null>(null);
   const [personaHostedUrl, setPersonaHostedUrl] = useState<string | null>(null);
   const [personaEnvironment, setPersonaEnvironment] = useState<string>("sandbox");
   const [creatingInquiry, setCreatingInquiry] = useState(false);
   const [inputLegalName, setInputLegalName] = useState("");
-  const [inputDocType, setInputDocType] = useState<"PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID">("PASSPORT");
+  const [inputDocType, setInputDocType] = useState<"PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID">(
+    "PASSPORT",
+  );
   const [inputCountry, setInputCountry] = useState("US");
   const [inputDocNumber, setInputDocNumber] = useState("");
   const [verifyingId, setVerifyingId] = useState(false);
@@ -483,7 +482,10 @@ function SettingsContent() {
       });
       const json = await res.json();
       if (json.configured === false) {
-        toast.error(json.message || "GitHub OAuth is not configured. Please use the manual bio verification option.");
+        toast.error(
+          json.message ||
+            "GitHub OAuth is not configured. Please use the manual bio verification option.",
+        );
         setGithubModalOpen(true);
         return;
       }
@@ -721,7 +723,9 @@ function SettingsContent() {
       setPersonaVerificationResult(result);
       setPersonaStep("success");
       await loadProfile();
-      toast.success("Identity verified successfully via Persona. High-value task threshold unlocked.");
+      toast.success(
+        "Identity verified successfully via Persona. High-value task threshold unlocked.",
+      );
     } catch {
       toast.error("Network error during Persona identity verification");
       setPersonaStep("form");
@@ -792,7 +796,7 @@ function SettingsContent() {
             Settings
           </h1>
           <p className="text-xs sm:text-sm text-[var(--wp-text-secondary)] mt-0.5">
-            Manage your account, worker preferences, payment settings, and environment.
+            Manage your account, work preferences, payment simulation, and notifications.
           </p>
         </div>
 
@@ -812,7 +816,7 @@ function SettingsContent() {
                 isDemo ? "bg-[var(--wp-accent)]" : "bg-[var(--wp-success)]",
               )}
             />
-            {isDemo ? "Sandbox Mode" : "Live Mode"}
+            {isDemo ? "Demo data" : "Production services"}
           </Badge>
         </div>
       </div>
@@ -873,7 +877,8 @@ function SettingsContent() {
                         Profile Information
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Public handle and custom display name for WorkPay commitments and cryptographic audit logs.
+                        Public handle and custom display name for WorkPay commitments and
+                        cryptographic audit logs.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="p-5 sm:p-6">
@@ -881,8 +886,13 @@ function SettingsContent() {
                         {/* Platform Handle: Locked & Immutable */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <Label htmlFor="platformHandle" className="text-xs">Platform Handle</Label>
-                            <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono flex items-center gap-1 border-slate-300">
+                            <Label htmlFor="platformHandle" className="text-xs">
+                              Platform Handle
+                            </Label>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono flex items-center gap-1 border-slate-300"
+                            >
                               <Lock className="h-2.5 w-2.5" />
                               Locked &amp; Immutable
                             </Badge>
@@ -897,13 +907,16 @@ function SettingsContent() {
                             />
                           </div>
                           <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                            Platform handles are permanent identifiers across signed contract receipts and public audit logs. Usernames cannot be edited.
+                            Platform handles are permanent identifiers across signed contract
+                            receipts and public audit logs. Usernames cannot be edited.
                           </p>
                         </div>
 
                         {/* Editable Custom Display Name */}
                         <div className="space-y-1.5">
-                          <Label htmlFor="profileName" className="text-xs">Display Name</Label>
+                          <Label htmlFor="profileName" className="text-xs">
+                            Display Name
+                          </Label>
                           <div className="relative">
                             <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -923,7 +936,9 @@ function SettingsContent() {
                         {/* Account Email with Verification Badge and Inline Actions */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <Label htmlFor="profileEmail" className="text-xs">Account Email</Label>
+                            <Label htmlFor="profileEmail" className="text-xs">
+                              Account Email
+                            </Label>
                             {userProfile?.emailVerified ? (
                               <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] flex items-center gap-1 font-semibold">
                                 <CheckCircle2 className="h-3 w-3" />
@@ -931,7 +946,10 @@ function SettingsContent() {
                               </Badge>
                             ) : capabilities.emailDelivery ? (
                               <div className="flex items-center gap-1.5">
-                                <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-[10px]">
+                                <Badge
+                                  variant="outline"
+                                  className="text-amber-600 border-amber-500/30 text-[10px]"
+                                >
                                   Unverified
                                 </Badge>
                                 <button
@@ -944,7 +962,10 @@ function SettingsContent() {
                                 </button>
                               </div>
                             ) : (
-                              <Badge variant="outline" className="text-slate-600 border-slate-300 text-[10px]">
+                              <Badge
+                                variant="outline"
+                                className="text-slate-600 border-slate-300 text-[10px]"
+                              >
                                 Email delivery unavailable
                               </Badge>
                             )}
@@ -962,34 +983,53 @@ function SettingsContent() {
                             Your verified account email used for authentication and security alerts.
                           </p>
 
-                          {capabilities.emailDelivery && emailVerifyStep === "otp" && !userProfile?.emailVerified && (
-                            <form onSubmit={handleConfirmEmailOtp} className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2">
-                              <div className="flex items-center justify-between text-xs font-semibold">
-                                <span>Enter 6-Digit Email Code</span>
-                                {emailVerificationResult?.otpCode && (
-                                  <span className="font-mono text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                    Code: {emailVerificationResult.otpCode}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex gap-2">
-                                <Input
-                                  placeholder="123456"
-                                  value={emailOtpInput}
-                                  onChange={(e) => setEmailOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                  maxLength={6}
-                                  className="font-mono text-center text-xs tracking-widest max-w-[140px]"
-                                  autoFocus
-                                />
-                                <Button type="submit" size="sm" disabled={verifyingEmailOtp || emailOtpInput.length < 6} className="text-xs">
-                                  {verifyingEmailOtp ? "Verifying..." : "Confirm"}
-                                </Button>
-                              </div>
-                            </form>
-                          )}
+                          {capabilities.emailDelivery &&
+                            emailVerifyStep === "otp" &&
+                            !userProfile?.emailVerified && (
+                              <form
+                                onSubmit={handleConfirmEmailOtp}
+                                className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2"
+                              >
+                                <div className="flex items-center justify-between text-xs font-semibold">
+                                  <span>Enter 6-Digit Email Code</span>
+                                  {emailVerificationResult?.otpCode && (
+                                    <span className="font-mono text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                      Code: {emailVerificationResult.otpCode}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="123456"
+                                    value={emailOtpInput}
+                                    onChange={(e) =>
+                                      setEmailOtpInput(
+                                        e.target.value.replace(/\D/g, "").slice(0, 6),
+                                      )
+                                    }
+                                    maxLength={6}
+                                    className="font-mono text-center text-xs tracking-widest max-w-[140px]"
+                                    autoFocus
+                                  />
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={verifyingEmailOtp || emailOtpInput.length < 6}
+                                    className="text-xs"
+                                  >
+                                    {verifyingEmailOtp ? "Verifying..." : "Confirm"}
+                                  </Button>
+                                </div>
+                              </form>
+                            )}
                         </div>
 
-                        <Button type="submit" size="sm" disabled={savingProfile} className="text-xs font-semibold">
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={savingProfile}
+                          className="text-xs font-semibold"
+                        >
                           {savingProfile ? "Saving..." : "Save Display Name"}
                         </Button>
                       </form>
@@ -998,179 +1038,208 @@ function SettingsContent() {
 
                   {/* Optional GitHub integration appears only when configured. */}
                   {capabilities.githubOAuth ? (
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          <Github className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Developer Profile (GitHub)
-                        </CardTitle>
+                    <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                      <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            <Github className="h-4 w-4 text-[var(--wp-accent)]" />
+                            Developer Profile (GitHub)
+                          </CardTitle>
+                          {userProfile?.githubUsername ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Verified Developer
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-amber-600 border-amber-500/30 text-xs"
+                            >
+                              Unverified Profile
+                            </Badge>
+                          )}
+                        </div>
+                        <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                          Connect your GitHub profile via authorized OAuth login or challenge
+                          handshake to qualify for high-tier engineering tasks.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-5 sm:p-6">
                         {userProfile?.githubUsername ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Verified Developer
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
-                            Unverified Profile
-                          </Badge>
-                        )}
-                      </div>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Connect your GitHub profile via authorized OAuth login or challenge handshake to qualify for high-tier engineering tasks.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6">
-                      {userProfile?.githubUsername ? (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              <Github className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                <span>@{userProfile.githubUsername}</span>
-                                <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-500/30">
-                                  GitHub Verified
-                                </Badge>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                <Github className="h-5 w-5" />
                               </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                Public contribution metrics and repository trust badges linked to your WorkPay identity.
+                              <div>
+                                <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
+                                  <span>@{userProfile.githubUsername}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
+                                  >
+                                    GitHub Verified
+                                  </Badge>
+                                </div>
+                                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                  Public contribution metrics and repository trust badges linked to
+                                  your WorkPay identity.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button asChild variant="outline" size="sm" className="text-xs">
+                                <a
+                                  href={`https://github.com/${userProfile.githubUsername}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1.5"
+                                >
+                                  <span>View GitHub</span>
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleUnlinkGithub}
+                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs"
+                              >
+                                Unlink
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
+                            <div>
+                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                                No GitHub Account Connected
+                              </div>
+                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
+                                Verify your GitHub developer profile via authorized 1-click OAuth or
+                                a public Gist token.
                               </p>
                             </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button asChild variant="outline" size="sm" className="text-xs">
-                              <a
-                                href={`https://github.com/${userProfile.githubUsername}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1.5"
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  setGithubStep("select");
+                                  setGithubModalOpen(true);
+                                }}
+                                className="text-xs font-semibold"
                               >
-                                <span>View GitHub</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleUnlinkGithub}
-                              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs"
-                            >
-                              Unlink
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
-                          <div>
-                            <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                              No GitHub Account Connected
+                                <Github className="h-3.5 w-3.5 mr-1.5" />
+                                Verify Developer Profile
+                              </Button>
                             </div>
-                            <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                              Verify your GitHub developer profile via authorized 1-click OAuth or a public Gist token.
-                            </p>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => {
-                                setGithubStep("select");
-                                setGithubModalOpen(true);
-                              }}
-                              className="text-xs font-semibold"
-                            >
-                              <Github className="h-3.5 w-3.5 mr-1.5" />
-                              Verify Developer Profile
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                        )}
+                      </CardContent>
+                    </Card>
                   ) : null}
 
                   {/* Optional identity provider appears only when configured. */}
                   {capabilities.personaVerification ? (
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Identity Verification
-                        </CardTitle>
-                        {userProfile?.idVerificationStatus === "VERIFIED" ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Persona Verified
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
-                            Tier 1: Sub-$1,000 Unlocked
-                          </Badge>
-                        )}
-                      </div>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Non-custodial holds operate seamlessly for all accounts. Tasks or cumulative milestone payouts exceeding $1,000 USD require automated Persona identity verification.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6 space-y-4">
-                      {/* Milestone Threshold Banner */}
-                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                              $1,000 Milestone Limit Rule
-                            </span>
-                            <Badge variant="outline" className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]">
-                              Persona Standard
+                    <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                      <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
+                            Identity Verification
+                          </CardTitle>
+                          {userProfile?.idVerificationStatus === "VERIFIED" ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Persona Verified
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-amber-600 border-amber-500/30 text-xs"
+                            >
+                              Tier 1: Sub-$1,000 Unlocked
+                            </Badge>
+                          )}
+                        </div>
+                        <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                          Non-custodial holds operate seamlessly for all accounts. Tasks or
+                          cumulative milestone payouts exceeding $1,000 USD require automated
+                          Persona identity verification.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-5 sm:p-6 space-y-4">
+                        {/* Milestone Threshold Banner */}
+                        <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                                $1,000 Milestone Limit Rule
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
+                              >
+                                Persona Standard
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                              Tasks below $1,000 USD execute without government ID. Tasks or
+                              cumulative payouts exceeding $1,000 USD require automated Persona
+                              biometric and government document verification.
+                            </p>
+                          </div>
+
+                          {userProfile?.idVerificationStatus !== "VERIFIED" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleOpenPersonaModal}
+                              className="text-xs font-semibold shrink-0"
+                            >
+                              <ScanFace className="h-3.5 w-3.5 mr-1.5" />
+                              Verify Identity with Persona
+                            </Button>
+                          )}
+                        </div>
+
+                        {userProfile?.idVerificationStatus === "VERIFIED" && (
+                          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                <ShieldCheck className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
+                                  <span>
+                                    Verified Legal Identity:{" "}
+                                    {userProfile.legalName
+                                      ? `${userProfile.legalName.slice(0, 1)}*** ${userProfile.legalName.split(" ").slice(-1)[0]}`
+                                      : "Verified Individual"}
+                                  </span>
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
+                                    Persona
+                                  </Badge>
+                                </div>
+                                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                  Document Type: {userProfile.idDocumentType || "Passport"}.
+                                  Biometric liveness confirmed and AML screening clear. High-value
+                                  task thresholds permanently unlocked.
+                                </p>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0"
+                            >
+                              All Tiers Unlocked ($1,000+)
                             </Badge>
                           </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                            Tasks below $1,000 USD execute without government ID. Tasks or cumulative payouts exceeding $1,000 USD require automated Persona biometric and government document verification.
-                          </p>
-                        </div>
-
-                        {userProfile?.idVerificationStatus !== "VERIFIED" && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={handleOpenPersonaModal}
-                            className="text-xs font-semibold shrink-0"
-                          >
-                            <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                            Verify Identity with Persona
-                          </Button>
                         )}
-                      </div>
-
-                      {userProfile?.idVerificationStatus === "VERIFIED" && (
-                        <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              <ShieldCheck className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                <span>Verified Legal Identity: {userProfile.legalName ? `${userProfile.legalName.slice(0, 1)}*** ${userProfile.legalName.split(" ").slice(-1)[0]}` : "Verified Individual"}</span>
-                                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
-                                  Persona
-                                </Badge>
-                              </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                Document Type: {userProfile.idDocumentType || "Passport"}. Biometric liveness confirmed and AML screening clear. High-value task thresholds permanently unlocked.
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0">
-                            All Tiers Unlocked ($1,000+)
-                          </Badge>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
                   ) : null}
 
                   {/* Password Management */}
@@ -1187,7 +1256,9 @@ function SettingsContent() {
                     <CardContent className="p-5 sm:p-6">
                       <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-lg">
                         <div className="space-y-1.5">
-                          <Label htmlFor="currentPassword" className="text-xs">Current Password</Label>
+                          <Label htmlFor="currentPassword" className="text-xs">
+                            Current Password
+                          </Label>
                           <Input
                             id="currentPassword"
                             type="password"
@@ -1199,7 +1270,9 @@ function SettingsContent() {
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label htmlFor="newPassword" className="text-xs">New Password</Label>
+                          <Label htmlFor="newPassword" className="text-xs">
+                            New Password
+                          </Label>
                           <Input
                             id="newPassword"
                             type="password"
@@ -1213,7 +1286,9 @@ function SettingsContent() {
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label htmlFor="confirmPassword" className="text-xs">Confirm New Password</Label>
+                          <Label htmlFor="confirmPassword" className="text-xs">
+                            Confirm New Password
+                          </Label>
                           <Input
                             id="confirmPassword"
                             type="password"
@@ -1225,7 +1300,12 @@ function SettingsContent() {
                           />
                         </div>
 
-                        <Button type="submit" size="sm" disabled={updatingPassword} className="text-xs font-semibold">
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={updatingPassword}
+                          className="text-xs font-semibold"
+                        >
                           {updatingPassword ? "Updating..." : "Update Password"}
                         </Button>
                       </form>
@@ -1299,9 +1379,7 @@ function SettingsContent() {
                         </Link>
                       </Button>
                       <Button asChild size="sm" className="text-xs font-semibold shadow-xs">
-                        <Link href="/register">
-                          Register Account
-                        </Link>
+                        <Link href="/register">Register Account</Link>
                       </Button>
                     </div>
                   </CardContent>
@@ -1334,8 +1412,8 @@ function SettingsContent() {
                 <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
                   <p>
                     PayPal account linking, authorization holds, captures, and professional payouts
-                    are disabled. Existing profile details are not treated as permission to charge an
-                    account or pay a professional.
+                    are disabled. Existing profile details are not treated as permission to charge
+                    an account or pay a professional.
                   </p>
                   <div className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-amber-900">
                     <strong className="block text-sm">No funds move in this environment</strong>
@@ -1369,13 +1447,17 @@ function SettingsContent() {
                         Linked &amp; Verified
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
+                      <Badge
+                        variant="outline"
+                        className="text-amber-600 border-amber-500/30 text-xs"
+                      >
                         No Account Linked
                       </Badge>
                     )}
                   </div>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Bind your verified PayPal account to enable both Task Owner authorization holds and Specialist payout disbursements.
+                    Bind your verified PayPal account to enable both Task Owner authorization holds
+                    and Specialist payout disbursements.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6 space-y-5">
@@ -1391,7 +1473,10 @@ function SettingsContent() {
                             <div>
                               <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
                                 <span>{userProfile.paypalPayoutEmail}</span>
-                                <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-500/30">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
+                                >
                                   PayPal Payer
                                 </Badge>
                               </div>
@@ -1429,15 +1514,21 @@ function SettingsContent() {
 
                         <div className="grid sm:grid-cols-2 gap-3 pt-3 border-t border-emerald-500/15 text-xs">
                           <div>
-                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">Payment Role:</span>
+                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">
+                              Payment Role:
+                            </span>
                             <span className="font-medium text-[var(--wp-text-primary)]">
                               Task Owner Holds &amp; Specialist Payouts
                             </span>
                           </div>
                           <div>
-                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">Auto-Hold Authorization:</span>
+                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">
+                              Auto-Hold Authorization:
+                            </span>
                             <span className="font-medium text-emerald-600">
-                              {userProfile.paypalAutoHoldEnabled ? "Enabled (One-click holds on PayPal)" : "Manual prompt per task"}
+                              {userProfile.paypalAutoHoldEnabled
+                                ? "Enabled (One-click holds on PayPal)"
+                                : "Manual prompt per task"}
                             </span>
                           </div>
                         </div>
@@ -1449,7 +1540,10 @@ function SettingsContent() {
                           <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">
                             Non-Custodial Financial Settlement
                           </strong>
-                          When you commission a task, PayPal places a non-custodial authorization hold on your account. When you complete an assignment, funds capture directly to this PayPal address upon deliverable proof verification. WorkPay is strictly non-custodial and never holds digital wallet balances.
+                          When you commission a task, PayPal places a non-custodial authorization
+                          hold on your account. When you complete an assignment, funds capture
+                          directly to this PayPal address upon deliverable proof verification.
+                          WorkPay is strictly non-custodial and never holds digital wallet balances.
                         </div>
                       </div>
                     </div>
@@ -1461,7 +1555,8 @@ function SettingsContent() {
                             No PayPal Account Bound
                           </div>
                           <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                            Connect your PayPal account via authentic PayPal OAuth to pre-authorize non-custodial holds and receive proof-gated settlement disbursements.
+                            Connect your PayPal account via authentic PayPal OAuth to pre-authorize
+                            non-custodial holds and receive proof-gated settlement disbursements.
                           </p>
                         </div>
 
@@ -1474,7 +1569,9 @@ function SettingsContent() {
                             className="bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
                           >
                             <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                            {connectingPayPalOAuth ? "Redirecting to PayPal..." : "Connect with PayPal"}
+                            {connectingPayPalOAuth
+                              ? "Redirecting to PayPal..."
+                              : "Connect with PayPal"}
                           </Button>
                           <Button
                             type="button"
@@ -1505,8 +1602,13 @@ function SettingsContent() {
                             size="sm"
                             className="h-6 text-[10px] px-2"
                             onClick={() => {
-                              const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-                              navigator.clipboard.writeText(`${origin}/api/v1/user/paypal/callback`);
+                              const origin =
+                                typeof window !== "undefined"
+                                  ? window.location.origin
+                                  : "http://localhost:3000";
+                              navigator.clipboard.writeText(
+                                `${origin}/api/v1/user/paypal/callback`,
+                              );
                               toast.success("Callback URL copied to clipboard");
                             }}
                           >
@@ -1514,10 +1616,14 @@ function SettingsContent() {
                           </Button>
                         </div>
                         <div className="font-mono text-[11px] text-[var(--wp-text-secondary)] bg-background p-2 rounded border break-all select-all">
-                          {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/api/v1/user/paypal/callback
+                          {typeof window !== "undefined"
+                            ? window.location.origin
+                            : "http://localhost:3000"}
+                          /api/v1/user/paypal/callback
                         </div>
                         <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                          Ensure this callback URL is whitelisted under App Settings in your PayPal Developer Dashboard.
+                          Ensure this callback URL is whitelisted under App Settings in your PayPal
+                          Developer Dashboard.
                         </p>
                       </div>
                     </div>
@@ -1533,7 +1639,8 @@ function SettingsContent() {
                     How Payments Work
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    WorkPay is non-custodial. Funds are never pooled, held in a digital wallet, or commingled.
+                    WorkPay is non-custodial. Funds are never pooled, held in a digital wallet, or
+                    commingled.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6 grid sm:grid-cols-3 gap-4 text-xs">
@@ -1542,7 +1649,8 @@ function SettingsContent() {
                       1. Authorization Hold
                     </div>
                     <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      When a task is authorized, PayPal places a temporary authorization hold on the client payment instrument for the contract amount.
+                      When a task is authorized, PayPal places a temporary authorization hold on the
+                      client payment instrument for the contract amount.
                     </p>
                   </div>
 
@@ -1551,7 +1659,8 @@ function SettingsContent() {
                       2. Deterministic Verification
                     </div>
                     <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      Deliverables are tested against objective acceptance criteria. Payment cannot execute until verification passes.
+                      Deliverables are tested against objective acceptance criteria. Payment cannot
+                      execute until verification passes.
                     </p>
                   </div>
 
@@ -1560,7 +1669,8 @@ function SettingsContent() {
                       3. Direct Payout Capture
                     </div>
                     <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      Upon verified completion, payment capture dispatches directly to the specialist recipient PayPal address.
+                      Upon verified completion, payment capture dispatches directly to the
+                      specialist recipient PayPal address.
                     </p>
                   </div>
                 </CardContent>
@@ -1569,7 +1679,9 @@ function SettingsContent() {
               {/* Payment Records Link */}
               <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--wp-border)] bg-white">
                 <div>
-                  <div className="text-xs font-semibold text-[var(--wp-text-primary)]">Payment Activity &amp; Records</div>
+                  <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
+                    Payment Activity &amp; Records
+                  </div>
                   <div className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
                     View transaction records, authorization holds, and captured payouts.
                   </div>
@@ -1594,7 +1706,8 @@ function SettingsContent() {
                     Notification Preferences
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Choose which consequential task milestones and payment events trigger notifications.
+                    Choose which consequential task milestones and payment events trigger
+                    notifications.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6 divide-y divide-[var(--wp-border)]">
@@ -1624,7 +1737,8 @@ function SettingsContent() {
                         Verification Results
                       </span>
                       <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Notifications when deliverable tests complete with passing or failing outcomes.
+                        Notifications when deliverable tests complete with passing or failing
+                        outcomes.
                       </span>
                     </div>
                     <input
@@ -1664,7 +1778,8 @@ function SettingsContent() {
                         Payment Authorizations &amp; Captures
                       </span>
                       <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Updates when PayPal authorization holds lock or settlement captures disburse.
+                        Updates when PayPal authorization holds lock or settlement captures
+                        disburse.
                       </span>
                     </div>
                     <input
@@ -1714,18 +1829,19 @@ function SettingsContent() {
                       Runtime Execution Mode
                     </CardTitle>
                     <span className="text-xs text-[var(--wp-text-secondary)] font-mono">
-                      Default: {envDefault === "demo" ? "Sandbox" : "Live"}
+                      Default: {envDefault === "demo" ? "Demo data" : "Production services"}
                     </span>
                   </div>
                   <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Choose between Sandbox simulation mode for testing and Live mode for real payment authorizations.
+                    Choose the data environment for your workspace. Payment operations remain
+                    simulated in both modes.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 sm:p-6 grid sm:grid-cols-2 gap-4">
                   <div
                     onClick={() => {
                       setMode("demo");
-                      toast.success("Switched to Sandbox Mode");
+                      toast.success("Switched to demo data");
                     }}
                     className={cn(
                       "p-4 rounded-xl border-2 cursor-pointer transition-all",
@@ -1737,19 +1853,20 @@ function SettingsContent() {
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
                         <FlaskConical className="h-4 w-4 text-[var(--wp-accent)]" />
-                        Sandbox Simulation
+                        Demo data
                       </span>
                       {isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-accent)]" />}
                     </div>
                     <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
-                      Simulated PayPal authorizations and test verifications. Ideal for testing workflows.
+                      Use seeded demonstration records to explore supported workflows. Payments
+                      remain simulated.
                     </p>
                   </div>
 
                   <div
                     onClick={() => {
                       setMode("production");
-                      toast.success("Switched to Live Mode");
+                      toast.success("Switched to production services");
                     }}
                     className={cn(
                       "p-4 rounded-xl border-2 cursor-pointer transition-all",
@@ -1761,12 +1878,12 @@ function SettingsContent() {
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
                         <ShieldCheck className="h-4 w-4 text-[var(--wp-success)]" />
-                        Live Production
+                        Production services
                       </span>
                       {!isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-success)]" />}
                     </div>
                     <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
-                      Live PayPal payment authorizations and real task execution.
+                      Use production services and account data. Payment operations remain simulated.
                     </p>
                   </div>
                 </CardContent>
@@ -1786,7 +1903,9 @@ function SettingsContent() {
                   </CardHeader>
                   <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <div className="font-semibold text-sm text-[var(--wp-text-primary)]">Restore Baseline Fixtures</div>
+                      <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
+                        Restore Baseline Fixtures
+                      </div>
                       <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-xl leading-relaxed">
                         Clears all test tasks and restores the canonical demonstration workflow.
                       </p>
@@ -1832,10 +1951,13 @@ function SettingsContent() {
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
                     <Github className="h-4 w-4 text-[var(--wp-text-primary)]" />
                   </div>
-                  <DialogTitle className="text-base font-semibold">Verify Developer Profile</DialogTitle>
+                  <DialogTitle className="text-base font-semibold">
+                    Verify Developer Profile
+                  </DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                  Choose your preferred verification method to confirm ownership of your GitHub developer account.
+                  Choose your preferred verification method to confirm ownership of your GitHub
+                  developer account.
                 </DialogDescription>
               </DialogHeader>
 
@@ -1847,10 +1969,16 @@ function SettingsContent() {
                       <Zap className="h-3.5 w-3.5 text-amber-500" />
                       <span>Authorized GitHub Handshake (Recommended)</span>
                     </div>
-                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">Instant 1-Click</Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-emerald-600 border-emerald-500/30"
+                    >
+                      Instant 1-Click
+                    </Badge>
                   </div>
                   <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                    Authorize directly with GitHub OAuth in 1 click. Instant verification without creating manual files or tokens.
+                    Authorize directly with GitHub OAuth in 1 click. Instant verification without
+                    creating manual files or tokens.
                   </p>
                   <Button
                     type="button"
@@ -1871,10 +1999,16 @@ function SettingsContent() {
                       <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
                       <span>Public Gist Verification</span>
                     </div>
-                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-500/30">Zero OAuth Scopes</Badge>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-blue-600 border-blue-500/30"
+                    >
+                      Zero OAuth Scopes
+                    </Badge>
                   </div>
                   <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                    Prove ownership by publishing a quick public Gist containing a unique token. Ideal if you prefer not to grant OAuth permissions.
+                    Prove ownership by publishing a quick public Gist containing a unique token.
+                    Ideal if you prefer not to grant OAuth permissions.
                   </p>
                   <Button
                     type="button"
@@ -1910,7 +2044,9 @@ function SettingsContent() {
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)]">
                     <FileCode2 className="h-4 w-4 text-blue-500" />
                   </div>
-                  <DialogTitle className="text-base font-semibold">Public Gist Verification</DialogTitle>
+                  <DialogTitle className="text-base font-semibold">
+                    Public Gist Verification
+                  </DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
                   Enter your GitHub username to generate a public Gist verification token.
@@ -1919,7 +2055,9 @@ function SettingsContent() {
 
               <div className="py-4 space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="inputGithub" className="text-xs">GitHub Username Handle</Label>
+                  <Label htmlFor="inputGithub" className="text-xs">
+                    GitHub Username Handle
+                  </Label>
                   <div className="relative">
                     <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -1970,7 +2108,8 @@ function SettingsContent() {
                   <DialogTitle className="text-base font-semibold">Confirm Public Gist</DialogTitle>
                 </div>
                 <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                  Publish a public Gist containing your verification token to complete verification for @{githubChallengeData?.githubUsername}.
+                  Publish a public Gist containing your verification token to complete verification
+                  for @{githubChallengeData?.githubUsername}.
                 </DialogDescription>
               </DialogHeader>
 
@@ -1986,7 +2125,8 @@ function SettingsContent() {
                     )}
                     <div>
                       <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                        {githubChallengeData.name || githubChallengeData.githubUsername} (@{githubChallengeData.githubUsername})
+                        {githubChallengeData.name || githubChallengeData.githubUsername} (@
+                        {githubChallengeData.githubUsername})
                       </div>
                       <div className="text-[11px] text-[var(--wp-text-secondary)] flex items-center gap-2 mt-0.5">
                         <span>{githubChallengeData.publicRepos ?? 0} public repos</span>
@@ -2021,10 +2161,30 @@ function SettingsContent() {
                 </div>
 
                 <div className="p-3.5 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1.5 leading-relaxed">
-                  <strong className="text-[var(--wp-text-primary)] font-semibold block">Instructions:</strong>
-                  <p>1. Open <a href="https://gist.github.com" target="_blank" rel="noreferrer" className="text-[var(--wp-accent)] font-semibold hover:underline inline-flex items-center gap-0.5">gist.github.com <ExternalLink className="h-2.5 w-2.5" /></a> in your browser.</p>
-                  <p>2. Create a <strong>public</strong> gist. You can name the file <code>workpay-verify.txt</code> and paste the token as the content, or put the token in the gist description.</p>
-                  <p>3. Click "Verify Public Gist" below. The server will verify the gist and unlock your developer badge immediately.</p>
+                  <strong className="text-[var(--wp-text-primary)] font-semibold block">
+                    Instructions:
+                  </strong>
+                  <p>
+                    1. Open{" "}
+                    <a
+                      href="https://gist.github.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[var(--wp-accent)] font-semibold hover:underline inline-flex items-center gap-0.5"
+                    >
+                      gist.github.com <ExternalLink className="h-2.5 w-2.5" />
+                    </a>{" "}
+                    in your browser.
+                  </p>
+                  <p>
+                    2. Create a <strong>public</strong> gist. You can name the file{" "}
+                    <code>workpay-verify.txt</code> and paste the token as the content, or put the
+                    token in the gist description.
+                  </p>
+                  <p>
+                    3. Click "Verify Public Gist" below. The server will verify the gist and unlock
+                    your developer badge immediately.
+                  </p>
                 </div>
               </div>
 
@@ -2074,12 +2234,19 @@ function SettingsContent() {
                       <ScanFace className="h-4.5 w-4.5" />
                     </div>
                     <div>
-                      <DialogTitle className="text-base font-semibold">Persona Identity Verification</DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">Automated KYC, biometric liveness, and AML screening</p>
+                      <DialogTitle className="text-base font-semibold">
+                        Persona Identity Verification
+                      </DialogTitle>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                        Automated KYC, biometric liveness, and AML screening
+                      </p>
                     </div>
                   </div>
                   {personaInquiryId && (
-                    <Badge variant="outline" className="text-[10px] font-mono border-[var(--wp-border)] shrink-0">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
+                    >
                       {personaInquiryId}
                     </Badge>
                   )}
@@ -2092,26 +2259,36 @@ function SettingsContent() {
                     <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
                       $1,000 Milestone Threshold Requirement
                     </span>
-                    <Badge variant="outline" className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
+                    >
                       {personaEnvironment.toUpperCase()}
                     </Badge>
                   </div>
                   <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                    Under non-custodial operating rules, tasks below $1,000 USD execute without identity verification. Tasks or milestone disbursements exceeding $1,000 USD require verified identity through Persona.
+                    Under non-custodial operating rules, tasks below $1,000 USD execute without
+                    identity verification. Tasks or milestone disbursements exceeding $1,000 USD
+                    require verified identity through Persona.
                   </p>
                 </div>
 
                 <div className="space-y-2.5">
-                  <span className="text-[11px] font-semibold text-[var(--wp-text-primary)] block">Automated Persona Verification Steps:</span>
+                  <span className="text-[11px] font-semibold text-[var(--wp-text-primary)] block">
+                    Automated Persona Verification Steps:
+                  </span>
 
                   <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-background flex items-start gap-3">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] text-[var(--wp-accent)] border border-[var(--wp-border)] mt-0.5">
                       <FileCheck2 className="h-3.5 w-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">1. Government Credential Inspection</div>
+                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
+                        1. Government Credential Inspection
+                      </div>
                       <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        High-accuracy OCR inspection of Passport, Driver License, or National ID Card with hologram and MRZ checksum validation.
+                        High-accuracy OCR inspection of Passport, Driver License, or National ID
+                        Card with hologram and MRZ checksum validation.
                       </p>
                     </div>
                   </div>
@@ -2121,9 +2298,12 @@ function SettingsContent() {
                       <ScanFace className="h-3.5 w-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">2. Biometric Facial Liveness & Match</div>
+                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
+                        2. Biometric Facial Liveness & Match
+                      </div>
                       <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        Passive 3D depth analysis and anti-spoofing inspection to match your face vector against the physical identity document.
+                        Passive 3D depth analysis and anti-spoofing inspection to match your face
+                        vector against the physical identity document.
                       </p>
                     </div>
                   </div>
@@ -2133,9 +2313,12 @@ function SettingsContent() {
                       <ShieldCheck className="h-3.5 w-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">3. Global AML & PEP Watchlist Screening</div>
+                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
+                        3. Global AML & PEP Watchlist Screening
+                      </div>
                       <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        Instant screening against OFAC, PEP, and international sanctions registries for complete compliance peace of mind.
+                        Instant screening against OFAC, PEP, and international sanctions registries
+                        for complete compliance peace of mind.
                       </p>
                     </div>
                   </div>
@@ -2189,11 +2372,18 @@ function SettingsContent() {
                       <FileCheck2 className="h-4 w-4" />
                     </div>
                     <div>
-                      <DialogTitle className="text-base font-semibold">Government Identity Document</DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">Step 1 of 2: Credential Details</p>
+                      <DialogTitle className="text-base font-semibold">
+                        Government Identity Document
+                      </DialogTitle>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                        Step 1 of 2: Credential Details
+                      </p>
                     </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono border-[var(--wp-border)] shrink-0">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
+                  >
                     Step 1 / 2
                   </Badge>
                 </div>
@@ -2201,7 +2391,9 @@ function SettingsContent() {
 
               <div className="py-4 space-y-3.5">
                 <div className="space-y-1.5">
-                  <Label htmlFor="personaLegalName" className="text-xs font-semibold">Legal Full Name (as on Government ID)</Label>
+                  <Label htmlFor="personaLegalName" className="text-xs font-semibold">
+                    Legal Full Name (as on Government ID)
+                  </Label>
                   <Input
                     id="personaLegalName"
                     placeholder="Elena Rostova"
@@ -2211,17 +2403,24 @@ function SettingsContent() {
                     className="text-xs"
                   />
                   <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                    Must match your physical government document exactly. This legal name is permanently registered upon verification.
+                    Must match your physical government document exactly. This legal name is
+                    permanently registered upon verification.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="personaDocType" className="text-xs font-semibold">Document Type</Label>
+                    <Label htmlFor="personaDocType" className="text-xs font-semibold">
+                      Document Type
+                    </Label>
                     <select
                       id="personaDocType"
                       value={inputDocType}
-                      onChange={(e) => setInputDocType(e.target.value as "PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID")}
+                      onChange={(e) =>
+                        setInputDocType(
+                          e.target.value as "PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID",
+                        )
+                      }
                       className="w-full h-8 text-xs px-2.5 rounded-lg border border-[var(--wp-border)] bg-background text-foreground"
                     >
                       <option value="PASSPORT">Passport</option>
@@ -2231,7 +2430,9 @@ function SettingsContent() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="personaCountry" className="text-xs font-semibold">Issuing Country</Label>
+                    <Label htmlFor="personaCountry" className="text-xs font-semibold">
+                      Issuing Country
+                    </Label>
                     <Input
                       id="personaCountry"
                       placeholder="US, GB, DE, etc."
@@ -2244,7 +2445,9 @@ function SettingsContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="personaDocNumber" className="text-xs font-semibold">Document Number</Label>
+                  <Label htmlFor="personaDocNumber" className="text-xs font-semibold">
+                    Document Number
+                  </Label>
                   <Input
                     id="personaDocNumber"
                     placeholder="e.g. P987654321"
@@ -2256,8 +2459,11 @@ function SettingsContent() {
                 </div>
 
                 <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                  <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">Persona Verification Guarantee:</strong>
-                  Your credential number is encrypted and validated against official state issuing formats and security algorithms.
+                  <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">
+                    Persona Verification Guarantee:
+                  </strong>
+                  Your credential number is encrypted and validated against official state issuing
+                  formats and security algorithms.
                 </div>
               </div>
 
@@ -2271,11 +2477,7 @@ function SettingsContent() {
                 >
                   Back
                 </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="text-xs font-semibold"
-                >
+                <Button type="submit" size="sm" className="text-xs font-semibold">
                   <ScanFace className="h-3.5 w-3.5 mr-1.5" />
                   Continue to Biometric Liveness
                 </Button>
@@ -2292,11 +2494,18 @@ function SettingsContent() {
                       <ScanFace className="h-4 w-4" />
                     </div>
                     <div>
-                      <DialogTitle className="text-base font-semibold">Biometric Facial Liveness</DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">Step 2 of 2: Passive 3D Anti-Spoofing Scan</p>
+                      <DialogTitle className="text-base font-semibold">
+                        Biometric Facial Liveness
+                      </DialogTitle>
+                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                        Step 2 of 2: Passive 3D Anti-Spoofing Scan
+                      </p>
                     </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono border-[var(--wp-border)] shrink-0">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
+                  >
                     Step 2 / 2
                   </Badge>
                 </div>
@@ -2337,9 +2546,13 @@ function SettingsContent() {
                 </div>
 
                 <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1 leading-relaxed">
-                  <div className="font-semibold text-[var(--wp-text-primary)]">Passive Liveness Inspection:</div>
+                  <div className="font-semibold text-[var(--wp-text-primary)]">
+                    Passive Liveness Inspection:
+                  </div>
                   <p>
-                    Persona captures a micro-vector representation of your face to verify real human presence and matches it against your {inputDocType.toLowerCase().replace(/_/g, " ")}. Video is not stored.
+                    Persona captures a micro-vector representation of your face to verify real human
+                    presence and matches it against your{" "}
+                    {inputDocType.toLowerCase().replace(/_/g, " ")}. Video is not stored.
                   </p>
                 </div>
               </div>
@@ -2379,7 +2592,9 @@ function SettingsContent() {
               </div>
 
               <div className="space-y-1">
-                <DialogTitle className="text-base font-semibold">Verifying with Persona</DialogTitle>
+                <DialogTitle className="text-base font-semibold">
+                  Verifying with Persona
+                </DialogTitle>
                 <p className="text-xs text-[var(--wp-text-secondary)]">
                   Running automated biometric matching, OCR validation, and AML watchlist checks...
                 </p>
@@ -2414,8 +2629,12 @@ function SettingsContent() {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <DialogTitle className="text-base font-semibold">Identity Verified with Persona</DialogTitle>
-                    <p className="text-[11px] text-emerald-600 font-medium">High-value milestone thresholds permanently unlocked</p>
+                    <DialogTitle className="text-base font-semibold">
+                      Identity Verified with Persona
+                    </DialogTitle>
+                    <p className="text-[11px] text-emerald-600 font-medium">
+                      High-value milestone thresholds permanently unlocked
+                    </p>
                   </div>
                 </div>
               </DialogHeader>
@@ -2423,7 +2642,9 @@ function SettingsContent() {
               <div className="py-4 space-y-3.5">
                 <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                    <span className="text-xs text-[var(--wp-text-secondary)]">Verification Status:</span>
+                    <span className="text-xs text-[var(--wp-text-secondary)]">
+                      Verification Status:
+                    </span>
                     <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-semibold">
                       PASSED (VERIFIED)
                     </Badge>
@@ -2431,25 +2652,33 @@ function SettingsContent() {
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">Legal Full Name:</span>
+                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
+                        Legal Full Name:
+                      </span>
                       <span className="font-semibold text-[var(--wp-text-primary)]">
                         {personaVerificationResult?.legalName || inputLegalName}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">Document Type:</span>
+                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
+                        Document Type:
+                      </span>
                       <span className="font-semibold text-[var(--wp-text-primary)]">
                         {personaVerificationResult?.documentType || inputDocType}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">Reference Inquiry ID:</span>
+                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
+                        Reference Inquiry ID:
+                      </span>
                       <span className="font-mono text-[10px] text-[var(--wp-text-secondary)]">
                         {personaVerificationResult?.inquiryId || personaInquiryId || "inq_verified"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">Disbursement Limit:</span>
+                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
+                        Disbursement Limit:
+                      </span>
                       <span className="font-semibold text-emerald-600">
                         Unlimited ($1,000+ Permitted)
                       </span>
@@ -2463,7 +2692,8 @@ function SettingsContent() {
                     Compliance Profile Active
                   </div>
                   <p>
-                    Your Persona identity verification has been confirmed. You can now execute and disburse tasks of any value without threshold constraints.
+                    Your Persona identity verification has been confirmed. You can now execute and
+                    disburse tasks of any value without threshold constraints.
                   </p>
                 </div>
               </div>
@@ -2497,7 +2727,8 @@ function SettingsContent() {
               <DialogTitle className="text-base font-semibold">PayPal Account Binding</DialogTitle>
             </div>
             <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-              Connect your verified PayPal account for task authorization holds and specialist payouts.
+              Connect your verified PayPal account for task authorization holds and specialist
+              payouts.
             </DialogDescription>
           </DialogHeader>
 
@@ -2508,12 +2739,16 @@ function SettingsContent() {
                 <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
                   Method 1: Connect with PayPal (OAuth 2.0)
                 </span>
-                <Badge variant="outline" className="text-[10px] font-mono text-blue-600 border-blue-400/30">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono text-blue-600 border-blue-400/30"
+                >
                   Recommended
                 </Badge>
               </div>
               <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                Logs in via PayPal to automatically link and verify your PayPal Payer ID, primary email, and KYC standing in a single step.
+                Logs in via PayPal to automatically link and verify your PayPal Payer ID, primary
+                email, and KYC standing in a single step.
               </p>
               <Button
                 type="button"
@@ -2522,13 +2757,17 @@ function SettingsContent() {
                 className="w-full bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
               >
                 <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                {connectingPayPalOAuth ? "Redirecting to PayPal..." : "Sign in & Connect with PayPal"}
+                {connectingPayPalOAuth
+                  ? "Redirecting to PayPal..."
+                  : "Sign in & Connect with PayPal"}
               </Button>
             </div>
 
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-[var(--wp-border)]"></div>
-              <span className="flex-shrink mx-3 text-[11px] text-[var(--wp-text-secondary)] font-medium">Or verify specialist payout address</span>
+              <span className="flex-shrink mx-3 text-[11px] text-[var(--wp-text-secondary)] font-medium">
+                Or verify specialist payout address
+              </span>
               <div className="flex-grow border-t border-[var(--wp-border)]"></div>
             </div>
 
@@ -2536,7 +2775,9 @@ function SettingsContent() {
             {payoutVerifyStep === "input" ? (
               <form onSubmit={handleRequestPayoutCode} className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="payoutEmailInput" className="text-xs">PayPal Payout Email</Label>
+                  <Label htmlFor="payoutEmailInput" className="text-xs">
+                    PayPal Payout Email
+                  </Label>
                   <div className="relative">
                     <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -2550,7 +2791,8 @@ function SettingsContent() {
                     />
                   </div>
                   <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                    Rejects disposable domains. Performs DNS MX verification before dispatching code.
+                    Rejects disposable domains. Performs DNS MX verification before dispatching
+                    code.
                   </p>
                 </div>
 
@@ -2577,7 +2819,8 @@ function SettingsContent() {
             ) : (
               <form onSubmit={handleConfirmPayoutCode} className="space-y-3">
                 <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)]">
-                  A 6-digit confirmation code was dispatched for <strong>{inputPaypalEmail}</strong>.
+                  A 6-digit confirmation code was dispatched for <strong>{inputPaypalEmail}</strong>
+                  .
                 </div>
 
                 {issuedPayoutCode && (
@@ -2587,7 +2830,9 @@ function SettingsContent() {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="payoutCodeInput" className="text-xs">Enter 6-Digit Confirmation Code</Label>
+                  <Label htmlFor="payoutCodeInput" className="text-xs">
+                    Enter 6-Digit Confirmation Code
+                  </Label>
                   <Input
                     id="payoutCodeInput"
                     placeholder="123456"
@@ -2641,7 +2886,9 @@ function SettingsContent() {
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Unlink PayPal Account?</DialogTitle>
             <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed mt-1">
-              Disconnecting your PayPal account will disable one-click payment authorizations and prevent specialist disbursements until a new account is connected. Any currently active authorization holds will remain on PayPal until their contracts settle.
+              Disconnecting your PayPal account will disable one-click payment authorizations and
+              prevent specialist disbursements until a new account is connected. Any currently
+              active authorization holds will remain on PayPal until their contracts settle.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0 mt-2">
@@ -2673,7 +2920,8 @@ function SettingsContent() {
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Reset Sandbox Data?</DialogTitle>
             <DialogDescription className="text-xs text-[var(--wp-text-secondary)] leading-relaxed mt-1">
-              This will restore the database to the clean demonstration baseline. Any custom test tasks created during this session will be reset.
+              This will restore the database to the clean demonstration baseline. Any custom test
+              tasks created during this session will be reset.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0 mt-2">
@@ -2704,7 +2952,11 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-xl bg-[var(--wp-surface-subtle)]" />}>
+    <Suspense
+      fallback={
+        <div className="h-64 w-full animate-pulse rounded-xl bg-[var(--wp-surface-subtle)]" />
+      }
+    >
       <SettingsContent />
     </Suspense>
   );

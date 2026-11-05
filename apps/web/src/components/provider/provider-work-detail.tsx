@@ -2,11 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { formatMinorMoney } from "@/lib/format";
-import {
-  acceptProviderWork,
-  startProviderWork,
-  submitDeliverable,
-} from "@/lib/api/endpoints";
+import { acceptProviderWork, startProviderWork, submitDeliverable } from "@/lib/api/endpoints";
 import type { ProviderWorkDto } from "@/lib/api/types";
 
 function newIdempotencyKey(): string {
@@ -76,9 +72,7 @@ export function ProviderWorkDetail({
     <>
       <p className="screen-label">Work order</p>
       <div className="sheet relative">
-        <div className="sheet-meta">
-          Work order commitment
-        </div>
+        <div className="sheet-meta">Work order commitment</div>
         <h1 className="sheet-title">{work.taskTitle}</h1>
         <p style={{ color: "var(--ink-soft)" }}>{work.taskRequest}</p>
 
@@ -86,12 +80,13 @@ export function ProviderWorkDetail({
 
         <div className="cols3">
           <div>
-            <div className="lbl">You are paid</div>
+            <div className="lbl">Agreed amount</div>
             <span className="amount">{moneyAmount}</span>
+            <p className="lbl mt-1">Payment-policy simulation only. No funds are held or paid.</p>
           </div>
           <div>
-            <div className="lbl">When</div>
-            Once every requirement is met
+            <div className="lbl">Payment status</div>
+            Simulated only
           </div>
           <div>
             <div className="lbl">Due</div>
@@ -111,47 +106,37 @@ export function ProviderWorkDetail({
         <div className="sheet-meta mb-2">Requirements</div>
         <ol style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.4rem" }}>
           {work.requirements.map((req, idx) => (
-            <li key={req.key || idx} className="py-1.5 border-b border-[var(--paper-rule)] last:border-b-0">
+            <li
+              key={req.key || idx}
+              className="py-1.5 border-b border-[var(--paper-rule)] last:border-b-0"
+            >
               <span>{req.statement}</span>
             </li>
           ))}
         </ol>
 
-        {error && (
-          <p className="note note-fail mt-4">{error}</p>
-        )}
+        {error && <p className="note note-fail mt-4">{error}</p>}
 
         {/* Action based on status */}
         <div className="mt-6 pt-4 border-t border-[var(--ink)]">
           {work.status === "ASSIGNED" && (
             <div className="sheet-actions mt-0 pt-0 border-t-0">
-              <button
-                type="button"
-                onClick={accept}
-                disabled={busy === "accept"}
-                className="btn"
-              >
+              <button type="button" onClick={accept} disabled={busy === "accept"} className="btn">
                 {busy === "accept" ? "Accepting..." : "Accept work"}
               </button>
               <span className="lbl">
-                {moneyAmount} is the agreed amount used by the payment-policy simulation. No funds are held.
+                {moneyAmount} is the agreed amount used by the payment-policy simulation. No funds
+                are held.
               </span>
             </div>
           )}
 
           {work.status === "ACCEPTED" && (
             <div className="sheet-actions mt-0 pt-0 border-t-0">
-              <button
-                type="button"
-                onClick={start}
-                disabled={busy === "start"}
-                className="btn"
-              >
+              <button type="button" onClick={start} disabled={busy === "start"} className="btn">
                 {busy === "start" ? "Starting..." : "Start work"}
               </button>
-              <span className="lbl">
-                Confirm you have begun execution.
-              </span>
+              <span className="lbl">Confirm you have begun execution.</span>
             </div>
           )}
 
@@ -159,16 +144,22 @@ export function ProviderWorkDetail({
             <div className="space-y-4">
               <div className="sheet-meta">Submit deliverable for verification</div>
               <div>
-                <label className="lbl block mb-1">Select deliverable file</label>
+                <label htmlFor="deliverable-file" className="lbl block mb-1">
+                  Select deliverable file
+                </label>
                 <input
+                  id="deliverable-file"
                   type="file"
                   ref={fileRef}
                   className="text-sm font-serif file:mr-3 file:py-1.5 file:px-3 file:rounded-[var(--radius-control)] file:border file:border-[var(--ink)] file:text-xs file:font-sans file:bg-[var(--ink)] file:text-[var(--paper)] hover:file:opacity-90 cursor-pointer"
                 />
               </div>
               <div>
-                <label className="lbl block mb-1">Notes on submission</label>
+                <label htmlFor="submission-note" className="lbl block mb-1">
+                  Notes on submission
+                </label>
                 <textarea
+                  id="submission-note"
                   rows={3}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -177,16 +168,12 @@ export function ProviderWorkDetail({
                 />
               </div>
               <div className="sheet-actions mt-2 pt-2 border-t-0">
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={busy === "submit"}
-                  className="btn"
-                >
+                <button type="button" onClick={submit} disabled={busy === "submit"} className="btn">
                   {busy === "submit" ? "Submitting..." : "Submit for verification"}
                 </button>
                 <span className="lbl">
-                  Submitting work does not trigger payment. Automated verification and policy confirmation do.
+                  Submitting work does not trigger a payment. Payment operations are simulated in
+                  this environment.
                 </span>
               </div>
             </div>
@@ -195,10 +182,11 @@ export function ProviderWorkDetail({
           {work.status === "SUBMITTED" && (
             <div>
               <p className="note note-unsure">
-                Work submitted. Automated verification is running against every requirement.
+                The submission is recorded. Its verification status may still be pending.
               </p>
               <p className="lbl mt-2">
-                Submitting work does not trigger payment. Verification does.
+                Submitting work does not trigger a payment. Payment operations are simulated in this
+                environment.
               </p>
             </div>
           )}
@@ -206,9 +194,9 @@ export function ProviderWorkDetail({
           {isPaid && (
             <div className="flex items-center justify-between">
               <p className="note note-met">
-                Every requirement was met. {moneyAmount} was delivered to your PayPal account.
+                WorkPay recorded this workflow as completed. No payout was made.
               </p>
-              <div className="stamp note-met">Paid</div>
+              <div className="stamp note-met">Simulation completed</div>
             </div>
           )}
         </div>

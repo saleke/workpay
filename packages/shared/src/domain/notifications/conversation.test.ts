@@ -18,7 +18,7 @@ describe("conversation notification projection", () => {
     ).toMatchObject({
       userId: "usr_provider",
       title: "New buyer contact request",
-      href: "/provider?section=conversations&conversation=conv_1#conversation-conv_1",
+      href: "/messages?conversation=conv_1",
     });
   });
 
@@ -41,11 +41,11 @@ describe("conversation notification projection", () => {
       }),
     ).toMatchObject({
       userId: "usr_buyer",
-      href: "/tasks/task_123?section=execution&conversation=conv_1#conversation-conv_1",
+      href: "/messages?conversation=conv_1",
     });
   });
 
-  it("routes a private message to the recipient's relevant workspace", () => {
+  it("routes a private message to its task-scoped thread in Messages", () => {
     expect(
       projectConversationNotification({
         ...base,
@@ -54,7 +54,7 @@ describe("conversation notification projection", () => {
       }),
     ).toMatchObject({
       userId: "usr_provider",
-      href: "/provider?section=conversations&conversation=conv_1#conversation-conv_1",
+      href: "/messages?conversation=conv_1",
     });
   });
 
@@ -68,7 +68,7 @@ describe("conversation notification projection", () => {
     ).toMatchObject({
       userId: "usr_buyer",
       title: "Professional withdrew from the discussion",
-      href: "/tasks/task_123?section=execution&conversation=conv_1#conversation-conv_1",
+      href: "/messages?conversation=conv_1",
     });
   });
 });

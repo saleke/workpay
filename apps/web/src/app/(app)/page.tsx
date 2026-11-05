@@ -14,33 +14,47 @@ import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { listTasks, listActivity, listPayments } from "@/lib/api/endpoints";
 import type { TaskDto, ActivityEntryDto, PaymentDto } from "@/lib/api/types";
+import { PageHeader } from "@/components/layout/page-header";
+import { ErrorState } from "@/components/states";
 
 export default function HomeDashboardPage() {
-  const [userName, setUserName] = useState("Alice");
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const storedAuth = window.localStorage.getItem("workpay_auth_user");
       if (storedAuth) {
-        const parsed = JSON.parse(storedAuth);
-        if (parsed?.name) {
-          setUserName(parsed.name);
-          return;
-        }
+        const parsed = JSON.parse(storedAuth) as {
+          name?: unknown;
+          displayName?: unknown;
+          username?: unknown;
+        };
+        const name = parsed.displayName ?? parsed.name ?? parsed.username;
+        if (typeof name === "string" && name.trim()) setUserName(name.trim());
       }
-      const storedPersona = window.localStorage.getItem("workpay_persona");
-      if (storedPersona === "provider") setUserName("Bob");
-      else if (storedPersona === "admin_reviewer") setUserName("Carol");
-      else setUserName("Alice");
     } catch {
-      // fallback
+      setUserName(null);
     }
   }, []);
 
   // Load data with SWR cache
-  const { data: tasksData, loading: tasksLoading } = useApi(() => listTasks(), [], "tasks");
-  const { data: activityData } = useApi(() => listActivity(), [], "activity");
-  const { data: paymentsData } = useApi(() => listPayments(), [], "payments");
+  const {
+    data: tasksData,
+    error: tasksError,
+    loading: tasksLoading,
+    reload: reloadTasks,
+  } = useApi(() => listTasks(), [], "tasks");
+  const {
+    data: activityData,
+    error: activityError,
+    loading: activityLoading,
+    reload: reloadActivity,
+  } = useApi(() => listActivity(), [], "activity");
+  const {
+    data: paymentsData,
+    error: paymentsError,
+    reload: reloadPayments,
+  } = useApi(() => listPayments(), [], "payments");
 
   const tasks: TaskDto[] = tasksData ?? [];
   const activities: ActivityEntryDto[] = activityData ?? [];
@@ -59,14 +73,14 @@ export default function HomeDashboardPage() {
     });
   }, [tasks]);
 
-  // Derive Active Tasks (excluding completed/settled/cancelled)
+  // Derive active tasks from the authoritative task states.
   const activeTasks = useMemo(() => {
     return tasks.filter(
       (t) => t.status !== "COMPLETED" && t.status !== "PAYMENT_RELEASE" && t.status !== "CANCELLED",
     );
   }, [tasks]);
 
-  // Commitment Summary (real data, PayPal escrow semantics, never a wallet balance)
+  // Payment records are simulation data only; these totals never represent held funds.
   const commitments = useMemo(() => {
     let heldMinor = 0;
     let settledMinor = 0;
@@ -92,33 +106,68 @@ export default function HomeDashboardPage() {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Top Greeting and Concise System Summary (Section 5) */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            Good day, {userName}
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            {activeTasks.length === 0
-              ? "No active tasks right now. Start with the outcome you want to achieve."
-              : `${activeTasks.length} active task${activeTasks.length === 1 ? "" : "s"} in flight. ${
-                  attentionTasks.length > 0
-                    ? `${attentionTasks.length} require${attentionTasks.length === 1 ? "s" : ""} your review.`
-                    : "Open a task to see its current stage and next action."
-                }`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+      <PageHeader
+        eyebrow="Your workspace"
+        title={userName ? `Good day, ${userName}` : "Good day"}
+        description={
+          activeTasks.length === 0
+            ? tasksError
+              ? "Task information is unavailable right now."
+              : "No active tasks right now. Start with the outcome you want to achieve."
+            : `${activeTasks.length} active task${activeTasks.length === 1 ? "" : "s"} in flight. ${
+                attentionTasks.length > 0
+                  ? `${attentionTasks.length} require${attentionTasks.length === 1 ? "s" : ""} your review.`
+                  : "Open a task to see its current stage and next action."
+              }`
+        }
+        actions={
           <Link
             href="/tasks"
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--text-muted)] hover:text-[var(--charcoal)] bg-[var(--surface-subtle)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-lg transition-colors"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-4 text-sm font-medium text-[var(--wp-text-primary)] transition-colors hover:bg-[var(--wp-surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
           >
-            <span>View all tasks</span>
+            View all tasks
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
+        }
+      />
+
+      <section className="relative overflow-hidden rounded-[var(--wp-radius-xl)] bg-[var(--wp-accent)] p-6 text-white shadow-sm sm:p-8 lg:p-10">
+        <div className="pointer-events-none absolute -right-10 -top-20 h-64 w-64 rounded-full border-[32px] border-white/5" />
+        <div className="relative max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--wp-accent-bright)]">
+            Start with the outcome
+          </p>
+          <h2 className="mt-2 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+            What would you like to get done?
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
+            Describe the work in your own words. WorkPay helps you confirm the brief and budget
+            before you choose a professional or approve any next step.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/intake"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--wp-accent-bright)] px-5 text-sm font-semibold text-[var(--wp-text-primary)] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wp-accent)]"
+            >
+              Start a new task
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <p className="text-xs leading-5 text-white/75">
+              No professional is contacted until you choose one and confirm the exact message.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {paymentsError ? (
+        <section aria-label="Payment simulation status">
+          <ErrorState
+            title="Payment simulation data is unavailable"
+            description={paymentsError.message}
+            onRetry={reloadPayments}
+          />
+        </section>
+      ) : null}
 
       {/* 2. Commitment Summary Ribbon */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -128,10 +177,12 @@ export default function HomeDashboardPage() {
             <ShieldCheck className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
-            {commitments.held}
+            {paymentsError ? "Unavailable" : commitments.held}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Agreement amounts currently exercising the payment-policy path. No funds are held.
+            {paymentsError
+              ? "Payment simulation records could not be loaded."
+              : "Agreement amounts in the policy simulation. No funds are held."}
           </p>
         </div>
 
@@ -141,10 +192,12 @@ export default function HomeDashboardPage() {
             <CheckCircle2 className="h-4 w-4 text-[var(--green)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
-            {commitments.settled}
+            {paymentsError ? "Unavailable" : commitments.settled}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Capture paths accepted by policy during validation. No professional was paid.
+            {paymentsError
+              ? "Payment simulation records could not be loaded."
+              : "Capture paths accepted by policy during validation. No professional was paid."}
           </p>
         </div>
 
@@ -154,7 +207,7 @@ export default function HomeDashboardPage() {
             <Clock className="h-4 w-4 text-[var(--blue)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
-            {commitments.activeCount}
+            {tasksError ? "Unavailable" : commitments.activeCount}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             Tasks in setup, professional selection, discussion, delivery, or review. A task is not a
@@ -163,37 +216,7 @@ export default function HomeDashboardPage() {
         </div>
       </div>
 
-      {/* 3. Primary task-intake entry point */}
-      <section className="workpay-card p-6 sm:p-7 border-[var(--border-strong)] relative overflow-hidden bg-white">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--amber)] mb-2">
-          <span>Task intake</span>
-        </div>
-
-        <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-[var(--charcoal)]">
-          Start with the outcome you need
-        </h2>
-        <p className="text-sm text-[var(--text-muted)] mt-1 max-w-2xl">
-          Tell WorkPay what you want to accomplish in your own words. You will confirm the
-          understanding, answer only important scope questions, and set a budget before approving a
-          brief.
-        </p>
-
-        <div className="mt-5 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-xl text-xs leading-5 text-[var(--text-muted)]">
-            Your request stays a draft until you review and approve it. This intake will not select
-            or contact a professional.
-          </p>
-          <Link
-            href="/intake"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-black"
-          >
-            Start task intake
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      {/* 4. Attention Queue (Urgent Actions - Section 5) */}
+      {/* 3. Attention Queue */}
       {attentionTasks.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -255,7 +278,7 @@ export default function HomeDashboardPage() {
                           currency: task.currency,
                         })}
                       </span>{" "}
-                      authorized on PayPal
+                      simulated authorization
                     </div>
 
                     <Link
@@ -288,7 +311,13 @@ export default function HomeDashboardPage() {
           </Link>
         </div>
 
-        {tasksLoading && tasks.length === 0 ? (
+        {tasksError && tasks.length === 0 ? (
+          <ErrorState
+            title="Tasks could not be loaded"
+            description={tasksError.message}
+            onRetry={reloadTasks}
+          />
+        ) : tasksLoading && tasks.length === 0 ? (
           <div className="workpay-card p-8 text-center text-sm text-[var(--text-muted)]">
             Loading active tasks...
           </div>
@@ -365,13 +394,25 @@ export default function HomeDashboardPage() {
             href="/activity"
             className="text-xs text-[var(--text-muted)] hover:text-[var(--charcoal)] font-medium flex items-center gap-1"
           >
-            <span>Full audit log</span>
+            <span>All activity</span>
             <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
 
         <div className="workpay-card divide-y divide-[var(--border-subtle)]">
-          {activities.length === 0 ? (
+          {activityError && activities.length === 0 ? (
+            <div className="p-5">
+              <ErrorState
+                title="Activity could not be loaded"
+                description={activityError.message}
+                onRetry={reloadActivity}
+              />
+            </div>
+          ) : activityLoading && activities.length === 0 ? (
+            <div className="p-6 text-center text-sm text-[var(--text-muted)]" role="status">
+              Loading recent activity…
+            </div>
+          ) : activities.length === 0 ? (
             <div className="p-6 text-center text-sm text-[var(--text-muted)]">
               No recent events recorded.
             </div>

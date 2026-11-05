@@ -2,10 +2,12 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { History, Clock, ArrowRight, ShieldCheck } from "lucide-react";
+import { Clock, History } from "lucide-react";
 import { useApi } from "@/lib/use-api";
 import { listActivity } from "@/lib/api/endpoints";
 import type { ActivityEntryDto } from "@/lib/api/types";
+import { ErrorState } from "@/components/states";
+import { PageHeader } from "@/components/layout/page-header";
 
 function formatDayHeading(iso: string): string {
   try {
@@ -28,7 +30,7 @@ function formatDayHeading(iso: string): string {
 }
 
 export default function ActivityPage() {
-  const { data, loading } = useApi(() => listActivity(), [], "activity");
+  const { data, error, loading, reload } = useApi(() => listActivity(), [], "activity");
   const entries: ActivityEntryDto[] = data ?? [];
 
   const grouped = useMemo(() => {
@@ -56,41 +58,67 @@ export default function ActivityPage() {
     return groups;
   }, [entries]);
 
-  if (loading && entries.length === 0) {
+  const header = (
+    <PageHeader
+      eyebrow="Records"
+      title="Activity"
+      description="A chronological view of recorded updates for your tasks and collaborations. Simulated workflow events do not indicate that money moved."
+    />
+  );
+
+  if (error) {
     return (
-      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Retrieving activity log...
+      <div className="space-y-6 pb-12">
+        {header}
+        <ErrorState
+          title="Activity could not be loaded"
+          description={error.message}
+          onRetry={reload}
+        />
+      </div>
+    );
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="space-y-6 pb-12">
+        {header}
+        <div
+          className="workpay-card p-8 text-center text-sm text-[var(--wp-text-secondary)]"
+          role="status"
+        >
+          Loading activity…
+        </div>
       </div>
     );
   }
 
   if (entries.length === 0) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <History className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
-          No activity recorded yet
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          Important lifecycle events, specification approvals, deliverable submissions, and cryptographic verifications will be recorded here in immutable sequence.
-        </p>
+      <div className="space-y-6 pb-12">
+        {header}
+        <div className="workpay-card mx-auto max-w-2xl p-8 text-center sm:p-10">
+          <History className="mx-auto mb-3 h-8 w-8 text-[var(--wp-accent)]" aria-hidden="true" />
+          <h2 className="text-xl font-semibold tracking-tight text-[var(--wp-text-primary)]">
+            Nothing recorded yet
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[var(--wp-text-secondary)]">
+            Updates will appear here as you create tasks, make decisions, and collaborate.
+          </p>
+          <Link
+            href="/tasks"
+            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-4 text-sm font-medium text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)]"
+          >
+            View tasks
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            Activity & Audit Log
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Immutable chronological record of approvals, contract revisions, proof verification, and settlement.
-          </p>
-        </div>
-      </div>
+      {header}
 
       {/* 2. Grouped Timeline Cards */}
       <div className="space-y-6">

@@ -3,26 +3,27 @@
 @tailwind utilities;
 
 :root {
-  /* WorkPay Design System Tokens (Section 4) */
-  --wp-canvas: #F7F5F0;
+  /* WorkPay visual system: warm canvas, evergreen actions, and quiet surfaces. */
+  --wp-canvas: #FCF9F1;
   --wp-surface: #FFFFFF;
-  --wp-surface-subtle: #F2F1ED;
+  --wp-surface-subtle: #F4F5EE;
 
-  --wp-text-primary: #232323;
-  --wp-text-secondary: #6B6F76;
-  --wp-text-muted: #8B8D91;
+  --wp-text-primary: #1D2D23;
+  --wp-text-secondary: #657269;
+  --wp-text-muted: #7D887F;
 
-  --wp-border: #E7E5DF;
-  --wp-border-strong: #D6D3CC;
+  --wp-border: #E4E8DE;
+  --wp-border-strong: #CDD6CB;
 
-  --wp-accent: #B7792D;
-  --wp-accent-subtle: #F7EBDD;
+  --wp-accent: #174B35;
+  --wp-accent-subtle: #EAF3E2;
+  --wp-accent-bright: #91C94E;
 
-  --wp-success: #287A53;
-  --wp-success-subtle: #EAF5EE;
+  --wp-success: #28764D;
+  --wp-success-subtle: #E8F4EA;
 
-  --wp-info: #315FA8;
-  --wp-info-subtle: #EDF3FC;
+  --wp-info: #315F68;
+  --wp-info-subtle: #EAF2F1;
 
   --wp-warning: #99631B;
   --wp-warning-subtle: #FBF2DF;
@@ -35,7 +36,7 @@
   --wp-radius-lg: 14px;
   --wp-radius-xl: 18px;
 
-  /* Backward and component compatible bindings */
+  /* Backward-compatible semantic bindings used by existing workflow screens. */
   --canvas: var(--wp-canvas);
   --surface: var(--wp-surface);
   --surface-subtle: var(--wp-surface-subtle);
@@ -43,11 +44,13 @@
   --border-strong: var(--wp-border-strong);
 
   /* Typography */
+  --font-chrome: var(--font-sans);
+  --font-voice: var(--font-sans);
   --charcoal: var(--wp-text-primary);
   --text-muted: var(--wp-text-secondary);
   --text-soft: var(--wp-text-secondary);
 
-  /* State colors */
+  /* Legacy aliases retained while older workflow components are migrated. */
   --amber: var(--wp-accent);
   --amber-subtle: var(--wp-accent-subtle);
   --green: var(--wp-success);
@@ -72,10 +75,10 @@
 
   --ink-met: var(--green);
   --ink-fail: var(--red);
-  --ink-unsure: var(--amber);
+  --ink-unsure: var(--wp-warning);
   --room-met: var(--green);
   --room-fail: var(--red);
-  --room-unsure: var(--amber);
+  --room-unsure: var(--wp-warning);
 
   /* Type scale */
   --text-label: 0.75rem;
@@ -85,12 +88,22 @@
   --text-title: 1.375rem;
   --text-display: 1.75rem;
 
-  /* Shape */
+  /* Shared spacing, shape, and motion tokens for legacy CSS primitives. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --radius-sheet: var(--wp-radius-xl);
   --radius-card: 0.875rem;
   --radius-control: 0.5rem;
   --rule: 1px;
+  --dur-stamp: 160ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* shadcn/ui defaults */
+  /* shadcn/ui semantic colors use raw CSS values, not HSL-wrapped hex values. */
   --background: var(--canvas);
   --foreground: var(--charcoal);
   --muted: var(--surface-subtle);
@@ -102,12 +115,20 @@
   --primary-foreground: #ffffff;
   --secondary: var(--surface-subtle);
   --secondary-foreground: var(--charcoal);
+  --accent: var(--wp-accent-subtle);
+  --accent-foreground: var(--wp-accent);
   --destructive: var(--red);
+  --destructive-foreground: #ffffff;
   --card: var(--surface);
   --card-foreground: var(--charcoal);
   --popover: var(--surface);
   --popover-foreground: var(--charcoal);
   --radius: var(--radius-control);
+  --chart-1: 148 42% 31%;
+  --chart-2: 87 52% 54%;
+  --chart-3: 191 36% 39%;
+  --chart-4: 39 61% 55%;
+  --chart-5: 8 55% 52%;
 }
 
 body {
@@ -119,14 +140,15 @@ body {
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
 
 /* Card container */
 .workpay-card {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  box-shadow: 0 1px 3px 0 rgba(34, 35, 38, 0.04), 0 1px 2px -1px rgba(34, 35, 38, 0.03);
+  border-radius: var(--wp-radius-lg);
+  box-shadow: 0 1px 2px rgba(29, 45, 35, 0.035);
 }
 
 /* Voucher Receipt Ticket Card (reference: Screenshot from 2026-10-23 06-10-05.png) */
@@ -495,4 +517,3 @@ body {
     padding: var(--space-3) var(--space-4);
   }
 }
-

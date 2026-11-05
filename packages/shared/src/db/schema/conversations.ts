@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -105,6 +106,28 @@ export const taskConversationMessages = pgTable(
   }),
 );
 
+export const taskConversationParticipants = pgTable(
+  "task_conversation_participants",
+  {
+    conversationId: varchar("conversation_id", { length: 64 })
+      .notNull()
+      .references(() => taskConversations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadSequence: integer("last_read_sequence").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.conversationId, t.userId] }),
+    userIdx: index("task_conversation_participants_user_idx").on(t.userId, t.updatedAt),
+    readSequenceCheck: check(
+      "task_conversation_participants_read_sequence_nonnegative",
+      sql`${t.lastReadSequence} >= 0`,
+    ),
+  }),
+);
+
 export const taskConversationsRelations = relations(taskConversations, ({ one, many }) => ({
   task: one(tasks, { fields: [taskConversations.taskId], references: [tasks.id] }),
   buyer: one(users, { fields: [taskConversations.buyerUserId], references: [users.id] }),
@@ -114,6 +137,7 @@ export const taskConversationsRelations = relations(taskConversations, ({ one, m
     references: [users.id],
   }),
   messages: many(taskConversationMessages),
+  participants: many(taskConversationParticipants),
 }));
 
 export const taskConversationMessagesRelations = relations(taskConversationMessages, ({ one }) => ({
@@ -126,3 +150,17 @@ export const taskConversationMessagesRelations = relations(taskConversationMessa
     references: [users.id],
   }),
 }));
+
+export const taskConversationParticipantsRelations = relations(
+  taskConversationParticipants,
+  ({ one }) => ({
+    conversation: one(taskConversations, {
+      fields: [taskConversationParticipants.conversationId],
+      references: [taskConversations.id],
+    }),
+    user: one(users, {
+      fields: [taskConversationParticipants.userId],
+      references: [users.id],
+    }),
+  }),
+);

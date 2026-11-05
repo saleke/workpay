@@ -111,14 +111,14 @@ export function UserNav() {
       <div className="flex items-center gap-2">
         <Link
           href="/login"
-          className="h-8 flex items-center gap-1.5 px-3 text-xs font-semibold text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] rounded-lg border border-[var(--wp-border)] bg-white/90 shadow-2xs transition-all duration-150 shrink-0 whitespace-nowrap active:scale-[0.98]"
+          className="flex min-h-10 items-center gap-1.5 rounded-xl border border-[var(--wp-border)] bg-white px-3 text-xs font-semibold text-[var(--wp-text-primary)] shadow-2xs transition-all duration-150 hover:bg-[var(--wp-surface-subtle)] active:scale-[0.98]"
         >
           <LogIn className="h-3.5 w-3.5" />
           <span>Sign In</span>
         </Link>
         <Link
           href="/register"
-          className="h-8 flex items-center gap-1.5 px-3 text-xs font-semibold text-white bg-[var(--wp-text-primary)] hover:opacity-90 rounded-lg shadow-2xs transition-all duration-150 shrink-0 whitespace-nowrap active:scale-[0.98]"
+          className="flex min-h-10 items-center gap-1.5 rounded-xl bg-[var(--wp-accent)] px-3 text-xs font-semibold text-white shadow-2xs transition-all duration-150 hover:opacity-90 active:scale-[0.98]"
         >
           <span>Sign Up</span>
         </Link>
@@ -137,7 +137,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="h-8 flex items-center gap-2 pl-2 pr-2.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] shadow-2xs transition-all duration-150 shrink-0 select-none group focus:outline-none"
+          className="flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-2.5 shadow-2xs transition-all duration-150 select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
         >
           <div className="h-5 w-5 rounded-md bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] flex items-center justify-center text-[10px] font-bold text-[var(--wp-text-primary)] shrink-0">
             {initials}

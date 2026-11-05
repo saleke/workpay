@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Briefcase, CheckCircle2, DollarSign, RefreshCw, Search, Shield, Tag, Users } from "lucide-react";
+import {
+  Briefcase,
+  CheckCircle2,
+  DollarSign,
+  RefreshCw,
+  Search,
+  Shield,
+  Tag,
+  Users,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -83,7 +92,10 @@ export function TalentRegistryView() {
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {filtered.map((p) => (
-            <Card key={p.id} className="border-border/80 shadow-xs hover:border-primary/40 transition-all flex flex-col justify-between">
+            <Card
+              key={p.id}
+              className="border-border/80 shadow-xs hover:border-primary/40 transition-all flex flex-col justify-between"
+            >
               <CardHeader className="pb-3 border-b border-border/50 bg-muted/10">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -138,9 +150,9 @@ export function TalentRegistryView() {
                 </div>
 
                 <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                  <span className="flex items-center gap-1 text-[var(--wp-text-secondary)] font-medium">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Direct PayPal Settlement Eligible
+                    Profile information for your review
                   </span>
                 </div>
               </CardContent>

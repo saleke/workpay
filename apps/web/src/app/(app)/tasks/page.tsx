@@ -17,9 +17,11 @@ import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { listTasks } from "@/lib/api/endpoints";
 import type { TaskDto } from "@/lib/api/types";
+import { PageHeader } from "@/components/layout/page-header";
+import { ErrorState } from "@/components/states";
 
 export default function TasksPage() {
-  const { data, loading } = useApi(() => listTasks(), [], "tasks");
+  const { data, error, loading, reload } = useApi(() => listTasks(), [], "tasks");
   const tasks = data ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,33 +79,64 @@ export default function TasksPage() {
     ).length;
   }, [tasks]);
 
+  if (error && tasks.length === 0) {
+    return (
+      <div className="space-y-6 pb-12">
+        <PageHeader
+          eyebrow="Workspace"
+          title="Tasks"
+          description="Your requests and their current stage."
+        />
+        <ErrorState
+          title="Tasks could not be loaded"
+          description={error.message}
+          onRetry={reload}
+        />
+      </div>
+    );
+  }
+
   if (loading && tasks.length === 0) {
     return (
-      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Opening task register...
+      <div className="space-y-6 pb-12">
+        <PageHeader
+          eyebrow="Workspace"
+          title="Tasks"
+          description="Your requests and their current stage."
+        />
+        <div
+          className="workpay-card p-8 text-center text-sm text-[var(--wp-text-secondary)]"
+          role="status"
+        >
+          Loading tasks…
+        </div>
       </div>
     );
   }
 
   if (tasks.length === 0) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <Sparkles className="h-8 w-8 text-[var(--amber)] mx-auto mb-3" />
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--charcoal)]">
-          No work agreements yet
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1.5">
-          Start by describing the outcome you need. WorkPay will confirm your intent, ask only
-          essential questions, and help you set a budget before you approve a brief. No professional
-          is selected or contacted during intake.
-        </p>
-        <div className="mt-6">
+      <div className="space-y-6 pb-12">
+        <PageHeader
+          eyebrow="Workspace"
+          title="Tasks"
+          description="Your requests and their current stage."
+        />
+        <div className="workpay-card mx-auto max-w-2xl p-8 text-center sm:p-10">
+          <Sparkles className="mx-auto mb-3 h-8 w-8 text-[var(--wp-accent)]" aria-hidden="true" />
+          <h2 className="text-xl font-semibold tracking-tight text-[var(--wp-text-primary)]">
+            No tasks yet
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[var(--wp-text-secondary)]">
+            Start with the outcome you need. WorkPay helps you confirm the brief and budget before
+            you choose a professional or approve any next step.
+          </p>
           <Link
             href="/intake"
-            className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--wp-accent)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
           >
-            <Plus className="h-4 w-4" />
-            <span>Create first task</span>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Create a task
           </Link>
         </div>
       </div>
@@ -112,34 +145,34 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 border-b border-[var(--border-subtle)] pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--charcoal)]">
-            Task Register
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            All active, review-pending, and settled contracts. Verified proof dictates release.
-          </p>
-        </div>
-
-        <Link
-          href="/intake"
-          className="inline-flex items-center gap-1.5 bg-[var(--charcoal)] text-white hover:bg-black px-4 py-2 rounded-xl text-sm font-medium transition-colors self-start sm:self-auto shadow-xs"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New task</span>
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Workspace"
+        title="Tasks"
+        description="Follow each request from its approved scope through discussion, delivery, review, and payment-policy testing."
+        actions={
+          <Link
+            href="/intake"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--wp-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--wp-accent)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New task
+          </Link>
+        }
+      />
 
       {/* 2. Search & Filter Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm font-medium">
+        <div
+          className="flex flex-wrap items-center gap-1.5 text-xs font-medium sm:text-sm"
+          role="group"
+          aria-label="Filter tasks"
+        >
           <button
             type="button"
             onClick={() => setFilterTab("ALL")}
-            className={`px-3 py-1.5 rounded-lg transition-colors ${
+            aria-pressed={filterTab === "ALL"}
+            className={`min-h-10 rounded-xl px-3 py-2 transition-colors ${
               filterTab === "ALL"
                 ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
                 : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -150,7 +183,8 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={() => setFilterTab("ATTENTION")}
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+            aria-pressed={filterTab === "ATTENTION"}
+            className={`flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 transition-colors ${
               filterTab === "ATTENTION"
                 ? "bg-amber-100 text-amber-900 font-semibold border border-amber-300"
                 : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -166,7 +200,8 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={() => setFilterTab("IN_PROGRESS")}
-            className={`px-3 py-1.5 rounded-lg transition-colors ${
+            aria-pressed={filterTab === "IN_PROGRESS"}
+            className={`min-h-10 rounded-xl px-3 py-2 transition-colors ${
               filterTab === "IN_PROGRESS"
                 ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
                 : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
@@ -177,13 +212,14 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={() => setFilterTab("COMPLETED")}
-            className={`px-3 py-1.5 rounded-lg transition-colors ${
+            aria-pressed={filterTab === "COMPLETED"}
+            className={`min-h-10 rounded-xl px-3 py-2 transition-colors ${
               filterTab === "COMPLETED"
                 ? "bg-[var(--surface-subtle)] text-[var(--charcoal)] font-semibold border border-[var(--border-strong)]"
                 : "text-[var(--text-muted)] hover:text-[var(--charcoal)]"
             }`}
           >
-            Settled
+            Finished
           </button>
         </div>
 
@@ -194,8 +230,9 @@ export default function TasksPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search tasks"
             placeholder="Search tasks..."
-            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-subtle)] text-xs sm:text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--charcoal)] focus:bg-white transition-all"
+            className="min-h-10 w-full rounded-lg border border-[var(--wp-border)] bg-white py-2 pl-9 pr-3 text-xs text-[var(--wp-text-primary)] placeholder:text-[var(--wp-text-muted)] transition-all focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] sm:text-sm"
           />
         </div>
       </div>
@@ -240,7 +277,7 @@ export default function TasksPage() {
                               : task.status === "HUMAN_REVIEW"
                                 ? "Choose an independent reviewer"
                                 : task.status === "PAYMENT_RELEASE"
-                                  ? "Review settlement status"
+                                  ? "Review completion status"
                                   : task.status === "COMPLETED"
                                     ? "Review completed task"
                                     : task.status === "CANCELLED" || task.status === "EXPIRED"
@@ -283,7 +320,7 @@ export default function TasksPage() {
                 break;
               case "PAYMENT_AUTHORIZATION":
                 statusBadge = "bg-amber-50 text-amber-700";
-                statusLabel = "Authorizing Payment";
+                statusLabel = "Payment simulation pending";
                 break;
               case "WORK_IN_PROGRESS":
                 statusBadge = "bg-blue-50 text-blue-700";
@@ -305,7 +342,7 @@ export default function TasksPage() {
               case "PAYMENT_RELEASE":
               case "COMPLETED":
                 statusBadge = "bg-emerald-50 text-emerald-700";
-                statusLabel = "Settled";
+                statusLabel = "Completed";
                 break;
               case "CANCELLED":
               case "EXPIRED":

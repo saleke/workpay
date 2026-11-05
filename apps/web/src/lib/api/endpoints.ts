@@ -9,6 +9,7 @@ import type {
   ContractChangeRequestDto,
   IndependentReviewEngagementDto,
   IndependentReviewReportDto,
+  MessageInboxDto,
   NotificationDto,
   PaymentDto,
   ProviderInboxSummaryDto,
@@ -162,6 +163,20 @@ export function listProviderConversations(): Promise<ApiResponse<TaskConversatio
   return apiFetch<TaskConversationDto[]>(`${BASE}/provider/conversations`);
 }
 
+export function getMessageInbox(): Promise<ApiResponse<MessageInboxDto>> {
+  return apiFetch<MessageInboxDto>(`${BASE}/messages/inbox`);
+}
+
+export function markTaskConversationRead(
+  conversationId: string,
+  lastReadSequence: number,
+): Promise<ApiResponse<{ conversationId: string; lastReadSequence: number }>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/read`, {
+    method: "POST",
+    body: { lastReadSequence },
+  });
+}
+
 export function getProviderInboxSummary(): Promise<ApiResponse<ProviderInboxSummaryDto>> {
   return apiFetch<ProviderInboxSummaryDto>(`${BASE}/provider/inbox-summary`);
 }
@@ -199,8 +214,13 @@ export function sendTaskConversationMessage(
 export function getTaskConversationMessages(
   conversationId: string,
   afterSequence?: number,
+  beforeSequence?: number,
 ): Promise<ApiResponse<TaskConversationDto>> {
-  const search = afterSequence === undefined ? "" : `?after=${afterSequence}`;
+  const searchParams = new URLSearchParams();
+  if (afterSequence !== undefined) searchParams.set("after", String(afterSequence));
+  if (beforeSequence !== undefined) searchParams.set("before", String(beforeSequence));
+  const query = searchParams.toString();
+  const search = query ? `?${query}` : "";
   return apiFetch<TaskConversationDto>(`${BASE}/conversations/${conversationId}/messages${search}`);
 }
 

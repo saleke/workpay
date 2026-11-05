@@ -7,9 +7,7 @@ export interface LogoProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
- * Concept 1: "The Precision Apex"
- * Crisp, modern dual-chevron geometric W with emerald settlement accent.
- * Works seamlessly on dark squircle or transparent background.
+ * The primary WorkPay mark pairs the deep evergreen surface with a fresh green stroke.
  */
 export function LogoConcept1({ size = 32, className, ...props }: LogoProps) {
   return (
@@ -22,7 +20,7 @@ export function LogoConcept1({ size = 32, className, ...props }: LogoProps) {
       className={cn("shrink-0 select-none", className)}
       {...props}
     >
-      <rect width="32" height="32" rx="7" fill="#18181B" />
+      <rect width="32" height="32" rx="7" fill="#174B35" />
       {/* Left stroke: pure white */}
       <path
         d="M6.5 11.5L11.5 22.5L16 14.5"
@@ -34,7 +32,7 @@ export function LogoConcept1({ size = 32, className, ...props }: LogoProps) {
       {/* Right stroke: emerald settlement */}
       <path
         d="M16 14.5L20.5 22.5L25.5 11.5"
-        stroke="#10B981"
+        stroke="#91C94E"
         strokeWidth="3.2"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -1,6 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt, max, ne, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "../../db/client.js";
-import { taskConversationMessages, taskConversations } from "../../db/schema/conversations.js";
+import {
+  taskConversationMessages,
+  taskConversationParticipants,
+  taskConversations,
+} from "../../db/schema/conversations.js";
 import {
   workContracts,
   contractRequirements,
@@ -11,6 +16,7 @@ import { commercialAgreements } from "../../db/schema/negotiation.js";
 import { workExecutions } from "../../db/schema/execution.js";
 import { availability, providers, providerSelections } from "../../db/schema/providers.js";
 import { tasks } from "../../db/schema/tasks.js";
+import { users } from "../../db/schema/identity.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound } from "../../platform/errors.js";
 import { newId } from "../../platform/ids.js";
@@ -42,6 +48,10 @@ export type ConversationWithMessages = typeof taskConversations.$inferSelect & {
   messages: Array<typeof taskConversationMessages.$inferSelect>;
 };
 
+function taskProviderKey(taskId: string, providerId: string): string {
+  return JSON.stringify([taskId, providerId]);
+}
+
 async function hydrateConversationRows<T extends typeof taskConversations.$inferSelect>(
   db: Database,
   conversations: T[],
@@ -50,7 +60,7 @@ async function hydrateConversationRows<T extends typeof taskConversations.$infer
   const taskIds = [...new Set(conversations.map((conversation) => conversation.taskId))];
   const [executions, agreements] = await Promise.all([
     db
-      .select({ taskId: workExecutions.taskId })
+      .select({ taskId: workExecutions.taskId, providerId: workExecutions.providerId })
       .from(workExecutions)
       .where(inArray(workExecutions.taskId, taskIds)),
     db
@@ -61,13 +71,17 @@ async function hydrateConversationRows<T extends typeof taskConversations.$infer
       .from(commercialAgreements)
       .where(inArray(commercialAgreements.taskId, taskIds)),
   ]);
-  const tasksWithExecutions = new Set(executions.map((execution) => execution.taskId));
+  const taskProvidersWithExecutions = new Set(
+    executions.map((execution) => taskProviderKey(execution.taskId, execution.providerId)),
+  );
   const agreementProviderByTask = new Map(
     agreements.map((agreement) => [agreement.taskId, agreement.providerId]),
   );
   return conversations.map((conversation) => {
     const agreementProviderId = agreementProviderByTask.get(conversation.taskId);
-    const hasWorkExecution = tasksWithExecutions.has(conversation.taskId);
+    const hasWorkExecution = taskProvidersWithExecutions.has(
+      taskProviderKey(conversation.taskId, conversation.providerId),
+    );
     if (agreementProviderId === conversation.providerId) {
       return { ...conversation, hasWorkExecution };
     }
@@ -361,6 +375,22 @@ export async function respondToTaskConversation(
     .returning();
   if (!updated) throw conflict("This contact request has already been answered.");
 
+  await tx
+    .insert(taskConversationParticipants)
+    .values({
+      conversationId: conversation.id,
+      userId: input.providerUserId,
+      lastReadSequence: conversation.messageCounter,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [taskConversationParticipants.conversationId, taskConversationParticipants.userId],
+      set: {
+        lastReadSequence: sql`greatest(${taskConversationParticipants.lastReadSequence}, excluded.last_read_sequence)`,
+        updatedAt: now,
+      },
+    });
+
   await appendEvent(tx, {
     type: input.response === "accept" ? "TASK_CONVERSATION_ACCEPTED" : "TASK_CONVERSATION_DECLINED",
     aggregateId: conversation.taskId,
@@ -574,7 +604,7 @@ export async function listTaskConversations(
     .orderBy(desc(taskConversations.createdAt));
   const conversations = await Promise.all(
     rows.map(async (conversation) => {
-      const messages = await db
+      const messageQuery = db
         .select()
         .from(taskConversationMessages)
         .where(
@@ -584,10 +614,19 @@ export async function listTaskConversations(
                 eq(taskConversationMessages.conversationId, conversation.id),
                 gt(taskConversationMessages.sequence, input.afterSequence),
               ),
-        )
-        .orderBy(asc(taskConversationMessages.sequence))
-        .limit(100);
-      return { ...conversation, contractSnapshot: conversation.contractSnapshot, messages };
+        );
+      const messages =
+        input.afterSequence === undefined
+          ? await messageQuery
+              .orderBy(desc(taskConversationMessages.sequence))
+              .limit(100)
+              .then((latest) => latest.reverse())
+          : await messageQuery.orderBy(asc(taskConversationMessages.sequence)).limit(100);
+      return {
+        ...conversation,
+        contractSnapshot: conversation.contractSnapshot,
+        messages,
+      };
     }),
   );
   return hydrateConversationRows(db, conversations);
@@ -603,9 +642,200 @@ export async function listProviderConversations(db: Database, providerUserId: st
   return hydrateConversationRows(db, conversations);
 }
 
+export async function listMessageInbox(db: Database, userId: string) {
+  const buyerUser = alias(users, "message_buyer");
+  const providerUser = alias(users, "message_provider");
+  const participantState = alias(taskConversationParticipants, "message_participant_state");
+  const rows = await db
+    .select({
+      id: taskConversations.id,
+      taskId: taskConversations.taskId,
+      taskTitle: tasks.title,
+      taskStatus: tasks.status,
+      buyerUserId: taskConversations.buyerUserId,
+      buyerDisplayName: sql<string>`coalesce(nullif(${buyerUser.displayName}, ''), nullif(${buyerUser.name}, ''), ${buyerUser.username}, 'Client')`,
+      buyerImage: buyerUser.image,
+      providerId: taskConversations.providerId,
+      providerUserId: taskConversations.providerUserId,
+      providerDisplayName: providers.displayName,
+      providerImage: providerUser.image,
+      status: taskConversations.status,
+      updatedAt: taskConversations.updatedAt,
+    })
+    .from(taskConversations)
+    .innerJoin(tasks, eq(tasks.id, taskConversations.taskId))
+    .innerJoin(buyerUser, eq(buyerUser.id, taskConversations.buyerUserId))
+    .innerJoin(providers, eq(providers.id, taskConversations.providerId))
+    .innerJoin(providerUser, eq(providerUser.id, taskConversations.providerUserId))
+    .where(
+      or(eq(taskConversations.buyerUserId, userId), eq(taskConversations.providerUserId, userId)),
+    )
+    .orderBy(desc(taskConversations.updatedAt));
+
+  if (rows.length === 0) return { currentUserId: userId, conversations: [] };
+  const conversationIds = rows.map((row) => row.id);
+  const taskIds = [...new Set(rows.map((row) => row.taskId))];
+  const latestMessages = db
+    .select({
+      conversationId: taskConversationMessages.conversationId,
+      latestSequence: max(taskConversationMessages.sequence).as("latest_sequence"),
+    })
+    .from(taskConversationMessages)
+    .where(inArray(taskConversationMessages.conversationId, conversationIds))
+    .groupBy(taskConversationMessages.conversationId)
+    .as("latest_conversation_messages");
+  const [messages, unreadRows, executions] = await Promise.all([
+    db
+      .select({
+        conversationId: taskConversationMessages.conversationId,
+        body: taskConversationMessages.body,
+        authorUserId: taskConversationMessages.authorUserId,
+        createdAt: taskConversationMessages.createdAt,
+      })
+      .from(taskConversationMessages)
+      .innerJoin(
+        latestMessages,
+        and(
+          eq(latestMessages.conversationId, taskConversationMessages.conversationId),
+          eq(latestMessages.latestSequence, taskConversationMessages.sequence),
+        ),
+      ),
+    db
+      .select({
+        conversationId: taskConversationMessages.conversationId,
+        unreadCount: count(),
+      })
+      .from(taskConversationMessages)
+      .leftJoin(
+        participantState,
+        and(
+          eq(participantState.conversationId, taskConversationMessages.conversationId),
+          eq(participantState.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          inArray(taskConversationMessages.conversationId, conversationIds),
+          ne(taskConversationMessages.authorUserId, userId),
+          gt(
+            taskConversationMessages.sequence,
+            sql`coalesce(${participantState.lastReadSequence}, 0)`,
+          ),
+        ),
+      )
+      .groupBy(taskConversationMessages.conversationId),
+    db
+      .select({ taskId: workExecutions.taskId, providerId: workExecutions.providerId })
+      .from(workExecutions)
+      .where(inArray(workExecutions.taskId, taskIds)),
+  ]);
+  const latestMessageByConversation = new Map(
+    messages.map((message) => [message.conversationId, message]),
+  );
+  const unreadCountByConversation = new Map(
+    unreadRows.map((row) => [row.conversationId, row.unreadCount]),
+  );
+  const taskProvidersWithExecutions = new Set(
+    executions.map((execution) => taskProviderKey(execution.taskId, execution.providerId)),
+  );
+
+  return {
+    currentUserId: userId,
+    conversations: rows.map((row) => {
+      const isBuyer = row.buyerUserId === userId;
+      const lastMessage = latestMessageByConversation.get(row.id);
+      return {
+        id: row.id,
+        taskId: row.taskId,
+        taskTitle: row.taskTitle,
+        taskStatus: row.taskStatus,
+        status: row.status,
+        hasWorkExecution: taskProvidersWithExecutions.has(
+          taskProviderKey(row.taskId, row.providerId),
+        ),
+        updatedAt: row.updatedAt.toISOString(),
+        otherParticipant: isBuyer
+          ? {
+              userId: row.providerUserId,
+              displayName: row.providerDisplayName,
+              image: row.providerImage,
+              role: "professional" as const,
+            }
+          : {
+              userId: row.buyerUserId,
+              displayName: row.buyerDisplayName,
+              image: row.buyerImage,
+              role: "client" as const,
+            },
+        lastMessage: lastMessage
+          ? {
+              body: lastMessage.body,
+              authorUserId: lastMessage.authorUserId,
+              createdAt: lastMessage.createdAt.toISOString(),
+            }
+          : null,
+        unreadCount: unreadCountByConversation.get(row.id) ?? 0,
+      };
+    }),
+  };
+}
+
+export async function markConversationRead(
+  tx: Database,
+  input: { conversationId: string; userId: string; lastReadSequence: number },
+) {
+  const [conversation] = await tx
+    .select({
+      id: taskConversations.id,
+      buyerUserId: taskConversations.buyerUserId,
+      providerUserId: taskConversations.providerUserId,
+      messageCounter: taskConversations.messageCounter,
+    })
+    .from(taskConversations)
+    .where(eq(taskConversations.id, input.conversationId))
+    .limit(1);
+  if (
+    !conversation ||
+    (conversation.buyerUserId !== input.userId && conversation.providerUserId !== input.userId)
+  ) {
+    throw notFound("Conversation");
+  }
+  if (
+    !Number.isSafeInteger(input.lastReadSequence) ||
+    input.lastReadSequence < 0 ||
+    input.lastReadSequence > conversation.messageCounter
+  ) {
+    throw conflict("The read position is outside this conversation's message history.");
+  }
+
+  const now = new Date();
+  await tx
+    .insert(taskConversationParticipants)
+    .values({
+      conversationId: conversation.id,
+      userId: input.userId,
+      lastReadSequence: input.lastReadSequence,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [taskConversationParticipants.conversationId, taskConversationParticipants.userId],
+      set: {
+        lastReadSequence: sql`greatest(${taskConversationParticipants.lastReadSequence}, excluded.last_read_sequence)`,
+        updatedAt: now,
+      },
+    });
+
+  return { conversationId: conversation.id, lastReadSequence: input.lastReadSequence };
+}
+
 export async function getConversationForParticipant(
   db: Database,
-  input: { conversationId: string; userId: string; afterSequence?: number },
+  input: {
+    conversationId: string;
+    userId: string;
+    afterSequence?: number;
+    beforeSequence?: number;
+  },
 ) {
   const [conversation] = await db
     .select()
@@ -618,19 +848,35 @@ export async function getConversationForParticipant(
   ) {
     throw notFound("Conversation");
   }
-  const messages = await db
-    .select()
-    .from(taskConversationMessages)
-    .where(
-      input.afterSequence === undefined
-        ? eq(taskConversationMessages.conversationId, conversation.id)
-        : and(
-            eq(taskConversationMessages.conversationId, conversation.id),
-            gt(taskConversationMessages.sequence, input.afterSequence),
-          ),
-    )
-    .orderBy(asc(taskConversationMessages.sequence))
-    .limit(100);
+  const page =
+    input.afterSequence !== undefined
+      ? await db
+          .select()
+          .from(taskConversationMessages)
+          .where(
+            and(
+              eq(taskConversationMessages.conversationId, conversation.id),
+              gt(taskConversationMessages.sequence, input.afterSequence),
+            ),
+          )
+          .orderBy(asc(taskConversationMessages.sequence))
+          .limit(101)
+      : await db
+          .select()
+          .from(taskConversationMessages)
+          .where(
+            input.beforeSequence === undefined
+              ? eq(taskConversationMessages.conversationId, conversation.id)
+              : and(
+                  eq(taskConversationMessages.conversationId, conversation.id),
+                  lt(taskConversationMessages.sequence, input.beforeSequence),
+                ),
+          )
+          .orderBy(desc(taskConversationMessages.sequence))
+          .limit(101);
+  const hasMoreMessages = page.length > 100;
+  const messages = page.slice(0, 100);
+  if (input.afterSequence === undefined) messages.reverse();
   const [hydratedConversation] = await hydrateConversationRows(db, [conversation]);
-  return { ...hydratedConversation, messages };
+  return { ...hydratedConversation, messages, hasMoreMessages };
 }

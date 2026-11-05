@@ -18,19 +18,32 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const actor = await resolveConversationActor(req);
     if (!actor.id) throw new AppError("AUTHORIZATION_ERROR", "Sign in to access conversations.");
     const { id: conversationId } = await params;
-    const after = new URL(req.url).searchParams.get("after");
+    const searchParams = new URL(req.url).searchParams;
+    const after = searchParams.get("after");
+    const before = searchParams.get("before");
     const afterSequence = after === null ? undefined : Number(after);
+    const beforeSequence = before === null ? undefined : Number(before);
     if (
       afterSequence !== undefined &&
       (!Number.isSafeInteger(afterSequence) || afterSequence < 0)
     ) {
       throw new AppError("VALIDATION_ERROR", "The message cursor is invalid.");
     }
+    if (
+      beforeSequence !== undefined &&
+      (!Number.isSafeInteger(beforeSequence) || beforeSequence < 1)
+    ) {
+      throw new AppError("VALIDATION_ERROR", "The message cursor is invalid.");
+    }
+    if (afterSequence !== undefined && beforeSequence !== undefined) {
+      throw new AppError("VALIDATION_ERROR", "Choose either a newer or earlier message cursor.");
+    }
     return jsonOk(
       await getConversationForParticipant(getDb(), {
         conversationId,
         userId: actor.id,
         afterSequence,
+        beforeSequence,
       }),
     );
   } catch (error) {
