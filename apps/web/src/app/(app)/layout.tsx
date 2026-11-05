@@ -101,7 +101,7 @@ function currentPageLabel(pathname: string): string {
   });
   if (pathname === "/intake" || pathname === "/tasks/new") return "New task";
   if (pathname.startsWith("/invite/")) return "Work invitation";
-  return item?.label ?? "WorkPay";
+  return item?.label ?? "Tenfo";
 }
 
 function NavigationLinks({
@@ -224,11 +224,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             className="mb-7 flex min-h-10 items-center justify-center gap-2.5 rounded-lg px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] xl:justify-start"
-            aria-label="WorkPay home"
+            aria-label="Tenfo home"
           >
             <WorkPayLogoMark size={30} />
             <span className="hidden text-lg font-bold tracking-tight text-[var(--wp-text-primary)] xl:inline">
-              WorkPay
+              Tenfo
             </span>
           </Link>
 
@@ -287,9 +287,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     side="left"
                     className="flex w-[19rem] max-w-[88vw] flex-col border-[var(--wp-border)] bg-white p-4"
                   >
-                    <SheetTitle className="sr-only">WorkPay navigation</SheetTitle>
+                    <SheetTitle className="sr-only">Tenfo navigation</SheetTitle>
                     <SheetDescription className="sr-only">
-                      Navigate WorkPay workspaces and account pages.
+                      Navigate Tenfo workspaces and account pages.
                     </SheetDescription>
                     <Link
                       href="/"
@@ -297,7 +297,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       className="mb-6 flex min-h-11 items-center gap-3 pr-10"
                     >
                       <WorkPayLogoMark size={30} />
-                      <span className="text-lg font-bold tracking-tight">WorkPay</span>
+                      <span className="text-lg font-bold tracking-tight">Tenfo</span>
                     </Link>
                     <Link
                       href="/intake"
@@ -340,10 +340,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <Link
                   href="/"
                   className="flex shrink-0 items-center gap-2 md:hidden"
-                  aria-label="WorkPay home"
+                  aria-label="Tenfo home"
                 >
                   <WorkPayLogoMark size={27} />
-                  <span className="text-base font-bold tracking-tight">WorkPay</span>
+                  <span className="text-base font-bold tracking-tight">Tenfo</span>
                 </Link>
                 <div className="hidden min-w-0 md:block">
                   <p className="truncate text-xs text-[var(--wp-text-muted)]">Workspace</p>

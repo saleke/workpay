@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="w-full max-w-md flex flex-col items-center mb-6">
         <Link href="/" className="flex items-center gap-2.5 font-semibold group mb-2">
           <WorkPayLogoMark size={34} className="shadow-sm transition-transform group-hover:scale-105" />
-          <span className="text-2xl font-bold tracking-tight text-foreground">WorkPay</span>
+          <span className="text-2xl font-bold tracking-tight text-foreground">Tenfo</span>
         </Link>
       </div>
 
