@@ -788,7 +788,7 @@ function SettingsContent() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl pb-16 font-sans">
+    <div className="flex w-full min-w-0 max-w-6xl flex-col gap-6 pb-16 font-sans">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[var(--wp-border)]">
         <div>
@@ -821,1114 +821,1104 @@ function SettingsContent() {
         </div>
       </div>
 
-      {/* Settings Navigation and Main Content */}
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        {/* Navigation Sidebar */}
-        <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
-          {SETTINGS_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
+      {/* Settings areas are selected here so the page keeps one clear content column. */}
+      <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+        {SETTINGS_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
 
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => handleSelectTab(tab.key)}
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleSelectTab(tab.key)}
+              aria-pressed={isActive}
+              className={cn(
+                "flex min-h-[4.25rem] min-w-0 items-center gap-2.5 rounded-xl border px-3 py-3 text-left text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2 sm:min-h-[5rem] sm:items-start sm:gap-3 sm:px-3.5 sm:text-sm",
+                isActive
+                  ? "border-[var(--wp-accent)]/40 bg-[var(--wp-accent-subtle)]/60 text-[var(--wp-text-primary)] font-semibold"
+                  : "border-[var(--wp-border)] bg-white text-[var(--wp-text-secondary)] hover:bg-[var(--wp-surface-subtle)] hover:text-[var(--wp-text-primary)]",
+              )}
+            >
+              <div
                 className={cn(
-                  "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-150 text-left shrink-0 md:shrink select-none cursor-pointer active:scale-[0.98]",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
                   isActive
-                    ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-xs border border-[var(--wp-border)]"
-                    : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)] border border-transparent",
+                    ? "bg-[var(--wp-surface-subtle)] text-[var(--wp-text-primary)] border-[var(--wp-border)]"
+                    : "bg-transparent text-[var(--wp-text-secondary)] border-transparent",
                 )}
               >
-                <div
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors",
-                    isActive
-                      ? "bg-[var(--wp-surface-subtle)] text-[var(--wp-text-primary)] border-[var(--wp-border)]"
-                      : "bg-transparent text-[var(--wp-text-secondary)] border-transparent",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate">{tab.title}</div>
-                  <p className="hidden md:block text-[11px] text-[var(--wp-text-secondary)] truncate font-normal opacity-80 mt-0.5">
-                    {tab.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="break-words leading-4 sm:leading-5">{tab.title}</div>
+                <p className="mt-1 hidden break-words text-[11px] font-normal leading-4 text-[var(--wp-text-secondary)] opacity-80 lg:block">
+                  {tab.description}
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Tab Content Panel */}
-        <div className="flex-1 w-full min-w-0">
-          {/* TAB 1: ACCOUNT */}
-          {activeTab === "account" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {authUser ? (
-                <>
-                  {/* Profile Details */}
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <User className="h-4 w-4 text-[var(--wp-accent)]" />
-                        Profile Information
-                      </CardTitle>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Public handle and custom display name for WorkPay commitments and
-                        cryptographic audit logs.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6">
-                      <form onSubmit={handleSaveProfile} className="space-y-4 max-w-lg">
-                        {/* Platform Handle: Locked & Immutable */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="platformHandle" className="text-xs">
-                              Platform Handle
-                            </Label>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono flex items-center gap-1 border-slate-300"
-                            >
-                              <Lock className="h-2.5 w-2.5" />
-                              Locked &amp; Immutable
-                            </Badge>
-                          </div>
-                          <div className="relative">
-                            <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              id="platformHandle"
-                              value={userProfile?.username || authUser.username || "user"}
-                              disabled
-                              className="pl-9 text-xs font-mono bg-muted/40 cursor-not-allowed select-all"
-                            />
-                          </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                            Platform handles are permanent identifiers across signed contract
-                            receipts and public audit logs. Usernames cannot be edited.
-                          </p>
-                        </div>
-
-                        {/* Editable Custom Display Name */}
-                        <div className="space-y-1.5">
-                          <Label htmlFor="profileName" className="text-xs">
-                            Display Name
-                          </Label>
-                          <div className="relative">
-                            <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              id="profileName"
-                              value={profileName}
-                              onChange={(e) => setProfileName(e.target.value)}
-                              className="pl-9 text-xs font-medium"
-                              placeholder="Elena Rostova"
-                              required
-                            />
-                          </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                            Human display name shown on your tasks, proposals, and team views.
-                          </p>
-                        </div>
-
-                        {/* Account Email with Verification Badge and Inline Actions */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="profileEmail" className="text-xs">
-                              Account Email
-                            </Label>
-                            {userProfile?.emailVerified ? (
-                              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] flex items-center gap-1 font-semibold">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Verified
-                              </Badge>
-                            ) : capabilities.emailDelivery ? (
-                              <div className="flex items-center gap-1.5">
-                                <Badge
-                                  variant="outline"
-                                  className="text-amber-600 border-amber-500/30 text-[10px]"
-                                >
-                                  Unverified
-                                </Badge>
-                                <button
-                                  type="button"
-                                  onClick={handleSendEmailVerification}
-                                  disabled={sendingVerifyEmail}
-                                  className="text-[10px] text-primary hover:underline font-semibold"
-                                >
-                                  {sendingVerifyEmail ? "Sending..." : "Verify"}
-                                </button>
-                              </div>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="text-slate-600 border-slate-300 text-[10px]"
-                              >
-                                Email delivery unavailable
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="relative">
-                            <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              id="profileEmail"
-                              value={authUser.email}
-                              disabled
-                              className="pl-9 text-xs bg-muted/40 cursor-not-allowed select-all"
-                            />
-                          </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                            Your verified account email used for authentication and security alerts.
-                          </p>
-
-                          {capabilities.emailDelivery &&
-                            emailVerifyStep === "otp" &&
-                            !userProfile?.emailVerified && (
-                              <form
-                                onSubmit={handleConfirmEmailOtp}
-                                className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2"
-                              >
-                                <div className="flex items-center justify-between text-xs font-semibold">
-                                  <span>Enter 6-Digit Email Code</span>
-                                  {emailVerificationResult?.otpCode && (
-                                    <span className="font-mono text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                      Code: {emailVerificationResult.otpCode}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex gap-2">
-                                  <Input
-                                    placeholder="123456"
-                                    value={emailOtpInput}
-                                    onChange={(e) =>
-                                      setEmailOtpInput(
-                                        e.target.value.replace(/\D/g, "").slice(0, 6),
-                                      )
-                                    }
-                                    maxLength={6}
-                                    className="font-mono text-center text-xs tracking-widest max-w-[140px]"
-                                    autoFocus
-                                  />
-                                  <Button
-                                    type="submit"
-                                    size="sm"
-                                    disabled={verifyingEmailOtp || emailOtpInput.length < 6}
-                                    className="text-xs"
-                                  >
-                                    {verifyingEmailOtp ? "Verifying..." : "Confirm"}
-                                  </Button>
-                                </div>
-                              </form>
-                            )}
-                        </div>
-
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={savingProfile}
-                          className="text-xs font-semibold"
-                        >
-                          {savingProfile ? "Saving..." : "Save Display Name"}
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
-
-                  {/* Optional GitHub integration appears only when configured. */}
-                  {capabilities.githubOAuth ? (
-                    <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                      <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <Github className="h-4 w-4 text-[var(--wp-accent)]" />
-                            Developer Profile (GitHub)
-                          </CardTitle>
-                          {userProfile?.githubUsername ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Verified Developer
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-amber-600 border-amber-500/30 text-xs"
-                            >
-                              Unverified Profile
-                            </Badge>
-                          )}
-                        </div>
-                        <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                          Connect your GitHub profile via authorized OAuth login or challenge
-                          handshake to qualify for high-tier engineering tasks.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-5 sm:p-6">
-                        {userProfile?.githubUsername ? (
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                <Github className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                  <span>@{userProfile.githubUsername}</span>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
-                                  >
-                                    GitHub Verified
-                                  </Badge>
-                                </div>
-                                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                  Public contribution metrics and repository trust badges linked to
-                                  your WorkPay identity.
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Button asChild variant="outline" size="sm" className="text-xs">
-                                <a
-                                  href={`https://github.com/${userProfile.githubUsername}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center gap-1.5"
-                                >
-                                  <span>View GitHub</span>
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleUnlinkGithub}
-                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs"
-                              >
-                                Unlink
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
-                            <div>
-                              <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                                No GitHub Account Connected
-                              </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
-                                Verify your GitHub developer profile via authorized 1-click OAuth or
-                                a public Gist token.
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => {
-                                  setGithubStep("select");
-                                  setGithubModalOpen(true);
-                                }}
-                                className="text-xs font-semibold"
-                              >
-                                <Github className="h-3.5 w-3.5 mr-1.5" />
-                                Verify Developer Profile
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ) : null}
-
-                  {/* Optional identity provider appears only when configured. */}
-                  {capabilities.personaVerification ? (
-                    <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                      <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
-                            Identity Verification
-                          </CardTitle>
-                          {userProfile?.idVerificationStatus === "VERIFIED" ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Persona Verified
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-amber-600 border-amber-500/30 text-xs"
-                            >
-                              Tier 1: Sub-$1,000 Unlocked
-                            </Badge>
-                          )}
-                        </div>
-                        <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                          Non-custodial holds operate seamlessly for all accounts. Tasks or
-                          cumulative milestone payouts exceeding $1,000 USD require automated
-                          Persona identity verification.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-5 sm:p-6 space-y-4">
-                        {/* Milestone Threshold Banner */}
-                        <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                                $1,000 Milestone Limit Rule
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
-                              >
-                                Persona Standard
-                              </Badge>
-                            </div>
-                            <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                              Tasks below $1,000 USD execute without government ID. Tasks or
-                              cumulative payouts exceeding $1,000 USD require automated Persona
-                              biometric and government document verification.
-                            </p>
-                          </div>
-
-                          {userProfile?.idVerificationStatus !== "VERIFIED" && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={handleOpenPersonaModal}
-                              className="text-xs font-semibold shrink-0"
-                            >
-                              <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                              Verify Identity with Persona
-                            </Button>
-                          )}
-                        </div>
-
-                        {userProfile?.idVerificationStatus === "VERIFIED" && (
-                          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                <ShieldCheck className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                  <span>
-                                    Verified Legal Identity:{" "}
-                                    {userProfile.legalName
-                                      ? `${userProfile.legalName.slice(0, 1)}*** ${userProfile.legalName.split(" ").slice(-1)[0]}`
-                                      : "Verified Individual"}
-                                  </span>
-                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
-                                    Persona
-                                  </Badge>
-                                </div>
-                                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                  Document Type: {userProfile.idDocumentType || "Passport"}.
-                                  Biometric liveness confirmed and AML screening clear. High-value
-                                  task thresholds permanently unlocked.
-                                </p>
-                              </div>
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0"
-                            >
-                              All Tiers Unlocked ($1,000+)
-                            </Badge>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ) : null}
-
-                  {/* Password Management */}
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <KeyRound className="h-4 w-4 text-[var(--wp-accent)]" />
-                        Change Password
-                      </CardTitle>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Update your password to keep your account secure.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6">
-                      <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-lg">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="currentPassword" className="text-xs">
-                            Current Password
-                          </Label>
-                          <Input
-                            id="currentPassword"
-                            type="password"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="text-xs"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="newPassword" className="text-xs">
-                            New Password
-                          </Label>
-                          <Input
-                            id="newPassword"
-                            type="password"
-                            placeholder="At least 8 characters"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            minLength={8}
-                            className="text-xs"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="confirmPassword" className="text-xs">
-                            Confirm New Password
-                          </Label>
-                          <Input
-                            id="confirmPassword"
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            minLength={8}
-                            className="text-xs"
-                            required
-                          />
-                        </div>
-
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={updatingPassword}
-                          className="text-xs font-semibold"
-                        >
-                          {updatingPassword ? "Updating..." : "Update Password"}
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
-
-                  {/* Active Session & Sign Out */}
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-[var(--wp-accent)]" />
-                        Active Session
-                      </CardTitle>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        You are currently signed in with your personal credentials.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
-                          {userProfile?.displayName || authUser.name || authUser.email}
-                        </div>
-                        <div className="text-xs font-mono text-[var(--wp-text-secondary)] mt-0.5">
-                          {authUser.email}
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSignOut}
-                        className="text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] hover:text-[var(--wp-danger)] border-[var(--wp-border)] shrink-0 font-medium text-xs"
-                      >
-                        <LogOut className="h-3.5 w-3.5 mr-1.5" />
-                        Sign Out
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </>
-              ) : (
-                /* Unauthenticated view */
+      {/* Selected settings area */}
+      <div className="w-full min-w-0">
+        {/* TAB 1: ACCOUNT */}
+        {activeTab === "account" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            {authUser ? (
+              <>
+                {/* Profile Details */}
                 <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                   <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <User className="h-4 w-4 text-[var(--wp-accent)]" />
-                      Account Session
+                      Profile Information
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                      {isDemo
-                        ? "You are currently exploring WorkPay in Sandbox simulation mode."
-                        : "You are not signed in."}
+                      Public handle and custom display name for WorkPay commitments and
+                      cryptographic audit logs.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
-                        {isDemo ? "Sandbox Simulation Active" : "Sign In to Access Settings"}
+                  <CardContent className="p-5 sm:p-6">
+                    <form onSubmit={handleSaveProfile} className="space-y-4 max-w-lg">
+                      {/* Platform Handle: Locked & Immutable */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="platformHandle" className="text-xs">
+                            Platform Handle
+                          </Label>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono flex items-center gap-1 border-slate-300"
+                          >
+                            <Lock className="h-2.5 w-2.5" />
+                            Locked &amp; Immutable
+                          </Badge>
+                        </div>
+                        <div className="relative">
+                          <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="platformHandle"
+                            value={userProfile?.username || authUser.username || "user"}
+                            disabled
+                            className="pl-9 text-xs font-mono bg-muted/40 cursor-not-allowed select-all"
+                          />
+                        </div>
+                        <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                          Platform handles are permanent identifiers across signed contract receipts
+                          and public audit logs. Usernames cannot be edited.
+                        </p>
                       </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                        {isDemo
-                          ? "In Sandbox mode, you can explore the workflow using the persona switcher in the header, or register an account to test real credentials."
-                          : "Please sign in or create an account to manage your profile and personal preferences."}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button asChild variant="outline" size="sm" className="text-xs font-medium">
-                        <Link href="/login">
-                          <LogIn className="h-3.5 w-3.5 mr-1.5" />
-                          Sign In
-                        </Link>
+                      {/* Editable Custom Display Name */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="profileName" className="text-xs">
+                          Display Name
+                        </Label>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="profileName"
+                            value={profileName}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            className="pl-9 text-xs font-medium"
+                            placeholder="Elena Rostova"
+                            required
+                          />
+                        </div>
+                        <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                          Human display name shown on your tasks, proposals, and team views.
+                        </p>
+                      </div>
+
+                      {/* Account Email with Verification Badge and Inline Actions */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="profileEmail" className="text-xs">
+                            Account Email
+                          </Label>
+                          {userProfile?.emailVerified ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] flex items-center gap-1 font-semibold">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Verified
+                            </Badge>
+                          ) : capabilities.emailDelivery ? (
+                            <div className="flex items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className="text-amber-600 border-amber-500/30 text-[10px]"
+                              >
+                                Unverified
+                              </Badge>
+                              <button
+                                type="button"
+                                onClick={handleSendEmailVerification}
+                                disabled={sendingVerifyEmail}
+                                className="text-[10px] text-primary hover:underline font-semibold"
+                              >
+                                {sendingVerifyEmail ? "Sending..." : "Verify"}
+                              </button>
+                            </div>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-slate-600 border-slate-300 text-[10px]"
+                            >
+                              Email delivery unavailable
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="profileEmail"
+                            value={authUser.email}
+                            disabled
+                            className="pl-9 text-xs bg-muted/40 cursor-not-allowed select-all"
+                          />
+                        </div>
+                        <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                          Your verified account email used for authentication and security alerts.
+                        </p>
+
+                        {capabilities.emailDelivery &&
+                          emailVerifyStep === "otp" &&
+                          !userProfile?.emailVerified && (
+                            <form
+                              onSubmit={handleConfirmEmailOtp}
+                              className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 space-y-2.5 mt-2"
+                            >
+                              <div className="flex items-center justify-between text-xs font-semibold">
+                                <span>Enter 6-Digit Email Code</span>
+                                {emailVerificationResult?.otpCode && (
+                                  <span className="font-mono text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    Code: {emailVerificationResult.otpCode}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="123456"
+                                  value={emailOtpInput}
+                                  onChange={(e) =>
+                                    setEmailOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))
+                                  }
+                                  maxLength={6}
+                                  className="font-mono text-center text-xs tracking-widest max-w-[140px]"
+                                  autoFocus
+                                />
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  disabled={verifyingEmailOtp || emailOtpInput.length < 6}
+                                  className="text-xs"
+                                >
+                                  {verifyingEmailOtp ? "Verifying..." : "Confirm"}
+                                </Button>
+                              </div>
+                            </form>
+                          )}
+                      </div>
+
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={savingProfile}
+                        className="text-xs font-semibold"
+                      >
+                        {savingProfile ? "Saving..." : "Save Display Name"}
                       </Button>
-                      <Button asChild size="sm" className="text-xs font-semibold shadow-xs">
-                        <Link href="/register">Register Account</Link>
-                      </Button>
-                    </div>
+                    </form>
                   </CardContent>
                 </Card>
-              )}
-            </div>
-          )}
 
-          {/* TAB 2: WORK PREFERENCES */}
-          {activeTab === "work-preferences" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              <ProviderProfileManager />
-            </div>
-          )}
-
-          {/* TAB 3: PAYMENT VALIDATION */}
-          {activeTab === "paypal" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)]">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-                    Payment integration is in validation
-                  </CardTitle>
-                  <CardDescription>
-                    WorkPay currently tests agreement amounts, authorization states, evidence gates,
-                    idempotency, and failure recovery without moving money.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
-                  <p>
-                    PayPal account linking, authorization holds, captures, and professional payouts
-                    are disabled. Existing profile details are not treated as permission to charge
-                    an account or pay a professional.
-                  </p>
-                  <div className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-amber-900">
-                    <strong className="block text-sm">No funds move in this environment</strong>
-                    <span className="mt-1 block text-xs leading-relaxed">
-                      Live payments require a separately approved marketplace payment design with
-                      explicit buyer approval and correctly onboarded professional recipients.
-                    </span>
-                  </div>
-                  <Button asChild variant="outline" size="sm" className="text-xs">
-                    <Link href="/payments">View policy simulation records</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Retained temporarily for migration reference; intentionally unreachable. */}
-          {Boolean(0) && activeTab === "paypal" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {/* PayPal Account Binding Card */}
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-                      PayPal Account Binding
-                    </CardTitle>
-                    {userProfile?.paypalVerified ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Linked &amp; Verified
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-amber-600 border-amber-500/30 text-xs"
-                      >
-                        No Account Linked
-                      </Badge>
-                    )}
-                  </div>
-                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Bind your verified PayPal account to enable both Task Owner authorization holds
-                    and Specialist payout disbursements.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 space-y-5">
-                  {userProfile?.paypalVerified ? (
-                    <div className="space-y-4">
-                      {/* Active Bound Account Summary */}
-                      <div className="p-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Optional GitHub integration appears only when configured. */}
+                {capabilities.githubOAuth ? (
+                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <Github className="h-4 w-4 text-[var(--wp-accent)]" />
+                          Developer Profile (GitHub)
+                        </CardTitle>
+                        {userProfile?.githubUsername ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Verified Developer
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-amber-600 border-amber-500/30 text-xs"
+                          >
+                            Unverified Profile
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                        Connect your GitHub profile via authorized OAuth login or challenge
+                        handshake to qualify for high-tier engineering tasks.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-5 sm:p-6">
+                      {userProfile?.githubUsername ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              <Wallet className="h-5 w-5" />
+                              <Github className="h-5 w-5" />
                             </div>
                             <div>
                               <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                <span>{userProfile.paypalPayoutEmail}</span>
+                                <span>@{userProfile.githubUsername}</span>
                                 <Badge
                                   variant="outline"
                                   className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
                                 >
-                                  PayPal Payer
+                                  GitHub Verified
                                 </Badge>
                               </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] font-mono mt-0.5">
-                                Account ID: {userProfile.paypalPayerId || "PAYER-VERIFIED"}
+                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                Public contribution metrics and repository trust badges linked to
+                                your WorkPay identity.
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setInputPaypalEmail(userProfile.paypalPayoutEmail || "");
-                                setPaypalModalOpen(true);
-                              }}
-                              className="text-xs font-medium"
-                            >
-                              Edit Settings
+                            <Button asChild variant="outline" size="sm" className="text-xs">
+                              <a
+                                href={`https://github.com/${userProfile.githubUsername}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1.5"
+                              >
+                                <span>View GitHub</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
                             </Button>
                             <Button
-                              type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => setUnbindModalOpen(true)}
+                              onClick={handleUnlinkGithub}
                               className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs"
                             >
-                              <Unlink className="h-3.5 w-3.5 mr-1" />
-                              Unbind
+                              Unlink
                             </Button>
                           </div>
                         </div>
-
-                        <div className="grid sm:grid-cols-2 gap-3 pt-3 border-t border-emerald-500/15 text-xs">
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40">
                           <div>
-                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                              Payment Role:
-                            </span>
-                            <span className="font-medium text-[var(--wp-text-primary)]">
-                              Task Owner Holds &amp; Specialist Payouts
-                            </span>
+                            <div className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                              No GitHub Account Connected
+                            </div>
+                            <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 max-w-xl">
+                              Verify your GitHub developer profile via authorized 1-click OAuth or a
+                              public Gist token.
+                            </p>
                           </div>
-                          <div>
-                            <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                              Auto-Hold Authorization:
-                            </span>
-                            <span className="font-medium text-emerald-600">
-                              {userProfile.paypalAutoHoldEnabled
-                                ? "Enabled (One-click holds on PayPal)"
-                                : "Manual prompt per task"}
-                            </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                setGithubStep("select");
+                                setGithubModalOpen(true);
+                              }}
+                              className="text-xs font-semibold"
+                            >
+                              <Github className="h-3.5 w-3.5 mr-1.5" />
+                              Verify Developer Profile
+                            </Button>
                           </div>
                         </div>
-                      </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex items-start gap-3">
-                        <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                        <div className="text-xs leading-relaxed text-[var(--wp-text-secondary)]">
-                          <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">
-                            Non-Custodial Financial Settlement
-                          </strong>
-                          When you commission a task, PayPal places a non-custodial authorization
-                          hold on your account. When you complete an assignment, funds capture
-                          directly to this PayPal address upon deliverable proof verification.
-                          WorkPay is strictly non-custodial and never holds digital wallet balances.
-                        </div>
+                {/* Optional identity provider appears only when configured. */}
+                {capabilities.personaVerification ? (
+                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
+                          Identity Verification
+                        </CardTitle>
+                        {userProfile?.idVerificationStatus === "VERIFIED" ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Persona Verified
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-amber-600 border-amber-500/30 text-xs"
+                          >
+                            Tier 1: Sub-$1,000 Unlocked
+                          </Badge>
+                        )}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-dashed border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/30">
+                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                        Non-custodial holds operate seamlessly for all accounts. Tasks or cumulative
+                        milestone payouts exceeding $1,000 USD require automated Persona identity
+                        verification.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-5 sm:p-6 space-y-4">
+                      {/* Milestone Threshold Banner */}
+                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                          <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
-                            No PayPal Account Bound
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                              $1,000 Milestone Limit Rule
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
+                            >
+                              Persona Standard
+                            </Badge>
                           </div>
-                          <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                            Connect your PayPal account via authentic PayPal OAuth to pre-authorize
-                            non-custodial holds and receive proof-gated settlement disbursements.
+                          <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                            Tasks below $1,000 USD execute without government ID. Tasks or
+                            cumulative payouts exceeding $1,000 USD require automated Persona
+                            biometric and government document verification.
                           </p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                        {userProfile?.idVerificationStatus !== "VERIFIED" && (
                           <Button
                             type="button"
                             size="sm"
-                            onClick={handleConnectPayPalOAuth}
-                            disabled={connectingPayPalOAuth}
-                            className="bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
+                            onClick={handleOpenPersonaModal}
+                            className="text-xs font-semibold shrink-0"
                           >
-                            <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                            {connectingPayPalOAuth
-                              ? "Redirecting to PayPal..."
-                              : "Connect with PayPal"}
+                            <ScanFace className="h-3.5 w-3.5 mr-1.5" />
+                            Verify Identity with Persona
                           </Button>
-                          <Button
-                            type="button"
+                        )}
+                      </div>
+
+                      {userProfile?.idVerificationStatus === "VERIFIED" && (
+                        <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                              <ShieldCheck className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
+                                <span>
+                                  Verified Legal Identity:{" "}
+                                  {userProfile.legalName
+                                    ? `${userProfile.legalName.slice(0, 1)}*** ${userProfile.legalName.split(" ").slice(-1)[0]}`
+                                    : "Verified Individual"}
+                                </span>
+                                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
+                                  Persona
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                Document Type: {userProfile.idDocumentType || "Passport"}. Biometric
+                                liveness confirmed and AML screening clear. High-value task
+                                thresholds permanently unlocked.
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
                             variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setInputPaypalEmail(userProfile?.email || authUser?.email || "");
-                              setPayoutVerifyStep("input");
-                              setPaypalModalOpen(true);
-                            }}
-                            className="text-xs font-medium"
+                            className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0"
                           >
-                            <Mail className="h-3.5 w-3.5 mr-1.5" />
-                            Verify Payout Email
-                          </Button>
+                            All Tiers Unlocked ($1,000+)
+                          </Badge>
                         </div>
-                      </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-                      {/* Developer Callback Configuration */}
-                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-[var(--wp-text-primary)] text-[11px]">
-                            OAuth Return Callback URL:
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px] px-2"
-                            onClick={() => {
-                              const origin =
-                                typeof window !== "undefined"
-                                  ? window.location.origin
-                                  : "http://localhost:3000";
-                              navigator.clipboard.writeText(
-                                `${origin}/api/v1/user/paypal/callback`,
-                              );
-                              toast.success("Callback URL copied to clipboard");
-                            }}
-                          >
-                            Copy Callback URL
-                          </Button>
-                        </div>
-                        <div className="font-mono text-[11px] text-[var(--wp-text-secondary)] bg-background p-2 rounded border break-all select-all">
-                          {typeof window !== "undefined"
-                            ? window.location.origin
-                            : "http://localhost:3000"}
-                          /api/v1/user/paypal/callback
-                        </div>
-                        <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                          Ensure this callback URL is whitelisted under App Settings in your PayPal
-                          Developer Dashboard.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* How Payments Work */}
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-[var(--wp-accent)]" />
-                    How Payments Work
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    WorkPay is non-custodial. Funds are never pooled, held in a digital wallet, or
-                    commingled.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 grid sm:grid-cols-3 gap-4 text-xs">
-                  <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
-                      1. Authorization Hold
-                    </div>
-                    <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      When a task is authorized, PayPal places a temporary authorization hold on the
-                      client payment instrument for the contract amount.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
-                      2. Deterministic Verification
-                    </div>
-                    <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      Deliverables are tested against objective acceptance criteria. Payment cannot
-                      execute until verification passes.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
-                    <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
-                      3. Direct Payout Capture
-                    </div>
-                    <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                      Upon verified completion, payment capture dispatches directly to the
-                      specialist recipient PayPal address.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Payment Records Link */}
-              <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--wp-border)] bg-white">
-                <div>
-                  <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
-                    Payment Activity &amp; Records
-                  </div>
-                  <div className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                    View transaction records, authorization holds, and captured payouts.
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm" className="text-xs">
-                  <Link href="/payments">
-                    <span>View Ledger</span>
-                    <ExternalLink className="h-3 w-3 ml-1.5" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: NOTIFICATIONS */}
-          {activeTab === "notifications" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-[var(--wp-accent)]" />
-                    Notification Preferences
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Choose which consequential task milestones and payment events trigger
-                    notifications.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 divide-y divide-[var(--wp-border)]">
-                  <div className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                        Task Opportunities &amp; Offers
-                      </span>
-                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Receive alerts when new task specifications match your capability tags.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyTaskOffers}
-                      onChange={(e) => {
-                        setNotifyTaskOffers(e.target.checked);
-                        toast.success("Notification preference updated");
-                      }}
-                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
-                    />
-                  </div>
-
-                  <div className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                        Verification Results
-                      </span>
-                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Notifications when deliverable tests complete with passing or failing
-                        outcomes.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyVerificationResults}
-                      onChange={(e) => {
-                        setNotifyVerificationResults(e.target.checked);
-                        toast.success("Notification preference updated");
-                      }}
-                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
-                    />
-                  </div>
-
-                  <div className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                        Revision Requests
-                      </span>
-                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Alerts when a deliverable requires revision before approval.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyRevisions}
-                      onChange={(e) => {
-                        setNotifyRevisions(e.target.checked);
-                        toast.success("Notification preference updated");
-                      }}
-                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
-                    />
-                  </div>
-
-                  <div className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                        Payment Authorizations &amp; Captures
-                      </span>
-                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Updates when PayPal authorization holds lock or settlement captures
-                        disburse.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyPayments}
-                      onChange={(e) => {
-                        setNotifyPayments(e.target.checked);
-                        toast.success("Notification preference updated");
-                      }}
-                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
-                    />
-                  </div>
-
-                  <div className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                        Dispute Updates
-                      </span>
-                      <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
-                        Alerts when a task is disputed or a payment-related case changes.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyDisputes}
-                      onChange={(e) => {
-                        setNotifyDisputes(e.target.checked);
-                        toast.success("Notification preference updated");
-                      }}
-                      className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* TAB 5: ENVIRONMENT */}
-          {activeTab === "environment" && (
-            <div className="grid gap-6 animate-in fade-in-50 duration-150">
-              {/* Execution Mode Card */}
-              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Sliders className="h-4 w-4 text-[var(--wp-accent)]" />
-                      Runtime Execution Mode
-                    </CardTitle>
-                    <span className="text-xs text-[var(--wp-text-secondary)] font-mono">
-                      Default: {envDefault === "demo" ? "Demo data" : "Production services"}
-                    </span>
-                  </div>
-                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                    Choose the data environment for your workspace. Payment operations remain
-                    simulated in both modes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 sm:p-6 grid sm:grid-cols-2 gap-4">
-                  <div
-                    onClick={() => {
-                      setMode("demo");
-                      toast.success("Switched to demo data");
-                    }}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      isDemo
-                        ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/30 font-semibold"
-                        : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
-                        <FlaskConical className="h-4 w-4 text-[var(--wp-accent)]" />
-                        Demo data
-                      </span>
-                      {isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-accent)]" />}
-                    </div>
-                    <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
-                      Use seeded demonstration records to explore supported workflows. Payments
-                      remain simulated.
-                    </p>
-                  </div>
-
-                  <div
-                    onClick={() => {
-                      setMode("production");
-                      toast.success("Switched to production services");
-                    }}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                      !isDemo
-                        ? "border-[var(--wp-success)] bg-[var(--wp-success-subtle)]/30 font-semibold"
-                        : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
-                        <ShieldCheck className="h-4 w-4 text-[var(--wp-success)]" />
-                        Production services
-                      </span>
-                      {!isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-success)]" />}
-                    </div>
-                    <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
-                      Use production services and account data. Payment operations remain simulated.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Sandbox Reset (Only in Sandbox mode) */}
-              {isDemo && (
+                {/* Password Management */}
                 <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
                   <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <RotateCcw className="h-4 w-4 text-[var(--wp-accent)]" />
-                      Reset Sandbox Data
+                      <KeyRound className="h-4 w-4 text-[var(--wp-accent)]" />
+                      Change Password
                     </CardTitle>
                     <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                      Restore test data to a pristine state for evaluation.
+                      Update your password to keep your account secure.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-5 sm:p-6">
+                    <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-lg">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="currentPassword" className="text-xs">
+                          Current Password
+                        </Label>
+                        <Input
+                          id="currentPassword"
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="newPassword" className="text-xs">
+                          New Password
+                        </Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          placeholder="At least 8 characters"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          minLength={8}
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="confirmPassword" className="text-xs">
+                          Confirm New Password
+                        </Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          minLength={8}
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={updatingPassword}
+                        className="text-xs font-semibold"
+                      >
+                        {updatingPassword ? "Updating..." : "Update Password"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Active Session & Sign Out */}
+                <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                  <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-[var(--wp-accent)]" />
+                      Active Session
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                      You are currently signed in with your personal credentials.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
-                        Restore Baseline Fixtures
+                        {userProfile?.displayName || authUser.name || authUser.email}
                       </div>
-                      <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-xl leading-relaxed">
-                        Clears all test tasks and restores the canonical demonstration workflow.
-                      </p>
+                      <div className="text-xs font-mono text-[var(--wp-text-secondary)] mt-0.5">
+                        {authUser.email}
+                      </div>
                     </div>
+
                     <Button
                       variant="outline"
-                      onClick={() => setConfirmResetOpen(true)}
-                      disabled={resetting}
-                      className="text-xs font-medium shrink-0 border-[var(--wp-border)]"
+                      size="sm"
+                      onClick={handleSignOut}
+                      className="text-[var(--wp-danger)] hover:bg-[var(--wp-danger-subtle)] hover:text-[var(--wp-danger)] border-[var(--wp-border)] shrink-0 font-medium text-xs"
                     >
-                      {resetting ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      ) : (
-                        <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      <span>Reset Sandbox Data</span>
+                      <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                      Sign Out
                     </Button>
                   </CardContent>
                 </Card>
-              )}
+              </>
+            ) : (
+              /* Unauthenticated view */
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <User className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Account Session
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                    {isDemo
+                      ? "You are currently exploring WorkPay in Sandbox simulation mode."
+                      : "You are not signed in."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
+                      {isDemo ? "Sandbox Simulation Active" : "Sign In to Access Settings"}
+                    </div>
+                    <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                      {isDemo
+                        ? "In Sandbox mode, you can explore the workflow using the persona switcher in the header, or register an account to test real credentials."
+                        : "Please sign in or create an account to manage your profile and personal preferences."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button asChild variant="outline" size="sm" className="text-xs font-medium">
+                      <Link href="/login">
+                        <LogIn className="h-3.5 w-3.5 mr-1.5" />
+                        Sign In
+                      </Link>
+                    </Button>
+                    <Button asChild size="sm" className="text-xs font-semibold shadow-xs">
+                      <Link href="/register">Register Account</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: WORK PREFERENCES */}
+        {activeTab === "work-preferences" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            <ProviderProfileManager />
+          </div>
+        )}
+
+        {/* TAB 3: PAYMENT VALIDATION */}
+        {activeTab === "paypal" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+              <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)]">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
+                  Payment integration is in validation
+                </CardTitle>
+                <CardDescription>
+                  WorkPay currently tests agreement amounts, authorization states, evidence gates,
+                  idempotency, and failure recovery without moving money.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
+                <p>
+                  PayPal account linking, authorization holds, captures, and professional payouts
+                  are disabled. Existing profile details are not treated as permission to charge an
+                  account or pay a professional.
+                </p>
+                <div className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-amber-900">
+                  <strong className="block text-sm">No funds move in this environment</strong>
+                  <span className="mt-1 block text-xs leading-relaxed">
+                    Live payments require a separately approved marketplace payment design with
+                    explicit buyer approval and correctly onboarded professional recipients.
+                  </span>
+                </div>
+                <Button asChild variant="outline" size="sm" className="text-xs">
+                  <Link href="/payments">View policy simulation records</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Retained temporarily for migration reference; intentionally unreachable. */}
+        {Boolean(0) && activeTab === "paypal" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            {/* PayPal Account Binding Card */}
+            <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+              <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
+                    PayPal Account Binding
+                  </CardTitle>
+                  {userProfile?.paypalVerified ? (
+                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Linked &amp; Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-xs">
+                      No Account Linked
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                  Bind your verified PayPal account to enable both Task Owner authorization holds
+                  and Specialist payout disbursements.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6 space-y-5">
+                {userProfile?.paypalVerified ? (
+                  <div className="space-y-4">
+                    {/* Active Bound Account Summary */}
+                    <div className="p-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            <Wallet className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
+                              <span>{userProfile.paypalPayoutEmail}</span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
+                              >
+                                PayPal Payer
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-[var(--wp-text-secondary)] font-mono mt-0.5">
+                              Account ID: {userProfile.paypalPayerId || "PAYER-VERIFIED"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setInputPaypalEmail(userProfile.paypalPayoutEmail || "");
+                              setPaypalModalOpen(true);
+                            }}
+                            className="text-xs font-medium"
+                          >
+                            Edit Settings
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUnbindModalOpen(true)}
+                            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs"
+                          >
+                            <Unlink className="h-3.5 w-3.5 mr-1" />
+                            Unbind
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-3 pt-3 border-t border-emerald-500/15 text-xs">
+                        <div>
+                          <span className="text-[11px] text-[var(--wp-text-secondary)] block">
+                            Payment Role:
+                          </span>
+                          <span className="font-medium text-[var(--wp-text-primary)]">
+                            Task Owner Holds &amp; Specialist Payouts
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-[var(--wp-text-secondary)] block">
+                            Auto-Hold Authorization:
+                          </span>
+                          <span className="font-medium text-emerald-600">
+                            {userProfile.paypalAutoHoldEnabled
+                              ? "Enabled (One-click holds on PayPal)"
+                              : "Manual prompt per task"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex items-start gap-3">
+                      <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="text-xs leading-relaxed text-[var(--wp-text-secondary)]">
+                        <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">
+                          Non-Custodial Financial Settlement
+                        </strong>
+                        When you commission a task, PayPal places a non-custodial authorization hold
+                        on your account. When you complete an assignment, funds capture directly to
+                        this PayPal address upon deliverable proof verification. WorkPay is strictly
+                        non-custodial and never holds digital wallet balances.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl border border-dashed border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/30">
+                      <div>
+                        <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
+                          No PayPal Account Bound
+                        </div>
+                        <p className="text-xs text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                          Connect your PayPal account via authentic PayPal OAuth to pre-authorize
+                          non-custodial holds and receive proof-gated settlement disbursements.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleConnectPayPalOAuth}
+                          disabled={connectingPayPalOAuth}
+                          className="bg-[#0070BA] hover:bg-[#005ea6] text-white text-xs font-semibold shadow-xs"
+                        >
+                          <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                          {connectingPayPalOAuth
+                            ? "Redirecting to PayPal..."
+                            : "Connect with PayPal"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setInputPaypalEmail(userProfile?.email || authUser?.email || "");
+                            setPayoutVerifyStep("input");
+                            setPaypalModalOpen(true);
+                          }}
+                          className="text-xs font-medium"
+                        >
+                          <Mail className="h-3.5 w-3.5 mr-1.5" />
+                          Verify Payout Email
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Developer Callback Configuration */}
+                    <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[var(--wp-text-primary)] text-[11px]">
+                          OAuth Return Callback URL:
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] px-2"
+                          onClick={() => {
+                            const origin =
+                              typeof window !== "undefined"
+                                ? window.location.origin
+                                : "http://localhost:3000";
+                            navigator.clipboard.writeText(`${origin}/api/v1/user/paypal/callback`);
+                            toast.success("Callback URL copied to clipboard");
+                          }}
+                        >
+                          Copy Callback URL
+                        </Button>
+                      </div>
+                      <div className="font-mono text-[11px] text-[var(--wp-text-secondary)] bg-background p-2 rounded border break-all select-all">
+                        {typeof window !== "undefined"
+                          ? window.location.origin
+                          : "http://localhost:3000"}
+                        /api/v1/user/paypal/callback
+                      </div>
+                      <p className="text-[10px] text-[var(--wp-text-secondary)]">
+                        Ensure this callback URL is whitelisted under App Settings in your PayPal
+                        Developer Dashboard.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* How Payments Work */}
+            <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+              <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-[var(--wp-accent)]" />
+                  How Payments Work
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                  WorkPay is non-custodial. Funds are never pooled, held in a digital wallet, or
+                  commingled.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6 grid sm:grid-cols-3 gap-4 text-xs">
+                <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                  <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
+                    1. Authorization Hold
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                    When a task is authorized, PayPal places a temporary authorization hold on the
+                    client payment instrument for the contract amount.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                  <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
+                    2. Deterministic Verification
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                    Deliverables are tested against objective acceptance criteria. Payment cannot
+                    execute until verification passes.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+                  <div className="font-semibold text-xs text-[var(--wp-text-primary)] mb-1">
+                    3. Direct Payout Capture
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
+                    Upon verified completion, payment capture dispatches directly to the specialist
+                    recipient PayPal address.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Records Link */}
+            <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--wp-border)] bg-white">
+              <div>
+                <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
+                  Payment Activity &amp; Records
+                </div>
+                <div className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                  View transaction records, authorization holds, and captured payouts.
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm" className="text-xs">
+                <Link href="/payments">
+                  <span>View Ledger</span>
+                  <ExternalLink className="h-3 w-3 ml-1.5" />
+                </Link>
+              </Button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* TAB 4: NOTIFICATIONS */}
+        {activeTab === "notifications" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+              <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-[var(--wp-accent)]" />
+                  Notification Preferences
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                  Choose which consequential task milestones and payment events trigger
+                  notifications.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6 divide-y divide-[var(--wp-border)]">
+                <div className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                      Task Opportunities &amp; Offers
+                    </span>
+                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                      Receive alerts when new task specifications match your capability tags.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyTaskOffers}
+                    onChange={(e) => {
+                      setNotifyTaskOffers(e.target.checked);
+                      toast.success("Notification preference updated");
+                    }}
+                    className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                  />
+                </div>
+
+                <div className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                      Verification Results
+                    </span>
+                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                      Notifications when deliverable tests complete with passing or failing
+                      outcomes.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyVerificationResults}
+                    onChange={(e) => {
+                      setNotifyVerificationResults(e.target.checked);
+                      toast.success("Notification preference updated");
+                    }}
+                    className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                  />
+                </div>
+
+                <div className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                      Revision Requests
+                    </span>
+                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                      Alerts when a deliverable requires revision before approval.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyRevisions}
+                    onChange={(e) => {
+                      setNotifyRevisions(e.target.checked);
+                      toast.success("Notification preference updated");
+                    }}
+                    className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                  />
+                </div>
+
+                <div className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                      Payment Authorizations &amp; Captures
+                    </span>
+                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                      Updates when PayPal authorization holds lock or settlement captures disburse.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyPayments}
+                    onChange={(e) => {
+                      setNotifyPayments(e.target.checked);
+                      toast.success("Notification preference updated");
+                    }}
+                    className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                  />
+                </div>
+
+                <div className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
+                      Dispute Updates
+                    </span>
+                    <span className="text-[11px] text-[var(--wp-text-secondary)] block mt-0.5">
+                      Alerts when a task is disputed or a payment-related case changes.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyDisputes}
+                    onChange={(e) => {
+                      setNotifyDisputes(e.target.checked);
+                      toast.success("Notification preference updated");
+                    }}
+                    className="h-4 w-4 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer mt-1"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 5: ENVIRONMENT */}
+        {activeTab === "environment" && (
+          <div className="grid gap-6 animate-in fade-in-50 duration-150">
+            {/* Execution Mode Card */}
+            <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+              <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Sliders className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Runtime Execution Mode
+                  </CardTitle>
+                  <span className="text-xs text-[var(--wp-text-secondary)] font-mono">
+                    Default: {envDefault === "demo" ? "Demo data" : "Production services"}
+                  </span>
+                </div>
+                <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                  Choose the data environment for your workspace. Payment operations remain
+                  simulated in both modes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6 grid sm:grid-cols-2 gap-4">
+                <div
+                  onClick={() => {
+                    setMode("demo");
+                    toast.success("Switched to demo data");
+                  }}
+                  className={cn(
+                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                    isDemo
+                      ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/30 font-semibold"
+                      : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
+                      <FlaskConical className="h-4 w-4 text-[var(--wp-accent)]" />
+                      Demo data
+                    </span>
+                    {isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-accent)]" />}
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
+                    Use seeded demonstration records to explore supported workflows. Payments remain
+                    simulated.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => {
+                    setMode("production");
+                    toast.success("Switched to production services");
+                  }}
+                  className={cn(
+                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
+                    !isDemo
+                      ? "border-[var(--wp-success)] bg-[var(--wp-success-subtle)]/30 font-semibold"
+                      : "border-[var(--wp-border)] bg-white hover:bg-[var(--wp-surface-subtle)]",
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="flex items-center gap-2 text-[var(--wp-text-primary)] font-semibold">
+                      <ShieldCheck className="h-4 w-4 text-[var(--wp-success)]" />
+                      Production services
+                    </span>
+                    {!isDemo && <Check className="h-3.5 w-3.5 text-[var(--wp-success)]" />}
+                  </div>
+                  <p className="text-[11px] text-[var(--wp-text-secondary)] font-normal leading-relaxed">
+                    Use production services and account data. Payment operations remain simulated.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Sandbox Reset (Only in Sandbox mode) */}
+            {isDemo && (
+              <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-[var(--wp-accent)]" />
+                    Reset Sandbox Data
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                    Restore test data to a pristine state for evaluation.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-sm text-[var(--wp-text-primary)]">
+                      Restore Baseline Fixtures
+                    </div>
+                    <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-xl leading-relaxed">
+                      Clears all test tasks and restores the canonical demonstration workflow.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmResetOpen(true)}
+                    disabled={resetting}
+                    className="text-xs font-medium shrink-0 border-[var(--wp-border)]"
+                  >
+                    {resetting ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    <span>Reset Sandbox Data</span>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Dialog for Developer Profile Verification (GitHub) */}

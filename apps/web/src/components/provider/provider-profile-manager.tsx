@@ -366,16 +366,16 @@ export function ProviderProfileManager() {
   const isPayoutConfigured = Boolean(payoutEmail && payoutEmail.includes("@"));
 
   return (
-    <form onSubmit={handleSave} className="flex flex-col gap-6">
+    <form onSubmit={handleSave} className="flex w-full min-w-0 flex-col gap-6">
       {/* Overview Banner: Dual-Role Model */}
-      <div className="p-4 sm:p-5 rounded-xl border border-[var(--wp-border)] bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-[var(--wp-border)] bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-start gap-3.5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--wp-surface-subtle)] text-[var(--wp-text-primary)] border border-[var(--wp-border)]">
             <Briefcase className="h-5 w-5 text-[var(--wp-accent)]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-[var(--wp-text-primary)]">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="break-words text-sm font-semibold text-[var(--wp-text-primary)]">
                 Dual-Role Work Preferences
               </span>
               <Badge
@@ -396,7 +396,7 @@ export function ProviderProfileManager() {
                     : "Unavailable for Work"}
               </Badge>
             </div>
-            <p className="text-xs text-[var(--wp-text-secondary)] mt-0.5 max-w-2xl leading-relaxed">
+            <p className="mt-1 max-w-2xl break-words text-xs leading-relaxed text-[var(--wp-text-secondary)]">
               Configure the work you can perform, your availability schedule, and the commercial
               terms under which you accept assignments.
             </p>
@@ -404,7 +404,7 @@ export function ProviderProfileManager() {
         </div>
 
         {/* Global Save Button */}
-        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
           {isDirty && (
             <span className="text-[11px] font-medium text-[var(--wp-accent)] flex items-center gap-1 mr-1">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--wp-accent)] animate-pulse" />
@@ -427,8 +427,12 @@ export function ProviderProfileManager() {
         </div>
       </div>
 
-      {/* Sub-Section Navigation Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-[var(--wp-border)]">
+      {/* Work preference area navigation */}
+      <div
+        className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
+        role="group"
+        aria-label="Work preference areas"
+      >
         {[
           { key: "capabilities", label: "Capabilities & Skills" },
           { key: "availability", label: "Availability & Capacity" },
@@ -441,11 +445,12 @@ export function ProviderProfileManager() {
             key={sec.key}
             type="button"
             onClick={() => setActiveSection(sec.key as typeof activeSection)}
+            aria-pressed={activeSection === sec.key}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 shrink-0 select-none cursor-pointer active:scale-[0.98]",
+              "flex min-h-11 min-w-0 items-center justify-center rounded-xl border px-2.5 py-2 text-center text-xs font-medium leading-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2 sm:px-3",
               activeSection === sec.key
-                ? "bg-[var(--wp-text-primary)] text-white font-semibold shadow-xs"
-                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] hover:bg-[var(--wp-surface-subtle)]",
+                ? "border-[var(--wp-text-primary)] bg-[var(--wp-text-primary)] text-white font-semibold"
+                : "border-[var(--wp-border)] bg-white text-[var(--wp-text-secondary)] hover:bg-[var(--wp-surface-subtle)] hover:text-[var(--wp-text-primary)]",
             )}
           >
             {sec.label}
@@ -1326,20 +1331,20 @@ export function ProviderProfileManager() {
 
       {/* Floating Save Actions Bar when Dirty */}
       {isDirty && (
-        <div className="sticky bottom-4 z-20 p-3 rounded-xl border border-[var(--wp-border-strong)] bg-white/95 backdrop-blur-md shadow-xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
-          <div className="flex items-center gap-2 text-xs">
+        <div className="sticky bottom-4 z-20 flex min-w-0 flex-col gap-3 rounded-xl border border-[var(--wp-border-strong)] bg-white/95 p-3 shadow-xl backdrop-blur-md animate-in slide-in-from-bottom-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-center gap-2 text-xs">
             <span className="h-2 w-2 rounded-full bg-[var(--wp-accent)] animate-pulse" />
-            <span className="font-semibold text-[var(--wp-text-primary)]">
+            <span className="break-words font-semibold text-[var(--wp-text-primary)]">
               You have unsaved preference changes
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => loadProfile()}
-              className="text-xs"
+              className="w-full text-xs sm:w-auto"
             >
               Discard Changes
             </Button>
@@ -1347,7 +1352,7 @@ export function ProviderProfileManager() {
               type="submit"
               size="sm"
               disabled={saving}
-              className="text-xs font-semibold gap-1.5"
+              className="w-full gap-1.5 text-xs font-semibold sm:w-auto"
             >
               {saving ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
