@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { BriefcaseBusiness, Github, Lock, Mail, SearchCheck, UserRoundSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,8 +50,7 @@ export default function LoginPage() {
       window.localStorage.removeItem("workpay_persona");
       window.localStorage.removeItem("workpay_signed_out");
       window.dispatchEvent(new Event("workpay_auth_change"));
-      router.push(payload.data.redirect || "/tasks");
-      router.refresh();
+      window.location.assign(payload.data.redirect || "/tasks");
     } catch {
       setError("Evaluator access could not be started. Please try again.");
     } finally {
@@ -94,8 +91,7 @@ export default function LoginPage() {
         const from = searchParams?.get("from");
         const defaultHome = json.data?.redirect || "/";
         const targetUrl = from && from.startsWith("/") && from !== "/login" ? from : defaultHome;
-        router.push(targetUrl);
-        router.refresh();
+        window.location.assign(targetUrl);
       }
     } catch {
       setError("Network error. Please try again.");
