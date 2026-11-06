@@ -237,6 +237,64 @@ describe("intake output JSON schemas", () => {
     ).toEqual([]);
   });
 
+  it("repairs platform and ordinary details placed in inputs or boundaries", () => {
+    const brief = professionalBriefSchema.parse({
+      title: {
+        text: "Create a product video",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      goalAndContext: {
+        text: "Create a product video for general consumers.",
+        evidence: [{ sourceId: "source_original", quote: "Create a product video" }],
+      },
+      deliverables: [
+        {
+          text: "One video",
+          evidence: [{ sourceId: "source_original", quote: "video" }],
+        },
+      ],
+      requirements: [],
+      boundaries: [
+        {
+          text: "Provide two revision rounds",
+          evidence: [{ sourceId: "answer_revisions", quote: "Two rounds" }],
+        },
+      ],
+      inputsAndDependencies: [
+        {
+          text: "Publish on Vimeo",
+          evidence: [{ sourceId: "answer_platform", quote: "Vimeo" }],
+        },
+      ],
+      timing: null,
+    });
+    const clarificationAnswers = [
+      {
+        sourceId: "answer_platform",
+        question: "Where should the video be published?",
+        answer: "Vimeo",
+      },
+      {
+        sourceId: "answer_revisions",
+        question: "How many revision rounds should be included?",
+        answer: "Two rounds",
+      },
+    ];
+
+    const organized = organizeProfessionalBrief(brief, clarificationAnswers);
+
+    expect(organized.boundaries).toEqual([]);
+    expect(organized.inputsAndDependencies).toEqual([]);
+    expect(organized.requirements.map(({ text }) => text)).toContain(
+      "Where should the video be published: Vimeo",
+    );
+    expect(organized.requirements.map(({ text }) => text)).toContain(
+      "How many revision rounds should be included: Two rounds",
+    );
+    expect(findProfessionalBriefCoverageIssues(organized, clarificationAnswers)).toEqual([]);
+    expect(findProfessionalBriefOrganizationIssues(organized, clarificationAnswers)).toEqual([]);
+  });
+
   it("preserves a clarification deadline when the brief already has different timing", () => {
     const brief = professionalBriefSchema.parse({
       title: {

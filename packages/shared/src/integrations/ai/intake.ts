@@ -504,7 +504,7 @@ export function organizeProfessionalBrief(
       `${question} ${answer}`.toLowerCase(),
     );
   const isPlatformAnswer = ({ question, answer }: { question: string; answer: string }) =>
-    /\b(platform|broadcast|publish|channel|social media|youtube|television|tv)\b/.test(
+    /\b(platform|broadcast|publish(?:ed|ing)?|channel|social media|youtube|vimeo|television|tv)\b/.test(
       `${question} ${answer}`.toLowerCase(),
     );
   const isExplicitBoundaryAnswer = ({ question, answer }: { question: string; answer: string }) =>
@@ -532,6 +532,54 @@ export function organizeProfessionalBrief(
     }
   }
   brief.boundaries = retainedBoundaries;
+
+  for (const clarification of clarificationAnswers) {
+    if (!isPlatformAnswer(clarification)) continue;
+    brief.inputsAndDependencies = brief.inputsAndDependencies.flatMap((item) => {
+      const evidence = item.evidence.filter(
+        ({ sourceId }) => sourceId !== clarification.sourceId,
+      );
+      return evidence.length > 0 ? [{ ...item, evidence }] : [];
+    });
+    const alreadyInPrimarySection = [
+      brief.goalAndContext,
+      ...brief.deliverables,
+      ...brief.requirements,
+    ].some((section) =>
+      section.evidence.some(({ sourceId }) => sourceId === clarification.sourceId),
+    );
+    if (alreadyInPrimarySection) continue;
+
+    brief.requirements.push({
+      text: `${clarification.question.replace(/\?$/, "")}: ${clarification.answer.trim()}`,
+      evidence: [{ sourceId: clarification.sourceId, quote: clarification.answer }],
+    });
+  }
+
+  const clarifiedBoundaryRequirements: ProfessionalBrief["requirements"] = [];
+  brief.boundaries = brief.boundaries.flatMap((boundary) => {
+    const misplacedEvidence = boundary.evidence.filter(({ sourceId }) => {
+      const answer = answersBySourceId.get(sourceId);
+      return answer && !isExplicitBoundaryAnswer(answer);
+    });
+    if (misplacedEvidence.length === 0) return [boundary];
+
+    const misplacedSourceIds = new Set(misplacedEvidence.map(({ sourceId }) => sourceId));
+    for (const evidence of misplacedEvidence) {
+      const clarification = answersBySourceId.get(evidence.sourceId);
+      if (!clarification) continue;
+      clarifiedBoundaryRequirements.push({
+        text: `${clarification.question.replace(/\?$/, "")}: ${clarification.answer.trim()}`,
+        evidence: [evidence],
+      });
+    }
+
+    const remainingEvidence = boundary.evidence.filter(
+      ({ sourceId }) => !misplacedSourceIds.has(sourceId),
+    );
+    return remainingEvidence.length > 0 ? [{ ...boundary, evidence: remainingEvidence }] : [];
+  });
+  brief.requirements.push(...clarifiedBoundaryRequirements);
 
   const deadlineAnswers = clarificationAnswers.filter(isDeadlineAnswer);
   const deadlineSourceIds = new Set(deadlineAnswers.map(({ sourceId }) => sourceId));
