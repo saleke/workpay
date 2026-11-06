@@ -368,14 +368,12 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       id: "contract" as const,
       icon: FileText,
       title: "Scope & agreement",
-      description: "Scope, budget and approval",
       status: activeContract ? `Version ${activeContract.version}` : "Scope in preparation",
     },
     {
       id: "execution" as const,
       icon: Users,
       title: "Professional",
-      description: "Profiles and conversations",
       status:
         lifecycle.pending > 0
           ? `${lifecycle.pending} awaiting response`
@@ -389,7 +387,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       id: "verification" as const,
       icon: CheckSquare,
       title: "Assignment & delivery",
-      description: "Deliverables and agreed checks",
       status:
         execution?.status === "ASSIGNED"
           ? "Awaiting professional acceptance"
@@ -409,7 +406,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       id: "payment" as const,
       icon: Receipt,
       title: "Payment",
-      description: "Payment test and status",
       status: payment.loading
         ? "Loading"
         : isPaymentCaptured
@@ -422,7 +418,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       id: "activity" as const,
       icon: History,
       title: "Activity",
-      description: "Task updates and history",
       status: activity.loading
         ? "Loading"
         : activity.data?.length === 1
@@ -434,7 +429,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-7 pb-16">
+    <div className="mx-auto w-full max-w-7xl space-y-6 pb-16">
       <nav aria-label="Breadcrumb" className="text-sm">
         <Link
           href="/tasks"
@@ -449,7 +444,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       </nav>
 
       <header className="workpay-card overflow-hidden">
-        <div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-start lg:justify-between lg:p-8">
+        <div className="space-y-6 p-5 sm:p-7 lg:p-8">
           <div className="min-w-0 flex-1 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">
@@ -490,7 +485,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             </div>
           </div>
 
-          <aside className="w-full shrink-0 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5 lg:max-w-xs">
+          <aside className="w-full rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
               Next step
             </p>
@@ -506,7 +501,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   type="button"
                   onClick={() => onSignContract(activeContract)}
                   disabled={signing}
-                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {signing ? "Approving…" : "Approve scope and budget"}
                   <ArrowRight className="h-4 w-4" />
@@ -515,7 +510,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             ) : task.status === "HUMAN_REVIEW" ? (
               <Link
                 href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
-                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--wp-warning)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:brightness-95"
+                className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--wp-warning)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:brightness-95"
               >
                 <AlertTriangle className="h-4 w-4" />
                 Browse reviewers
@@ -531,7 +526,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   type="button"
                   variant="outline"
                   onClick={() => setActiveTab("execution")}
-                  className="mt-4 w-full"
+                  className="mt-4 w-full max-w-md"
                 >
                   {lifecycle.pending > 0 ? "View contact requests" : "Open discussion"}
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -548,7 +543,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   type="button"
                   variant="outline"
                   onClick={() => setActiveTab("execution")}
-                  className="mt-4 w-full"
+                  className="mt-4 w-full max-w-md"
                 >
                   Review professionals
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -564,7 +559,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   type="button"
                   onClick={() => void beginPaymentSimulation()}
                   disabled={simulatingPayment}
-                  className="mt-4 w-full"
+                  className="mt-4 w-full max-w-md"
                 >
                   {simulatingPayment ? "Running payment test…" : "Run payment test"}
                   <ArrowRight className="ml-1 h-4 w-4" />
@@ -578,7 +573,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             <button
               type="button"
               onClick={refresh}
-              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--wp-text-secondary)] transition-colors hover:text-[var(--charcoal)]"
+              className="mt-3 inline-flex min-h-10 w-full max-w-md items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--wp-text-secondary)] transition-colors hover:text-[var(--charcoal)]"
               title="Refresh task status"
             >
               <RotateCw className="h-4 w-4" />
@@ -587,124 +582,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           </aside>
         </div>
       </header>
-
-      <section aria-label="Task progress" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="workpay-card min-w-0 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              <span className="mr-2 font-mono text-[var(--wp-text-muted)]">01</span>
-              Scope & agreement
-            </p>
-            <FileText className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
-          </div>
-          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {activeContract
-              ? `Agreement · v${activeContract.version}`
-              : isDraftOrAwaiting
-                ? "Scope in preparation"
-                : "No agreement recorded"}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-            {activeContract?.status === "ACTIVE"
-              ? "Approved"
-              : activeContract
-                ? "Review and approve when ready"
-                : isDraftOrAwaiting
-                  ? "No agreement ready yet"
-                  : "No agreement on record"}
-          </p>
-        </div>
-
-        <div className="workpay-card min-w-0 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              <span className="mr-2 font-mono text-[var(--wp-text-muted)]">02</span>
-              Professional
-            </p>
-            <Users className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
-          </div>
-          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {lifecycle.pending > 0
-              ? "Waiting for responses"
-              : lifecycle.open > 0
-                ? "Discussion open"
-                : profileCount > 0
-                  ? "Choose a professional"
-                  : "Finding professionals"}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-            {lifecycle.pending > 0
-              ? `${lifecycle.pending} awaiting response · ${profileCount} other profiles available`
-              : lifecycle.open > 0
-                ? `${lifecycle.open} non-binding discussion${lifecycle.open === 1 ? "" : "s"} · ${profileCount} profiles available`
-                : profileCount > 0
-                  ? `${profileCount} ${profileCount === 1 ? "profile" : "profiles"} available`
-                  : "No professional has been selected"}
-          </p>
-        </div>
-
-        <div className="workpay-card min-w-0 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              <span className="mr-2 font-mono text-[var(--wp-text-muted)]">03</span>
-              Assignment & delivery
-            </p>
-            <CheckSquare className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
-          </div>
-          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {execution?.status === "ASSIGNED"
-              ? "Awaiting professional acceptance"
-              : execution?.status === "ACCEPTED"
-                ? "Accepted · ready to start"
-                : execution?.status === "IN_PROGRESS"
-                  ? "Work in progress"
-                  : task.status === "HUMAN_REVIEW"
-                    ? "Independent review needed"
-                    : task.status === "REVISION_REQUIRED"
-                      ? "Revision requested"
-                      : task.status === "SUBMITTED" || task.status === "VERIFYING"
-                        ? "Review in progress"
-                        : task.status === "PAYMENT_RELEASE"
-                          ? "Payment review"
-                          : verification.data?.outcome === "PASS"
-                            ? "Checks passed"
-                            : verification.data?.outcome === "FAIL"
-                              ? "Checks need attention"
-                              : execution?.status === "COMPLETED"
-                                ? "Work submitted"
-                                : "Awaiting work"}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-            {requirements.length} agreed {requirements.length === 1 ? "check" : "checks"}
-          </p>
-        </div>
-
-        <div className="workpay-card min-w-0 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-              <span className="mr-2 font-mono text-[var(--wp-text-muted)]">04</span>
-              Payment
-            </p>
-            <Receipt className="h-4 w-4 shrink-0 text-[var(--wp-text-muted)]" />
-          </div>
-          <p className="mt-3 truncate text-sm font-semibold text-[var(--charcoal)]">
-            {isPaymentCaptured
-              ? "Simulation captured"
-              : payment.loading
-                ? "Loading"
-                : payment.data
-                  ? payment.data.status.replaceAll("_", " ").toLowerCase()
-                  : "Not started"}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">
-            {payment.loading
-              ? "Loading payment status"
-              : payment.data
-                ? `${moneyAmount} · simulation only`
-                : "No payment test recorded"}
-          </p>
-        </div>
-      </section>
 
       {actionError && (
         <div
@@ -728,10 +605,10 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           </p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start">
+        <div className="space-y-4">
           <nav
             aria-label="Task workspace sections"
-            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-[var(--wp-border)] lg:bg-[var(--wp-surface-subtle)] lg:p-2"
+            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2"
           >
             {workspaceSections.map((section) => {
               const Icon = section.icon;
@@ -744,17 +621,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   aria-pressed={isActive}
                   aria-controls="task-section-content"
                   onClick={() => setActiveTab(section.id)}
-                  className={`flex min-w-[160px] items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors lg:min-w-0 ${
+                  aria-label={`${section.title}. ${section.status}`}
+                  className={`flex min-w-[160px] shrink-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
                     isActive
                       ? "border-[var(--wp-border)] bg-white text-[var(--charcoal)] shadow-sm"
-                      : "border-transparent bg-[var(--wp-surface-subtle)] text-[var(--text-muted)] hover:border-[var(--wp-border)] hover:bg-white lg:bg-transparent"
+                      : "border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[var(--text-muted)] hover:bg-white"
                   }`}
                 >
                   <span
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                       isActive
                         ? "bg-[var(--wp-accent-subtle)] text-[var(--wp-accent)]"
-                        : "bg-white text-[var(--wp-text-muted)] lg:bg-[var(--wp-surface-subtle)]"
+                        : "bg-white text-[var(--wp-text-muted)]"
                     }`}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -763,10 +641,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     <span className="block whitespace-nowrap text-sm font-semibold">
                       {section.title}
                     </span>
-                    <span className="mt-0.5 hidden truncate text-xs text-[var(--text-muted)] lg:block">
-                      {section.description}
-                    </span>
-                    <span className="mt-1 hidden truncate text-[11px] font-medium capitalize text-[var(--wp-text-secondary)] lg:block">
+                    <span className="mt-1 block truncate text-xs font-medium text-[var(--wp-text-secondary)]">
                       {section.status}
                     </span>
                   </span>

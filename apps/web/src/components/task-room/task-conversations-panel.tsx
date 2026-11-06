@@ -335,7 +335,7 @@ export function TaskConversationsPanel({
       ) : null}
 
       {contract?.status === "ACTIVE" && contract.approvedAt && candidates.length > 0 ? (
-        <div className="grid gap-5 border-t border-[var(--wp-border)] pt-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <div className="space-y-6 border-t border-[var(--wp-border)] pt-5">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -350,7 +350,7 @@ export function TaskConversationsPanel({
                 {candidates.length} profiles
               </span>
             </div>
-            <div className="space-y-2" aria-label="Professional list">
+            <div className="space-y-2" role="group" aria-label="Available professionals">
               {candidates.map((candidate) => {
                 const isSelected = providerId === candidate.providerId;
                 const activeConversation = conversations.find(
@@ -384,7 +384,7 @@ export function TaskConversationsPanel({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="truncate text-base font-semibold text-[var(--wp-text-primary)]">
+                        <span className="min-w-0 flex-1 break-words text-base font-semibold leading-snug text-[var(--wp-text-primary)]">
                           {candidate.displayName}
                         </span>
                         <span
@@ -403,7 +403,7 @@ export function TaskConversationsPanel({
                               : "Available"}
                         </span>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                      <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-[var(--text-muted)]">
                         {candidate.bio?.trim() || "This professional has not added a summary yet."}
                       </p>
                       {candidate.capabilities?.length ? (
@@ -440,7 +440,7 @@ export function TaskConversationsPanel({
             </div>
           </div>
 
-          <div className="space-y-4 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
+          <div className="space-y-5 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-6">
             {selectedCandidate ? (
               <>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -458,7 +458,7 @@ export function TaskConversationsPanel({
                   </span>
                 </div>
 
-                <dl className="grid gap-2 sm:grid-cols-2">
+                <dl className="grid gap-2">
                   <div className="rounded-xl border border-[var(--wp-border)] bg-white p-3">
                     <dt className="text-xs text-[var(--text-muted)]">Agreed checks</dt>
                     <dd className="mt-1 text-sm font-semibold text-[var(--charcoal)]">
@@ -513,7 +513,7 @@ export function TaskConversationsPanel({
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+                  <div className="grid gap-3">
                     <label className="block space-y-2 text-sm">
                       <span className="font-medium text-[var(--charcoal)]">Tone</span>
                       <select
@@ -521,7 +521,8 @@ export function TaskConversationsPanel({
                         onChange={(event) =>
                           updateSelectedDraft({
                             tone:
-                              event.target.value === "direct" || event.target.value === "professional"
+                              event.target.value === "direct" ||
+                              event.target.value === "professional"
                                 ? event.target.value
                                 : "warm",
                           })
@@ -600,8 +601,8 @@ export function TaskConversationsPanel({
                   ) : null}
 
                   <p className="rounded-lg bg-[var(--wp-surface-subtle)] px-3 py-2.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
-                    Nothing is sent until you approve the exact message shown here. This request does
-                    not change the agreement or authorize a payment.
+                    Nothing is sent until you approve the exact message shown here. This request
+                    does not change the agreement or authorize a payment.
                   </p>
 
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--wp-border)] bg-white p-3.5 text-sm leading-relaxed text-[var(--wp-text-secondary)]">
@@ -622,15 +623,19 @@ export function TaskConversationsPanel({
                       className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--wp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wp-accent)]"
                     />
                     <span>
-                      I approve sending this exact message to {selectedCandidate.displayName} with the
-                      scope and agreement shown above. The professional may accept or decline.
+                      I approve sending this exact message to {selectedCandidate.displayName} with
+                      the scope and agreement shown above. The professional may accept or decline.
                     </span>
                   </label>
 
                   <Button
                     type="button"
                     disabled={
-                      !providerId || !initialMessage.trim() || !contactApproved || sending || drafting
+                      !providerId ||
+                      !initialMessage.trim() ||
+                      !contactApproved ||
+                      sending ||
+                      drafting
                     }
                     onClick={() => void beginContact()}
                     className="min-h-11 w-full"
