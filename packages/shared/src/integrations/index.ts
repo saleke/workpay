@@ -1,6 +1,6 @@
 /**
- * External integration adapters. Every provider has a deterministic fake that
- * is the default, and a real implementation selected by configuration.
+ * External integration adapters. Providers use their configured implementation;
+ * identity verification fails closed when Persona is not configured.
  *
  * Only this package talks to the outside world. Domain modules depend on the
  * interfaces here, never on a concrete SDK.
@@ -21,7 +21,6 @@ export type {
   PersonaInquiryStatus,
   CreateInquiryOptions,
   PersonaInquiryResult,
-  PersonaVerificationChecks,
   VerifyInquiryOptions,
   PersonaVerificationResult,
   PersonaWebhookPayload,

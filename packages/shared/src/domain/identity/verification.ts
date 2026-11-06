@@ -49,11 +49,12 @@ export const DISPOSABLE_EMAIL_DOMAINS = new Set<string>([
   "crazymailing.com",
 ]);
 
-/**
- * Payout milestone threshold: individual tasks or cumulative milestone disbursements
- * exceeding $1,000 USD require verified government identity (Persona / Stripe Identity standard).
- */
-export const IDENTITY_VERIFICATION_THRESHOLD_MINOR = 100000; // $1,000.00 USD
+export function isPersonaIdentityVerified(
+  status: string | null | undefined,
+  provider: string | null | undefined,
+): boolean {
+  return status === "VERIFIED" && provider === "PERSONA";
+}
 
 export function isDisposableEmail(email: string): boolean {
   if (!email || typeof email !== "string") return false;
@@ -97,8 +98,4 @@ export function validateUsername(username: string): { ok: boolean; message?: str
     };
   }
   return { ok: true };
-}
-
-export function requiresIdentityVerification(amountMinor: number): boolean {
-  return amountMinor >= IDENTITY_VERIFICATION_THRESHOLD_MINOR;
 }

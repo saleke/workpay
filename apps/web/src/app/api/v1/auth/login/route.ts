@@ -5,6 +5,7 @@ import { getDb, jsonError } from "@/lib/server/api";
 import { users } from "@workpay/shared/db/schema/identity";
 import { taskConversations } from "@workpay/shared/db/schema/conversations";
 import { verifyPassword } from "@workpay/shared/platform";
+import { isPersonaIdentityVerified } from "@workpay/shared/domain";
 import { createSession, setSessionCookie } from "@/lib/server/session";
 
 const loginSchema = z.object({
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
         githubUsername: users.githubUsername,
         githubVerifiedAt: users.githubVerifiedAt,
         idVerificationStatus: users.idVerificationStatus,
+        idVerificationProvider: users.idVerificationProvider,
         idVerifiedAt: users.idVerifiedAt,
         paypalPayerId: users.paypalPayerId,
         paypalPayoutEmail: users.paypalPayoutEmail,
@@ -58,6 +60,10 @@ export async function POST(req: Request) {
       .limit(1);
     const redirect = professionalConversation ? "/provider" : "/";
     const sessionToken = await createSession(user.id);
+    const isIdentityVerified = isPersonaIdentityVerified(
+      user.idVerificationStatus,
+      user.idVerificationProvider,
+    );
     const res = NextResponse.json({
       data: {
         user: {
@@ -70,8 +76,8 @@ export async function POST(req: Request) {
           role: user.role,
           githubUsername: user.githubUsername,
           githubVerifiedAt: user.githubVerifiedAt,
-          idVerificationStatus: user.idVerificationStatus || "UNVERIFIED",
-          idVerifiedAt: user.idVerifiedAt,
+          idVerificationStatus: isIdentityVerified ? "VERIFIED" : "UNVERIFIED",
+          idVerifiedAt: isIdentityVerified ? user.idVerifiedAt : null,
           paypalPayerId: user.paypalPayerId,
           paypalPayoutEmail: user.paypalPayoutEmail,
           paypalLinkedAt: user.paypalLinkedAt,

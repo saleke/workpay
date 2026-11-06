@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@workpay/shared/db";
+import { isPersonaIdentityVerified } from "@workpay/shared/domain";
 import { sessions, users } from "@workpay/shared/db/schema/identity";
 
 export const SESSION_COOKIE_NAME = "workpay_session";
@@ -65,6 +66,7 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
       githubUsername: users.githubUsername,
       githubVerifiedAt: users.githubVerifiedAt,
       idVerificationStatus: users.idVerificationStatus,
+      idVerificationProvider: users.idVerificationProvider,
       idVerifiedAt: users.idVerifiedAt,
       idDocumentType: users.idDocumentType,
       paypalPayerId: users.paypalPayerId,
@@ -81,6 +83,11 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
 
   if (!row) return null;
 
+  const isIdentityVerified = isPersonaIdentityVerified(
+    row.idVerificationStatus,
+    row.idVerificationProvider,
+  );
+
   return {
     id: row.id,
     name: row.name,
@@ -92,9 +99,9 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
     image: row.image,
     githubUsername: row.githubUsername,
     githubVerifiedAt: row.githubVerifiedAt,
-    idVerificationStatus: row.idVerificationStatus || "UNVERIFIED",
-    idVerifiedAt: row.idVerifiedAt,
-    idDocumentType: row.idDocumentType,
+    idVerificationStatus: isIdentityVerified ? "VERIFIED" : "UNVERIFIED",
+    idVerifiedAt: isIdentityVerified ? row.idVerifiedAt : null,
+    idDocumentType: isIdentityVerified ? row.idDocumentType : null,
     paypalPayerId: row.paypalPayerId,
     paypalPayoutEmail: row.paypalPayoutEmail,
     paypalLinkedAt: row.paypalLinkedAt,

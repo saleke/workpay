@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDb, jsonError, jsonOk, resolveActorAsync } from "@/lib/server/api";
+import { isPersonaIdentityVerified } from "@workpay/shared/domain";
 import { users } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
 
@@ -33,6 +34,7 @@ export async function GET(req: Request) {
         githubUsername: users.githubUsername,
         githubVerifiedAt: users.githubVerifiedAt,
         idVerificationStatus: users.idVerificationStatus,
+        idVerificationProvider: users.idVerificationProvider,
         idVerifiedAt: users.idVerifiedAt,
         idDocumentType: users.idDocumentType,
         paypalPayerId: users.paypalPayerId,
@@ -50,10 +52,17 @@ export async function GET(req: Request) {
       return jsonError({ code: "NOT_FOUND", message: "User account not found" }, 404);
     }
 
+    const isIdentityVerified = isPersonaIdentityVerified(
+      user.idVerificationStatus,
+      user.idVerificationProvider,
+    );
     const userPayload = {
       ...user,
       displayName: user.displayName || user.name,
-      idVerificationStatus: user.idVerificationStatus || "UNVERIFIED",
+      idVerificationStatus: isIdentityVerified ? "VERIFIED" : "UNVERIFIED",
+      idVerifiedAt: isIdentityVerified ? user.idVerifiedAt : null,
+      idDocumentType: isIdentityVerified ? user.idDocumentType : null,
+      idVerificationProvider: undefined,
       paypalVerified: Boolean(user.paypalVerified),
       paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
     };
@@ -103,7 +112,7 @@ export async function PUT(req: Request) {
     // Guard: verified legal names are locked
     if (
       parsed.legalName !== undefined &&
-      current.idVerificationStatus === "VERIFIED" &&
+      isPersonaIdentityVerified(current.idVerificationStatus, current.idVerificationProvider) &&
       parsed.legalName !== current.legalName
     ) {
       return jsonError(
@@ -148,6 +157,7 @@ export async function PUT(req: Request) {
         githubUsername: users.githubUsername,
         githubVerifiedAt: users.githubVerifiedAt,
         idVerificationStatus: users.idVerificationStatus,
+        idVerificationProvider: users.idVerificationProvider,
         idVerifiedAt: users.idVerifiedAt,
         idDocumentType: users.idDocumentType,
         paypalPayerId: users.paypalPayerId,
@@ -160,9 +170,23 @@ export async function PUT(req: Request) {
       .where(eq(users.id, actorId))
       .limit(1);
 
+    const isIdentityVerified = isPersonaIdentityVerified(
+      updatedUser?.idVerificationStatus,
+      updatedUser?.idVerificationProvider,
+    );
+    const updatedUserPayload = updatedUser
+      ? {
+          ...updatedUser,
+          idVerificationStatus: isIdentityVerified ? "VERIFIED" : "UNVERIFIED",
+          idVerifiedAt: isIdentityVerified ? updatedUser.idVerifiedAt : null,
+          idDocumentType: isIdentityVerified ? updatedUser.idDocumentType : null,
+          idVerificationProvider: undefined,
+        }
+      : updatedUser;
+
     return jsonOk({
-      data: { user: updatedUser },
-      user: updatedUser,
+      data: { user: updatedUserPayload },
+      user: updatedUserPayload,
     });
   } catch (err) {
     return jsonError(err);

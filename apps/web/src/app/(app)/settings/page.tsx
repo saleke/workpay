@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   DollarSign,
   ExternalLink,
-  FileCheck2,
   FileCode2,
   Fingerprint,
   FlaskConical,
@@ -31,7 +30,6 @@ import {
   Shield,
   ShieldCheck,
   Sliders,
-  Sparkles,
   Unlink,
   User,
   Wallet,
@@ -191,34 +189,15 @@ function SettingsContent() {
   const [verifyingGithub, setVerifyingGithub] = useState(false);
   const [connectingGithubOAuth, setConnectingGithubOAuth] = useState(false);
 
-  // Identity Verification via Persona (Government ID & Milestone Threshold)
+  // Persona's approved inquiry is the only supported source of identity status.
   const [idModalOpen, setIdModalOpen] = useState(false);
   const [personaStep, setPersonaStep] = useState<
-    "intro" | "form" | "biometric" | "processing" | "success"
+    "intro" | "pending" | "checking" | "not-approved" | "success"
   >("intro");
   const [personaInquiryId, setPersonaInquiryId] = useState<string | null>(null);
   const [personaHostedUrl, setPersonaHostedUrl] = useState<string | null>(null);
-  const [personaEnvironment, setPersonaEnvironment] = useState<string>("sandbox");
   const [creatingInquiry, setCreatingInquiry] = useState(false);
-  const [inputLegalName, setInputLegalName] = useState("");
-  const [inputDocType, setInputDocType] = useState<"PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID">(
-    "PASSPORT",
-  );
-  const [inputCountry, setInputCountry] = useState("US");
-  const [inputDocNumber, setInputDocNumber] = useState("");
-  const [verifyingId, setVerifyingId] = useState(false);
-  const [personaVerificationResult, setPersonaVerificationResult] = useState<{
-    checks?: {
-      documentAuthenticity?: string;
-      faceMatch?: string;
-      liveness?: string;
-      watchlistScreening?: string;
-    };
-    documentType?: string;
-    legalName?: string;
-    verifiedAt?: string;
-    inquiryId?: string;
-  } | null>(null);
+  const [personaStatusError, setPersonaStatusError] = useState<string | null>(null);
 
   // Demo reset modal
   const [resetting, setResetting] = useState(false);
@@ -235,6 +214,9 @@ function SettingsContent() {
     githubOAuth: false,
     personaVerification: false,
   });
+  const [personaAvailability, setPersonaAvailability] = useState<
+    "checking" | "available" | "coming-soon" | "unavailable"
+  >("checking");
 
   useEffect(() => {
     if (rawTab && SETTINGS_TABS.some((t) => t.key === rawTab)) {
@@ -276,21 +258,27 @@ function SettingsContent() {
 
   useEffect(() => {
     void fetch("/api/v1/system/capabilities", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((value) =>
+      .then((response) => {
+        if (!response.ok) throw new Error("Could not check integration availability.");
+        return response.json();
+      })
+      .then((value) => {
+        const personaVerification = value.personaVerification === true;
         setCapabilities({
           emailDelivery: value.emailDelivery === true,
           githubOAuth: value.githubOAuth === true,
-          personaVerification: value.personaVerification === true,
-        }),
-      )
-      .catch(() =>
+          personaVerification,
+        });
+        setPersonaAvailability(personaVerification ? "available" : "coming-soon");
+      })
+      .catch(() => {
         setCapabilities({
           emailDelivery: false,
           githubOAuth: false,
           personaVerification: false,
-        }),
-      );
+        });
+        setPersonaAvailability("unavailable");
+      });
 
     const stored = window.localStorage.getItem("workpay_auth_user");
     if (stored) {
@@ -642,95 +630,76 @@ function SettingsContent() {
     }
   };
 
-  const handleOpenPersonaModal = async () => {
+  const handleOpenPersonaModal = () => {
     setIdModalOpen(true);
-    setPersonaStep("intro");
-    if (!inputLegalName && (userProfile?.legalName || userProfile?.name)) {
-      setInputLegalName(userProfile?.legalName || userProfile?.name || "");
-    }
-    if (!personaInquiryId) {
-      setCreatingInquiry(true);
-      try {
-        const res = await fetch("/api/v1/user/persona/inquiry", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const data = json?.data || json;
-          if (data?.inquiryId) {
-            setPersonaInquiryId(data.inquiryId);
-          }
-          if (data?.hostedUrl) {
-            setPersonaHostedUrl(data.hostedUrl);
-          }
-          if (data?.environmentId) {
-            setPersonaEnvironment(data.environmentId);
-          }
-        }
-      } catch {
-        // Fallback gracefully
-      } finally {
-        setCreatingInquiry(false);
-      }
-    }
+    setPersonaStep(personaInquiryId ? "pending" : "intro");
+    setPersonaStatusError(null);
   };
 
-  const handleProceedToBiometric = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputLegalName.trim() || inputLegalName.trim().split(/\s+/).length < 2) {
-      toast.error("Please enter your legal first and last name");
-      return;
-    }
-    if (!inputDocNumber.trim() || inputDocNumber.trim().length < 5) {
-      toast.error("Document number must be at least 5 characters");
-      return;
-    }
-    if (!inputCountry.trim()) {
-      toast.error("Issuing country code is required");
-      return;
-    }
-    setPersonaStep("biometric");
-  };
-
-  const handleCaptureAndVerifyPersona = async () => {
-    setPersonaStep("processing");
-    setVerifyingId(true);
+  const handleStartPersonaVerification = async () => {
+    setCreatingInquiry(true);
+    setPersonaStatusError(null);
     try {
-      // High-fidelity aesthetic pause for biometric laser sweep
-      await new Promise((resolve) => setTimeout(resolve, 1400));
+      const res = await fetch("/api/v1/user/persona/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Could not start Persona verification.");
+      }
 
+      const inquiry = json?.data;
+      if (typeof inquiry?.inquiryId !== "string" || typeof inquiry?.hostedUrl !== "string") {
+        throw new Error("Persona did not return a usable verification link.");
+      }
+
+      setPersonaInquiryId(inquiry.inquiryId);
+      setPersonaHostedUrl(inquiry.hostedUrl);
+      setPersonaStep("pending");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not start Persona verification.";
+      setPersonaStatusError(message);
+      toast.error(message);
+    } finally {
+      setCreatingInquiry(false);
+    }
+  };
+
+  const handleCheckPersonaStatus = async () => {
+    if (!personaInquiryId) return;
+    setPersonaStep("checking");
+    setPersonaStatusError(null);
+    try {
       const res = await fetch("/api/v1/user/persona/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inquiryId: personaInquiryId || `inq_${Date.now()}`,
-          legalName: inputLegalName.trim(),
-          documentType: inputDocType,
-          country: inputCountry.trim() || "US",
-          documentNumber: inputDocNumber.trim(),
-        }),
+        body: JSON.stringify({ inquiryId: personaInquiryId }),
       });
-
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error?.message || "Persona identity verification check failed");
-        setPersonaStep("form");
-        return;
+        throw new Error(json.error?.message || "Could not check Persona verification status.");
       }
 
-      const result = json?.data || json;
-      setPersonaVerificationResult(result);
-      setPersonaStep("success");
-      await loadProfile();
-      toast.success(
-        "Identity verified successfully via Persona. High-value task threshold unlocked.",
-      );
-    } catch {
-      toast.error("Network error during Persona identity verification");
-      setPersonaStep("form");
-    } finally {
-      setVerifyingId(false);
+      const result = json?.data;
+      if (result?.status === "APPROVED") {
+        setPersonaStep("success");
+        await loadProfile();
+        toast.success("Persona reported an approved identity inquiry.");
+      } else if (result?.status === "NOT_APPROVED") {
+        setPersonaStep("not-approved");
+      } else if (result?.status === "PENDING") {
+        setPersonaStep("pending");
+      } else {
+        throw new Error("Persona returned an unrecognized verification status.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not check Persona verification status.";
+      setPersonaStatusError(message);
+      setPersonaStep("pending");
+      toast.error(message);
     }
   };
 
@@ -1138,106 +1107,158 @@ function SettingsContent() {
                   </Card>
                 ) : null}
 
-                {/* Optional identity provider appears only when configured. */}
-                {capabilities.personaVerification ? (
-                  <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-                    <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                          <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
-                          Identity Verification
-                        </CardTitle>
-                        {userProfile?.idVerificationStatus === "VERIFIED" ? (
+                <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
+                  <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Fingerprint className="h-4 w-4 text-[var(--wp-accent)]" />
+                        Identity Verification
+                      </CardTitle>
+                      {capabilities.personaVerification ? (
+                        userProfile?.idVerificationStatus === "VERIFIED" ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 font-semibold">
                             <CheckCircle2 className="h-3 w-3" />
-                            Persona Verified
+                            Persona approved
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="text-amber-600 border-amber-500/30 text-xs"
+                            className="text-[var(--wp-text-secondary)] text-xs"
                           >
-                            Tier 1: Sub-$1,000 Unlocked
+                            Not verified
                           </Badge>
-                        )}
-                      </div>
-                      <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-                        Non-custodial holds operate seamlessly for all accounts. Tasks or cumulative
-                        milestone payouts exceeding $1,000 USD require automated Persona identity
-                        verification.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-5 sm:p-6 space-y-4">
-                      {/* Milestone Threshold Banner */}
-                      <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                              $1,000 Milestone Limit Rule
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
-                            >
-                              Persona Standard
-                            </Badge>
+                        )
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={
+                            personaAvailability === "coming-soon"
+                              ? "border-[var(--wp-accent)]/30 bg-[var(--wp-accent)]/10 text-[var(--wp-accent)] text-xs"
+                              : "text-[var(--wp-text-secondary)] text-xs"
+                          }
+                        >
+                          {personaAvailability === "coming-soon"
+                            ? "Coming soon"
+                            : personaAvailability === "checking"
+                              ? "Checking availability"
+                              : "Status unavailable"}
+                        </Badge>
+                      )}
+                    </div>
+                    <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
+                      {capabilities.personaVerification ? (
+                        <>
+                          Optional identity verification through Persona. Approval is not a WorkPay
+                          certification of qualifications, trustworthiness, or work quality.
+                        </>
+                      ) : personaAvailability === "coming-soon" ? (
+                        <>
+                          We’re preparing optional identity verification with Persona. It isn’t
+                          available yet, so there’s nothing to submit or configure in your account.
+                        </>
+                      ) : personaAvailability === "checking" ? (
+                        <>
+                          Checking whether optional identity verification with Persona is enabled.
+                          No identity information is submitted during this check.
+                        </>
+                      ) : (
+                        <>
+                          We couldn’t confirm whether Persona verification is available. Refresh
+                          this page to check again; no identity information has been submitted.
+                        </>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-5 sm:p-6 space-y-4">
+                    {capabilities.personaVerification ? (
+                      <>
+                        <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
+                                What this records
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
+                              Persona conducts the checks configured for its hosted flow. WorkPay
+                              records only whether Persona reports an approved inquiry and when;
+                              this does not authorize or enable payments.
+                            </p>
                           </div>
-                          <p className="text-[11px] text-[var(--wp-text-secondary)] mt-1 max-w-xl leading-relaxed">
-                            Tasks below $1,000 USD execute without government ID. Tasks or
-                            cumulative payouts exceeding $1,000 USD require automated Persona
-                            biometric and government document verification.
+
+                          {userProfile?.idVerificationStatus !== "VERIFIED" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleOpenPersonaModal}
+                              className="text-xs font-semibold shrink-0"
+                            >
+                              <ScanFace className="h-3.5 w-3.5 mr-1.5" />
+                              Start identity check
+                            </Button>
+                          )}
+                        </div>
+
+                        {userProfile?.idVerificationStatus === "VERIFIED" && (
+                          <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                <ShieldCheck className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
+                                  <span>Persona reported an approved inquiry</span>
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
+                                    {userProfile.idVerifiedAt
+                                      ? new Date(userProfile.idVerifiedAt).toLocaleDateString()
+                                      : "Confirmed"}
+                                  </Badge>
+                                </div>
+                                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
+                                  WorkPay stores the approval status and time only. It does not
+                                  certify identity attributes or enable money movement.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-start gap-3 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 p-4 sm:p-5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--wp-accent)]/20 bg-[var(--wp-accent)]/10 text-[var(--wp-accent)]">
+                          <ScanFace className="h-4 w-4" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[var(--wp-text-primary)]">
+                            {personaAvailability === "coming-soon"
+                              ? "Persona-hosted identity checks are planned"
+                              : personaAvailability === "checking"
+                                ? "Checking Persona availability"
+                                : "Persona availability couldn’t be confirmed"}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-[var(--wp-text-secondary)]">
+                            {personaAvailability === "coming-soon" ? (
+                              <>
+                                When available, you’ll be able to choose whether to complete
+                                Persona’s hosted check. WorkPay will show only whether Persona
+                                reports approval; it won’t certify your qualifications,
+                                trustworthiness, or work quality, and identity verification won’t
+                                enable payments.
+                              </>
+                            ) : personaAvailability === "checking" ? (
+                              <>This check does not send identity information to Persona.</>
+                            ) : (
+                              <>
+                                Refresh this page to check again. No identity information has been
+                                submitted.
+                              </>
+                            )}
                           </p>
                         </div>
-
-                        {userProfile?.idVerificationStatus !== "VERIFIED" && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={handleOpenPersonaModal}
-                            className="text-xs font-semibold shrink-0"
-                          >
-                            <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                            Verify Identity with Persona
-                          </Button>
-                        )}
                       </div>
-
-                      {userProfile?.idVerificationStatus === "VERIFIED" && (
-                        <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              <ShieldCheck className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-sm text-[var(--wp-text-primary)] flex items-center gap-2">
-                                <span>
-                                  Verified Legal Identity:{" "}
-                                  {userProfile.legalName
-                                    ? `${userProfile.legalName.slice(0, 1)}*** ${userProfile.legalName.split(" ").slice(-1)[0]}`
-                                    : "Verified Individual"}
-                                </span>
-                                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">
-                                  Persona
-                                </Badge>
-                              </div>
-                              <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                                Document Type: {userProfile.idDocumentType || "Passport"}. Biometric
-                                liveness confirmed and AML screening clear. High-value task
-                                thresholds permanently unlocked.
-                              </p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-mono text-emerald-600 border-emerald-500/30 shrink-0"
-                          >
-                            All Tiers Unlocked ($1,000+)
-                          </Badge>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : null}
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Password Management */}
                 <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
@@ -2204,504 +2225,198 @@ function SettingsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog for Step 3: Government Identity Verification via Persona */}
-      <Dialog
-        open={idModalOpen}
-        onOpenChange={(open) => {
-          setIdModalOpen(open);
-          if (!open && personaStep === "success") {
-            setPersonaStep("intro");
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
+      {/* Optional Persona identity verification */}
+      <Dialog open={idModalOpen} onOpenChange={setIdModalOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
           {personaStep === "intro" && (
-            <div>
+            <>
               <DialogHeader>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--wp-accent)]/10 text-[var(--wp-accent)] border border-[var(--wp-accent)]/20">
-                      <ScanFace className="h-4.5 w-4.5" />
-                    </div>
-                    <div>
-                      <DialogTitle className="text-base font-semibold">
-                        Persona Identity Verification
-                      </DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                        Automated KYC, biometric liveness, and AML screening
-                      </p>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--wp-accent)]/10 text-[var(--wp-accent)] border border-[var(--wp-accent)]/20">
+                    <ScanFace className="h-4 w-4" />
                   </div>
-                  {personaInquiryId && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
-                    >
-                      {personaInquiryId}
-                    </Badge>
-                  )}
+                  <DialogTitle className="text-base font-semibold">
+                    Optional identity check
+                  </DialogTitle>
                 </div>
+                <DialogDescription className="text-xs leading-relaxed">
+                  Persona will collect and review identity information in its hosted flow. WorkPay
+                  stores only whether Persona reports an approved inquiry and the approval time.
+                  This is not a certification of qualifications, trustworthiness, or work quality,
+                  and does not authorize or enable payments.
+                </DialogDescription>
               </DialogHeader>
 
-              <div className="py-4 space-y-3.5">
-                <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                      $1,000 Milestone Threshold Requirement
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-mono text-[var(--wp-accent)] border-[var(--wp-border)]"
-                    >
-                      {personaEnvironment.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                    Under non-custodial operating rules, tasks below $1,000 USD execute without
-                    identity verification. Tasks or milestone disbursements exceeding $1,000 USD
-                    require verified identity through Persona.
+              <div aria-live="polite" className="py-3">
+                <p className="rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-3 text-xs leading-relaxed text-[var(--wp-text-secondary)]">
+                  You will leave WorkPay to complete Persona's secure verification flow. Review
+                  Persona's privacy information before submitting identity documents. WorkPay does
+                  not ask you to enter document numbers here.
+                </p>
+                {personaStatusError && (
+                  <p role="alert" className="mt-3 text-xs text-destructive">
+                    {personaStatusError}
                   </p>
-                </div>
-
-                <div className="space-y-2.5">
-                  <span className="text-[11px] font-semibold text-[var(--wp-text-primary)] block">
-                    Automated Persona Verification Steps:
-                  </span>
-
-                  <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-background flex items-start gap-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--wp-surface-subtle)] text-[var(--wp-accent)] border border-[var(--wp-border)] mt-0.5">
-                      <FileCheck2 className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
-                        1. Government Credential Inspection
-                      </div>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        High-accuracy OCR inspection of Passport, Driver License, or National ID
-                        Card with hologram and MRZ checksum validation.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-background flex items-start gap-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 mt-0.5">
-                      <ScanFace className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
-                        2. Biometric Facial Liveness & Match
-                      </div>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        Passive 3D depth analysis and anti-spoofing inspection to match your face
-                        vector against the physical identity document.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-background flex items-start gap-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 border border-blue-500/20 mt-0.5">
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-[var(--wp-text-primary)]">
-                        3. Global AML & PEP Watchlist Screening
-                      </div>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5">
-                        Instant screening against OFAC, PEP, and international sanctions registries
-                        for complete compliance peace of mind.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-[var(--wp-text-secondary)] px-1">
-                  <span>Standard: SOC2 Type II and GDPR Compliant</span>
-                  {personaHostedUrl && (
-                    <a
-                      href={personaHostedUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--wp-accent)] hover:underline inline-flex items-center gap-1 font-medium"
-                    >
-                      Persona Web Flow <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
+                )}
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-0 mt-2">
+              <DialogFooter className="gap-2 sm:gap-0">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIdModalOpen(false)}
-                  className="text-xs"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => setPersonaStep("form")}
+                  onClick={handleStartPersonaVerification}
                   disabled={creatingInquiry}
-                  className="text-xs font-semibold"
                 >
-                  <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                  {creatingInquiry ? "Initializing..." : "Begin Verification"}
+                  {creatingInquiry ? "Creating secure link..." : "Continue to Persona"}
                 </Button>
               </DialogFooter>
-            </div>
+            </>
           )}
 
-          {personaStep === "form" && (
-            <form onSubmit={handleProceedToBiometric}>
+          {(personaStep === "pending" || personaStep === "checking") && (
+            <>
               <DialogHeader>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--wp-accent)]/10 text-[var(--wp-accent)] border border-[var(--wp-accent)]/20">
-                      <FileCheck2 className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <DialogTitle className="text-base font-semibold">
-                        Government Identity Document
-                      </DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                        Step 1 of 2: Credential Details
-                      </p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
-                  >
-                    Step 1 / 2
-                  </Badge>
-                </div>
-              </DialogHeader>
-
-              <div className="py-4 space-y-3.5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="personaLegalName" className="text-xs font-semibold">
-                    Legal Full Name (as on Government ID)
-                  </Label>
-                  <Input
-                    id="personaLegalName"
-                    placeholder="Elena Rostova"
-                    value={inputLegalName}
-                    onChange={(e) => setInputLegalName(e.target.value)}
-                    required
-                    className="text-xs"
-                  />
-                  <p className="text-[10px] text-[var(--wp-text-secondary)]">
-                    Must match your physical government document exactly. This legal name is
-                    permanently registered upon verification.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="personaDocType" className="text-xs font-semibold">
-                      Document Type
-                    </Label>
-                    <select
-                      id="personaDocType"
-                      value={inputDocType}
-                      onChange={(e) =>
-                        setInputDocType(
-                          e.target.value as "PASSPORT" | "DRIVERS_LICENSE" | "NATIONAL_ID",
-                        )
-                      }
-                      className="w-full h-8 text-xs px-2.5 rounded-lg border border-[var(--wp-border)] bg-background text-foreground"
-                    >
-                      <option value="PASSPORT">Passport</option>
-                      <option value="DRIVERS_LICENSE">Driver License</option>
-                      <option value="NATIONAL_ID">National ID Card</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="personaCountry" className="text-xs font-semibold">
-                      Issuing Country
-                    </Label>
-                    <Input
-                      id="personaCountry"
-                      placeholder="US, GB, DE, etc."
-                      value={inputCountry}
-                      onChange={(e) => setInputCountry(e.target.value)}
-                      required
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="personaDocNumber" className="text-xs font-semibold">
-                    Document Number
-                  </Label>
-                  <Input
-                    id="personaDocNumber"
-                    placeholder="e.g. P987654321"
-                    value={inputDocNumber}
-                    onChange={(e) => setInputDocNumber(e.target.value)}
-                    required
-                    className="text-xs font-mono"
-                  />
-                </div>
-
-                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] leading-relaxed">
-                  <strong className="text-[var(--wp-text-primary)] font-semibold block mb-0.5">
-                    Persona Verification Guarantee:
-                  </strong>
-                  Your credential number is encrypted and validated against official state issuing
-                  formats and security algorithms.
-                </div>
-              </div>
-
-              <DialogFooter className="gap-2 sm:gap-0 mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPersonaStep("intro")}
-                  className="text-xs"
-                >
-                  Back
-                </Button>
-                <Button type="submit" size="sm" className="text-xs font-semibold">
-                  <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                  Continue to Biometric Liveness
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-
-          {personaStep === "biometric" && (
-            <div>
-              <DialogHeader>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                      <ScanFace className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <DialogTitle className="text-base font-semibold">
-                        Biometric Facial Liveness
-                      </DialogTitle>
-                      <p className="text-[11px] text-[var(--wp-text-secondary)]">
-                        Step 2 of 2: Passive 3D Anti-Spoofing Scan
-                      </p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-mono border-[var(--wp-border)] shrink-0"
-                  >
-                    Step 2 / 2
-                  </Badge>
-                </div>
-              </DialogHeader>
-
-              <div className="py-4 space-y-4">
-                {/* Simulated Persona High-Tech Viewport */}
-                <div className="relative h-60 w-full rounded-2xl bg-neutral-950 border border-emerald-500/30 overflow-hidden flex flex-col items-center justify-center shadow-inner">
-                  {/* Grid background effect */}
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#0596690a_1px,transparent_1px),linear-gradient(to_bottom,#0596690a_1px,transparent_1px)] bg-[size:20px_20px]" />
-
-                  {/* Top viewport status tags */}
-                  <div className="absolute top-3 inset-x-3 flex items-center justify-between z-10">
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                      PERSONA LIVE CAMERA
-                    </div>
-                    <div className="text-[10px] font-mono text-neutral-400 px-2 py-0.5 rounded bg-black/50 border border-neutral-800">
-                      3D DEPTH: READY
-                    </div>
-                  </div>
-
-                  {/* Centered Face Guide Oval */}
-                  <div className="relative flex flex-col items-center justify-center">
-                    <div className="h-36 w-28 rounded-[50%] border-2 border-dashed border-emerald-400/80 flex items-center justify-center relative">
-                      <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse" />
-                      <div className="text-[10px] text-emerald-400/90 font-mono text-center px-2 select-none">
-                        Align Face In Oval
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom viewport tags */}
-                  <div className="absolute bottom-3 inset-x-3 flex items-center justify-between z-10 text-[10px] font-mono text-neutral-400">
-                    <span>ANTI-SPOOF: CALIBRATED</span>
-                    <span className="text-emerald-400">FPS: 60 (ACTIVE)</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1 leading-relaxed">
-                  <div className="font-semibold text-[var(--wp-text-primary)]">
-                    Passive Liveness Inspection:
-                  </div>
-                  <p>
-                    Persona captures a micro-vector representation of your face to verify real human
-                    presence and matches it against your{" "}
-                    {inputDocType.toLowerCase().replace(/_/g, " ")}. Video is not stored.
-                  </p>
-                </div>
-              </div>
-
-              <DialogFooter className="gap-2 sm:gap-0 mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPersonaStep("form")}
-                  disabled={verifyingId}
-                  className="text-xs"
-                >
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleCaptureAndVerifyPersona}
-                  disabled={verifyingId}
-                  className="text-xs font-semibold"
-                >
-                  <ScanFace className="h-3.5 w-3.5 mr-1.5" />
-                  Capture Face & Verify Identity
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-
-          {personaStep === "processing" && (
-            <div className="py-8 text-center space-y-4">
-              <div className="relative flex items-center justify-center mx-auto h-16 w-16">
-                <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20 animate-ping" />
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
                 <DialogTitle className="text-base font-semibold">
-                  Verifying with Persona
+                  Verification in progress
                 </DialogTitle>
-                <p className="text-xs text-[var(--wp-text-secondary)]">
-                  Running automated biometric matching, OCR validation, and AML watchlist checks...
-                </p>
-              </div>
-
-              <div className="max-w-xs mx-auto p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/60 text-[11px] text-left space-y-2">
-                <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Credential OCR & MRZ parsed</span>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>3D facial vector matched</span>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Passive liveness verified</span>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>AML & PEP watchlists clear</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {personaStep === "success" && (
-            <div>
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-base font-semibold">
-                      Identity Verified with Persona
-                    </DialogTitle>
-                    <p className="text-[11px] text-emerald-600 font-medium">
-                      High-value milestone thresholds permanently unlocked
-                    </p>
-                  </div>
-                </div>
+                <DialogDescription className="text-xs leading-relaxed">
+                  Complete the Persona flow, then return here and check the status. Finishing the
+                  hosted flow is not the same as approval; WorkPay records verification only after
+                  Persona reports an approved result.
+                </DialogDescription>
               </DialogHeader>
 
-              <div className="py-4 space-y-3.5">
-                <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                    <span className="text-xs text-[var(--wp-text-secondary)]">
-                      Verification Status:
-                    </span>
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-semibold">
-                      PASSED (VERIFIED)
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
-                        Legal Full Name:
-                      </span>
-                      <span className="font-semibold text-[var(--wp-text-primary)]">
-                        {personaVerificationResult?.legalName || inputLegalName}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
-                        Document Type:
-                      </span>
-                      <span className="font-semibold text-[var(--wp-text-primary)]">
-                        {personaVerificationResult?.documentType || inputDocType}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
-                        Reference Inquiry ID:
-                      </span>
-                      <span className="font-mono text-[10px] text-[var(--wp-text-secondary)]">
-                        {personaVerificationResult?.inquiryId || personaInquiryId || "inq_verified"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--wp-text-secondary)] block">
-                        Disbursement Limit:
-                      </span>
-                      <span className="font-semibold text-emerald-600">
-                        Unlimited ($1,000+ Permitted)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[11px] text-[var(--wp-text-secondary)] space-y-1">
-                  <div className="font-semibold text-[var(--wp-text-primary)] flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-[var(--wp-accent)]" />
-                    Compliance Profile Active
-                  </div>
-                  <p>
-                    Your Persona identity verification has been confirmed. You can now execute and
-                    disburse tasks of any value without threshold constraints.
+              <div aria-live="polite" className="space-y-3 py-3">
+                {personaHostedUrl && (
+                  <a
+                    href={personaHostedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--wp-border)] px-4 text-sm font-medium text-[var(--wp-accent)] hover:bg-[var(--wp-surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)]"
+                  >
+                    Open Persona verification <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+                {personaInquiryId && (
+                  <p className="text-[11px] text-[var(--wp-text-secondary)]">
+                    Inquiry reference: <span className="font-mono">{personaInquiryId}</span>
                   </p>
-                </div>
+                )}
+                {personaStatusError && (
+                  <p role="alert" className="text-xs text-destructive">
+                    {personaStatusError}
+                  </p>
+                )}
               </div>
 
-              <DialogFooter className="mt-2">
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIdModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCheckPersonaStatus}
+                  disabled={personaStep === "checking"}
+                >
+                  {personaStep === "checking" ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    "Check status"
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {personaStep === "not-approved" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base font-semibold">
+                  Not approved by Persona
+                </DialogTitle>
+                <DialogDescription className="text-xs leading-relaxed">
+                  Persona has not approved this inquiry, so WorkPay keeps your identity status
+                  unverified. If your inquiry is still under review, check again later.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-3">
+                {personaStatusError && (
+                  <p role="alert" className="text-xs text-destructive">
+                    {personaStatusError}
+                  </p>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIdModalOpen(false)}
+                >
+                  Close
+                </Button>
                 <Button
                   type="button"
                   size="sm"
                   onClick={() => {
-                    setIdModalOpen(false);
+                    setPersonaInquiryId(null);
+                    setPersonaHostedUrl(null);
                     setPersonaStep("intro");
                   }}
-                  className="w-full text-xs font-semibold"
+                >
+                  Start another inquiry
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {personaStep === "success" && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <DialogTitle className="text-base font-semibold">
+                    Persona reported approval
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-xs leading-relaxed">
+                  WorkPay recorded Persona's approved inquiry. This result is limited to the status
+                  Persona reported; it does not certify trust, skills, or work quality and does not
+                  authorize payments.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setIdModalOpen(false)}
                 >
                   Done
                 </Button>
               </DialogFooter>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

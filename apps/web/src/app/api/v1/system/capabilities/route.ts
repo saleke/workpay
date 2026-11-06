@@ -14,7 +14,10 @@ export async function GET() {
       githubOAuth: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
       googleOAuth: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
       personaVerification: Boolean(
-        env.PERSONA_API_KEY && env.PERSONA_TEMPLATE_ID && env.PERSONA_ENVIRONMENT_ID,
+        env.PERSONA_API_KEY &&
+          env.PERSONA_TEMPLATE_ID &&
+          env.PERSONA_ENVIRONMENT_ID &&
+          env.PERSONA_WEBHOOK_SECRET,
       ),
       livePayments: false,
       paymentMode: "SIMULATED",

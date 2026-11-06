@@ -35,8 +35,9 @@ export const users = pgTable(
     // Step 2: Developer verification (GitHub profile)
     githubUsername: text("github_username"),
     githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
-    // Step 3: Identity Verification (Persona / Stripe Identity flow & milestone threshold)
+    // Persona-reported identity verification outcome and source.
     idVerificationStatus: varchar("id_verification_status", { length: 32 }).notNull().default("UNVERIFIED"),
+    idVerificationProvider: varchar("id_verification_provider", { length: 32 }),
     idVerifiedAt: timestamp("id_verified_at", { withTimezone: true }),
     idDocumentType: varchar("id_document_type", { length: 32 }),
     // PayPal Account Linking and Binding

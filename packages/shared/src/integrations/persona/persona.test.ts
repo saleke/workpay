@@ -1,88 +1,187 @@
-import { describe, expect, it } from "vitest";
-import { PersonaClient } from "./client.js";
 import { createHmac } from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PersonaClient } from "./client.js";
+
+const userId = "user_test_999";
+const inquiryId = "inq_test_123";
+
+function configuredClient() {
+  return new PersonaClient({
+    apiKey: "persona_test_api_key",
+    templateId: "itmpl_test_123",
+    environmentId: "env_test_123",
+    webhookSecret: "whsec_test_secret",
+  });
+}
+
+function personaInquiryResponse(status: string, referenceId = userId) {
+  return new Response(
+    JSON.stringify({
+      data: {
+        id: inquiryId,
+        attributes: { status, referenceId },
+      },
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("Persona Integration Client", () => {
-  it("initializes in sandbox mode when API key is omitted", () => {
+  it("does not simulate inquiry creation without provider credentials", async () => {
     const client = new PersonaClient({
-      environmentId: "sandbox",
+      environmentId: "env_test_123",
       templateId: "itmpl_test_123",
     });
 
     expect(client.isConfigured).toBe(false);
+    await expect(client.createInquiry({ referenceId: userId })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
-  it("creates high-fidelity simulated sandbox inquiries", async () => {
+  it("keeps Persona unavailable when only part of its configuration is present", async () => {
     const client = new PersonaClient({
-      environmentId: "sandbox",
-      templateId: "itmpl_workpay_idv",
+      apiKey: "persona_test_api_key",
+      templateId: "itmpl_test_123",
+      environmentId: "env_test_123",
     });
 
-    const inquiry = await client.createInquiry({
-      referenceId: "user_test_999",
-      email: "engineer@company.org",
-      nameFirst: "Elena",
-      nameLast: "Rostova",
+    expect(client.isConfigured).toBe(false);
+    await expect(client.createInquiry({ referenceId: userId })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
     });
-
-    expect(inquiry.inquiryId).toMatch(/^inq_[a-f0-9]{16}$/);
-    expect(inquiry.sessionToken).toMatch(/^ses_[a-f0-9]{32}$/);
-    expect(inquiry.status).toBe("created");
-    expect(inquiry.referenceId).toBe("user_test_999");
-    expect(inquiry.environmentId).toBe("sandbox");
-    expect(inquiry.hostedUrl).toContain(inquiry.inquiryId);
+    await expect(client.verifyInquiry({ inquiryId, referenceId: userId })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
-  it("completes verification with all automated checks passed", async () => {
-    const client = new PersonaClient();
+  it("creates an inquiry and requires Persona's one-time hosted link", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            id: inquiryId,
+            attributes: { status: "created", referenceId: userId },
+          },
+          meta: { oneTimeLink: "https://inquiry.withpersona.com/verify?code=one-time" },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
-    const result = await client.verifyInquiry({
-      inquiryId: "inq_test_abc123",
-      legalName: "Elena Rostova",
-      documentType: "PASSPORT",
-      country: "US",
-      documentNumber: "P987654321",
+    const inquiry = await configuredClient().createInquiry({ referenceId: userId });
+
+    expect(inquiry).toMatchObject({
+      inquiryId,
+      status: "created",
+      referenceId: userId,
+      templateId: "itmpl_test_123",
+      environmentId: "env_test_123",
+      hostedUrl: "https://inquiry.withpersona.com/verify?code=one-time",
+      isConfigured: true,
     });
-
-    expect(result.success).toBe(true);
-    expect(result.status).toBe("VERIFIED");
-    expect(result.legalName).toBe("Elena Rostova");
-    expect(result.documentType).toBe("PASSPORT");
-    expect(result.checks.documentAuthenticity).toBe("passed");
-    expect(result.checks.faceMatch).toBe("passed");
-    expect(result.checks.liveness).toBe("passed");
-    expect(result.checks.watchlistScreening).toBe("passed");
-    expect(result.verifiedAt).toBeInstanceOf(Date);
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.withpersona.com/api/v1/inquiries");
+    expect(request.method).toBe("POST");
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      data: {
+        attributes: { "reference-id": userId },
+        relationships: {
+          "inquiry-template": { data: { id: "itmpl_test_123", type: "inquiry-template" } },
+        },
+      },
+      meta: { "auto-create-account": false, "auto-create-one-time-link": true },
+    });
   });
 
-  it("validates Persona webhook HMAC SHA-256 signatures", () => {
+  it("rejects failed Persona requests instead of returning a simulated inquiry", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+
+    await expect(configuredClient().createInquiry({ referenceId: userId })).rejects.toMatchObject({
+      code: "EXTERNAL_FAILURE",
+    });
+  });
+
+  it("rejects hosted links outside Persona's secure domain", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: { id: inquiryId, attributes: { status: "created", referenceId: userId } },
+            meta: { oneTimeLink: "https://attacker.example/verify" },
+          }),
+          { status: 201 },
+        ),
+      ),
+    );
+
+    await expect(configuredClient().createInquiry({ referenceId: userId })).rejects.toMatchObject({
+      code: "EXTERNAL_FAILURE",
+    });
+  });
+
+  it("accepts only Persona's approved status for the inquiry owner", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(personaInquiryResponse("approved")));
+
+    await expect(
+      configuredClient().verifyInquiry({ inquiryId, referenceId: userId }),
+    ).resolves.toEqual({ inquiryId, status: "APPROVED" });
+  });
+
+  it.each(["created", "pending", "completed", "needs review"])(
+    "keeps %s Persona inquiries pending",
+    async (status) => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(personaInquiryResponse(status)));
+
+      await expect(
+        configuredClient().verifyInquiry({ inquiryId, referenceId: userId }),
+      ).resolves.toEqual({ inquiryId, status: "PENDING" });
+    },
+  );
+
+  it.each(["declined", "failed", "expired"])(
+    "does not approve %s Persona inquiries",
+    async (status) => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(personaInquiryResponse(status)));
+
+      await expect(
+        configuredClient().verifyInquiry({ inquiryId, referenceId: userId }),
+      ).resolves.toEqual({ inquiryId, status: "NOT_APPROVED" });
+    },
+  );
+
+  it("rejects inquiries associated with a different WorkPay user", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(personaInquiryResponse("approved", "user_other")),
+    );
+
+    await expect(
+      configuredClient().verifyInquiry({ inquiryId, referenceId: userId }),
+    ).rejects.toMatchObject({ code: "AUTHORIZATION_ERROR" });
+  });
+
+  it("validates Persona webhook HMAC signatures", () => {
     const secret = "whsec_test_secret_persona_998877";
     const client = new PersonaClient({ webhookSecret: secret });
-
-    const rawBody = JSON.stringify({
-      data: {
-        id: "inq_webhook_test_123",
-        type: "inquiry",
-        attributes: { status: "completed" },
-      },
-    });
-
+    const rawBody = JSON.stringify({ data: { attributes: { name: "inquiry.approved" } } });
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const payload = `${timestamp}.${rawBody}`;
-    const signature = createHmac("sha256", secret).update(payload).digest("hex");
-    const header = `t=${timestamp},v1=${signature}`;
+    const signature = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
 
-    expect(client.verifyWebhookSignature(rawBody, header)).toBe(true);
-
-    // Rejects tampered body
-    expect(client.verifyWebhookSignature(rawBody + "tampered", header)).toBe(false);
-
-    // Rejects bad signature
-    const badHeader = `t=${timestamp},v1=bad_signature_here`;
-    expect(client.verifyWebhookSignature(rawBody, badHeader)).toBe(false);
-
-    // Rejects missing secret
-    const unconfiguredClient = new PersonaClient({ webhookSecret: undefined });
-    expect(unconfiguredClient.verifyWebhookSignature(rawBody, header)).toBe(false);
+    expect(client.verifyWebhookSignature(rawBody, `t=${timestamp},v1=${signature}`)).toBe(true);
+    expect(
+      client.verifyWebhookSignature(rawBody + "tampered", `t=${timestamp},v1=${signature}`),
+    ).toBe(false);
+    expect(client.verifyWebhookSignature(rawBody, `t=${timestamp},v1=invalid`)).toBe(false);
+    expect(
+      new PersonaClient().verifyWebhookSignature(rawBody, `t=${timestamp},v1=${signature}`),
+    ).toBe(false);
   });
 });

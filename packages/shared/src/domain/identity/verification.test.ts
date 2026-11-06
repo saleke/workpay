@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isDisposableEmail,
-  requiresIdentityVerification,
+  isPersonaIdentityVerified,
   validateEmailForRegistration,
   validateUsername,
 } from "./verification.js";
@@ -61,16 +61,12 @@ describe("Identity and verification domain rules", () => {
     });
   });
 
-  describe("Milestone Payout Threshold (Step 3)", () => {
-    it("permits tasks under $1,000 threshold without mandatory government ID", () => {
-      expect(requiresIdentityVerification(5000)).toBe(false); // $50
-      expect(requiresIdentityVerification(50000)).toBe(false); // $500
-      expect(requiresIdentityVerification(99999)).toBe(false); // $999.99
-    });
-
-    it("enforces government ID verification at or above $1,000 USD", () => {
-      expect(requiresIdentityVerification(100000)).toBe(true); // $1,000.00
-      expect(requiresIdentityVerification(250000)).toBe(true); // $2,500.00
+  describe("Persona verification provenance", () => {
+    it("recognizes only provider-approved Persona identity states", () => {
+      expect(isPersonaIdentityVerified("VERIFIED", "PERSONA")).toBe(true);
+      expect(isPersonaIdentityVerified("VERIFIED", null)).toBe(false);
+      expect(isPersonaIdentityVerified("VERIFIED", "LEGACY")).toBe(false);
+      expect(isPersonaIdentityVerified("UNVERIFIED", "PERSONA")).toBe(false);
     });
   });
 });

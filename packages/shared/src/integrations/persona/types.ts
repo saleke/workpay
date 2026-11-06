@@ -6,51 +6,32 @@ export type PersonaInquiryStatus =
   | "completed"
   | "failed"
   | "expired"
-  | "requires_retry";
+  | "approved"
+  | "declined"
+  | "needs_review";
 
 export interface CreateInquiryOptions {
   referenceId: string;
-  email?: string;
-  nameFirst?: string;
-  nameLast?: string;
-  templateId?: string;
 }
 
 export interface PersonaInquiryResult {
   inquiryId: string;
-  sessionToken?: string;
   status: PersonaInquiryStatus;
   referenceId: string;
   templateId?: string;
   environmentId?: string;
   hostedUrl?: string;
-  isConfigured: boolean;
-}
-
-export interface PersonaVerificationChecks {
-  documentAuthenticity: "passed" | "failed" | "not_applicable";
-  faceMatch: "passed" | "failed" | "not_applicable";
-  liveness: "passed" | "failed" | "not_applicable";
-  watchlistScreening: "passed" | "failed" | "not_applicable";
+  isConfigured: true;
 }
 
 export interface VerifyInquiryOptions {
   inquiryId: string;
-  legalName: string;
-  documentType: PersonaDocumentType;
-  country: string;
-  documentNumber?: string;
+  referenceId: string;
 }
 
 export interface PersonaVerificationResult {
-  success: boolean;
   inquiryId: string;
-  status: "VERIFIED" | "FAILED" | "PENDING";
-  legalName: string;
-  documentType: PersonaDocumentType;
-  verifiedAt: Date;
-  checks: PersonaVerificationChecks;
-  message: string;
+  status: "APPROVED" | "PENDING" | "NOT_APPROVED";
 }
 
 export interface PersonaWebhookPayload {
