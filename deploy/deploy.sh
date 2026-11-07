@@ -14,4 +14,6 @@ chmod 600 "$ENV_FILE"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build --pull
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T caddy \
+  caddy reload --config /etc/caddy/Caddyfile
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps

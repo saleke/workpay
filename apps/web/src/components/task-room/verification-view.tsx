@@ -28,7 +28,7 @@ export function VerificationView({ verification }: { verification: VerificationD
             <p className="mt-0.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
               {isFailed
                 ? "A deterministic check failed on the specific property it tests. Review the finding with the professional. Payment-policy simulation is evaluated separately."
-                : "The evidence is inconclusive. AI findings are advisory and WorkPay does not provide a reviewer or adjudicator. Use the contract's independent-review process; payment cannot proceed from this result alone."}
+                : "The evidence is inconclusive. AI findings are advisory and Tenfo does not provide a reviewer or adjudicator. Use the contract's independent-review process; payment cannot proceed from this result alone."}
             </p>
           </div>
         </div>
@@ -40,7 +40,9 @@ export function VerificationView({ verification }: { verification: VerificationD
           <div>
             <div className="font-semibold text-base">Deterministic checks passed</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              The automated checks passed only the specific properties they test. This is not a general quality judgment, and simulated capture remains subject to its separate policy gate.
+              The automated checks passed only the specific properties they test. This is not a
+              general quality judgment, and simulated capture remains subject to its separate policy
+              gate.
             </p>
           </div>
         </div>
@@ -53,10 +55,20 @@ export function VerificationView({ verification }: { verification: VerificationD
               <CardTitle className="text-base font-semibold">Evidence check matrix</CardTitle>
               <CardDescription className="mt-0.5">
                 Evaluated against Contract Version {verification.contractVersion}:{" "}
-                <strong className="text-emerald-600 font-medium">{verification.passedRequirements} passed</strong>,{" "}
-                <strong className={verification.failedRequirements > 0 ? "text-rose-600 font-medium" : "text-muted-foreground"}>
+                <strong className="text-emerald-600 font-medium">
+                  {verification.passedRequirements} passed
+                </strong>
+                ,{" "}
+                <strong
+                  className={
+                    verification.failedRequirements > 0
+                      ? "text-rose-600 font-medium"
+                      : "text-muted-foreground"
+                  }
+                >
                   {verification.failedRequirements} failed
-                </strong>.
+                </strong>
+                .
               </CardDescription>
             </div>
             {verification.outcome ? (
@@ -89,7 +101,9 @@ export function VerificationView({ verification }: { verification: VerificationD
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2.5">
                     <OutcomeIcon outcome={result.outcome} />
-                    <span className="text-sm font-semibold text-foreground">{result.statement}</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {result.statement}
+                    </span>
                   </div>
                   <StatusBadge tone={verificationOutcomeTone(result.outcome)}>
                     {verificationOutcomeLabel(result.outcome)}
@@ -124,7 +138,10 @@ export function VerificationView({ verification }: { verification: VerificationD
                 {result.evidence.length > 0 ? (
                   <ul className="grid gap-1 pl-6 pt-1">
                     {result.evidence.map((ev) => (
-                      <li key={ev.id} className="text-xs text-muted-foreground flex items-center gap-1.5 font-mono">
+                      <li
+                        key={ev.id}
+                        className="text-xs text-muted-foreground flex items-center gap-1.5 font-mono"
+                      >
                         <span className="inline-block h-1 w-1 rounded-full bg-primary" />
                         <span className="font-medium text-foreground">{ev.label}:</span>
                         <span>{ev.value ?? ev.detail ?? ev.type.toLowerCase()}</span>

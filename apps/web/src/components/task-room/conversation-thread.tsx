@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { FileAudio2, FileText, Mic, Paperclip, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IndependentReviewPanel } from "@/components/task-room/independent-review-panel";
 import {
@@ -14,9 +15,35 @@ import {
 import type { ContractChangeRequestDto, TaskConversationDto } from "@/lib/api/types";
 import { parseMoneyInput } from "@workpay/shared";
 import { formatMinorMoney } from "@/lib/format";
+import {
+  conversationAttachmentKind,
+  formatFileSize,
+  MAX_CONVERSATION_ATTACHMENT_BYTES,
+  MAX_CONVERSATION_ATTACHMENTS,
+  MAX_CONVERSATION_UPLOAD_BYTES,
+  MAX_VOICE_NOTE_SECONDS,
+} from "@/lib/conversation-attachments";
 
 function clientMessageId(): string {
   return crypto.randomUUID();
+}
+
+type ConversationMessage = TaskConversationDto["messages"][number];
+
+function mergeMessages(
+  current: ConversationMessage[],
+  incoming: ConversationMessage[],
+): ConversationMessage[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) byId.set(message.id, message);
+  return [...byId.values()].sort((left, right) => left.sequence - right.sequence);
+}
+
+function messageFingerprint(body: string, attachments: File[]): string {
+  return JSON.stringify([
+    body,
+    attachments.map((file) => [file.name, file.type, file.size, file.lastModified]),
+  ]);
 }
 
 export function ConversationThread({
@@ -40,6 +67,13 @@ export function ConversationThread({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [recordedVoice, setRecordedVoice] = useState<File | null>(null);
+  const [recordingVoice, setRecordingVoice] = useState(false);
+  const [openingMicrophone, setOpeningMicrophone] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordedVoiceUrl, setRecordedVoiceUrl] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [changeRequests, setChangeRequests] = useState<ContractChangeRequestDto[]>([]);
   const [changeReason, setChangeReason] = useState("");
   const [changeSummary, setChangeSummary] = useState(conversation.currentContractSnapshot.summary);
@@ -64,11 +98,60 @@ export function ConversationThread({
   const [changeBusyId, setChangeBusyId] = useState<string | null>(null);
   const messageListRef = useRef<HTMLOListElement>(null);
   const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingStartedAtRef = useRef(0);
+  const recordingRequestRef = useRef(0);
+  const pendingMessageRef = useRef<{ id: string; fingerprint: string } | null>(null);
+  const queuedAttachments = [...attachments, ...(recordedVoice ? [recordedVoice] : [])];
 
   useEffect(() => {
     setMessages(conversation.messages);
     setHasOlderMessages(conversation.hasMoreMessages ?? false);
   }, [conversation.messages, conversation.id]);
+
+  useEffect(() => {
+    setAttachments([]);
+    setRecordedVoice(null);
+    setRecordingSeconds(0);
+    setAttachmentError(null);
+    pendingMessageRef.current = null;
+  }, [conversation.id]);
+
+  useEffect(() => {
+    if (!recordedVoice) {
+      setRecordedVoiceUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(recordedVoice);
+    setRecordedVoiceUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [recordedVoice]);
+
+  useEffect(() => {
+    if (!recordingVoice) return;
+    const timer = window.setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordingStartedAtRef.current) / 1000);
+      setRecordingSeconds(elapsed);
+      if (elapsed >= MAX_VOICE_NOTE_SECONDS) {
+        mediaRecorderRef.current?.stop();
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [recordingVoice]);
+
+  useEffect(
+    () => () => {
+      recordingRequestRef.current += 1;
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaRecorderRef.current = null;
+      mediaStreamRef.current = null;
+    },
+    [conversation.id],
+  );
 
   useEffect(() => {
     const list = messageListRef.current;
@@ -123,7 +206,7 @@ export function ConversationThread({
           if (list && list.scrollHeight - list.scrollTop - list.clientHeight > 80) {
             scrollAnchorRef.current = { height: list.scrollHeight, top: list.scrollTop };
           }
-          setMessages((current) => [...current, ...response.data!.messages]);
+          setMessages((current) => mergeMessages(current, response.data!.messages));
           const lastReadSequence = response.data.messages.at(-1)?.sequence;
           if (lastReadSequence !== undefined) onViewed?.(lastReadSequence);
         }
@@ -134,22 +217,160 @@ export function ConversationThread({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const body = draft.trim();
-    if (!body || sending) return;
+    if ((!draft.trim() && queuedAttachments.length === 0) || sending) return;
+    const body =
+      draft.trim() ||
+      (recordedVoice
+        ? attachments.length > 0
+          ? "Voice note and files"
+          : "Voice note"
+        : `Shared ${attachments.length} ${attachments.length === 1 ? "file" : "files"}`);
+    const fingerprint = messageFingerprint(body, queuedAttachments);
+    if (pendingMessageRef.current?.fingerprint !== fingerprint) {
+      pendingMessageRef.current = { id: clientMessageId(), fingerprint };
+    }
     setSending(true);
     setError(null);
     const result = await sendTaskConversationMessage(conversation.id, {
-      clientMessageId: clientMessageId(),
+      clientMessageId: pendingMessageRef.current.id,
       body,
+      attachments: queuedAttachments,
     });
     setSending(false);
     if (result.error || !result.data) {
       setError(result.error?.message ?? "Your message could not be sent.");
       return;
     }
-    setMessages((current) => [...current, result.data!]);
+    pendingMessageRef.current = null;
+    setMessages((current) => mergeMessages(current, [result.data!]));
     setDraft("");
+    setAttachments([]);
+    setRecordedVoice(null);
+    setAttachmentError(null);
     onViewed?.(result.data.sequence);
+  };
+
+  const addFiles = (selectedFiles: File[]) => {
+    const combined = [...attachments, ...selectedFiles];
+    const allAttachments = [...combined, ...(recordedVoice ? [recordedVoice] : [])];
+    if (allAttachments.length > MAX_CONVERSATION_ATTACHMENTS) {
+      setAttachmentError(`Send no more than ${MAX_CONVERSATION_ATTACHMENTS} attachments at once.`);
+      return;
+    }
+    if (
+      selectedFiles.some(
+        (file) =>
+          file.size === 0 ||
+          file.size > MAX_CONVERSATION_ATTACHMENT_BYTES ||
+          conversationAttachmentKind(file.type) !== "FILE",
+      )
+    ) {
+      setAttachmentError("Choose an image, PDF, DOCX, CSV, or plain-text file up to 10 MB.");
+      return;
+    }
+    if (
+      allAttachments.reduce((total, file) => total + file.size, 0) > MAX_CONVERSATION_UPLOAD_BYTES
+    ) {
+      setAttachmentError("Attachments must total no more than 15 MB.");
+      return;
+    }
+    setAttachments(combined);
+    setAttachmentError(null);
+  };
+
+  const startVoiceRecording = async () => {
+    if (openingMicrophone || recordingVoice || mediaRecorderRef.current?.state === "recording") {
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setAttachmentError("Voice recording is not supported in this browser.");
+      return;
+    }
+    const requestId = ++recordingRequestRef.current;
+    setOpeningMicrophone(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (recordingRequestRef.current !== requestId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      mediaStreamRef.current = stream;
+      const supportedTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+      ];
+      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+      recordingChunksRef.current = [];
+      recordingStartedAtRef.current = Date.now();
+      setRecordingSeconds(0);
+      setAttachmentError(null);
+      recorder.ondataavailable = (event) => {
+        if (recordingRequestRef.current !== requestId) return;
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        if (recordingRequestRef.current !== requestId) return;
+        setAttachmentError("The voice note could not be recorded. Please try again.");
+        setRecordingVoice(false);
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (recordingRequestRef.current !== requestId) return;
+        const type = recorder.mimeType || mimeType?.split(";")[0] || "audio/webm";
+        const blob = new Blob(recordingChunksRef.current, { type });
+        if (blob.size > 0) {
+          const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+          const voiceFile = new File([blob], `voice-note-${Date.now()}.${extension}`, { type });
+          const allAttachments = [...attachments, voiceFile];
+          if (voiceFile.size > MAX_CONVERSATION_ATTACHMENT_BYTES) {
+            setAttachmentError(
+              "This voice note is larger than 10 MB. Try recording a shorter note.",
+            );
+          } else if (allAttachments.length > MAX_CONVERSATION_ATTACHMENTS) {
+            setAttachmentError(
+              `Remove an attachment before adding a voice note. You can send up to ${MAX_CONVERSATION_ATTACHMENTS} at once.`,
+            );
+          } else if (
+            allAttachments.reduce((total, file) => total + file.size, 0) >
+            MAX_CONVERSATION_UPLOAD_BYTES
+          ) {
+            setAttachmentError("Attachments must total no more than 15 MB.");
+          } else {
+            setRecordedVoice(voiceFile);
+          }
+        } else {
+          setAttachmentError("The recording was empty. Please record your note again.");
+        }
+        setRecordingVoice(false);
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+      };
+      recorder.start(500);
+      setRecordingVoice(true);
+    } catch (recordingError) {
+      if (recordingRequestRef.current !== requestId) return;
+      setAttachmentError(
+        recordingError instanceof Error && recordingError.name === "NotAllowedError"
+          ? "Allow microphone access in your browser to record a voice note."
+          : "The microphone could not be opened. Check your device and try again.",
+      );
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+    } finally {
+      if (recordingRequestRef.current === requestId) setOpeningMicrophone(false);
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
   };
 
   const loadEarlierMessages = async () => {
@@ -166,7 +387,7 @@ export function ConversationThread({
       return;
     }
     setHasOlderMessages(result.data.hasMoreMessages ?? false);
-    setMessages((current) => [...result.data!.messages, ...current]);
+    setMessages((current) => mergeMessages(current, result.data!.messages));
   };
 
   const submitChange = async (event: FormEvent<HTMLFormElement>) => {
@@ -329,6 +550,46 @@ export function ConversationThread({
               }`}
             >
               <p className="whitespace-pre-wrap break-words">{message.body}</p>
+              {message.attachments?.map((attachment) => {
+                const attachmentUrl = `/api/v1/conversations/${encodeURIComponent(
+                  conversation.id,
+                )}/attachments/${encodeURIComponent(attachment.id)}`;
+                return attachment.kind === "AUDIO" ? (
+                  <div
+                    key={attachment.id}
+                    className="mt-2 max-w-full rounded-lg bg-background/80 p-2 text-foreground"
+                  >
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-medium">
+                      <FileAudio2 className="h-4 w-4" aria-hidden="true" />
+                      Voice note · {formatFileSize(attachment.sizeBytes)}
+                    </p>
+                    <audio
+                      controls
+                      preload="metadata"
+                      src={attachmentUrl}
+                      aria-label={`Voice note from ${
+                        message.authorUserId === currentUserId ? "you" : "the other participant"
+                      }`}
+                      className="max-w-full"
+                    />
+                  </div>
+                ) : (
+                  <a
+                    key={attachment.id}
+                    href={attachmentUrl}
+                    download={attachment.filename}
+                    className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-current/15 bg-background/80 px-3 py-2 text-foreground hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {attachment.filename}
+                    </span>
+                    <span className="shrink-0 text-xs opacity-70">
+                      {formatFileSize(attachment.sizeBytes)}
+                    </span>
+                  </a>
+                );
+              })}
               <time className="mt-1 block text-xs opacity-70" dateTime={message.createdAt}>
                 {new Date(message.createdAt).toLocaleString()}
               </time>
@@ -340,9 +601,12 @@ export function ConversationThread({
         </ol>
       ) : null}
       {!hideMessages && conversation.status === "OPEN" ? (
-        <form onSubmit={submit} className="space-y-2">
+        <form
+          onSubmit={submit}
+          className="space-y-3 rounded-xl border border-border bg-background p-3 sm:p-4"
+        >
           <label htmlFor={`message-${conversation.id}`} className="text-sm font-medium">
-            Message
+            Write a message
           </label>
           <textarea
             id={`message-${conversation.id}`}
@@ -350,17 +614,173 @@ export function ConversationThread({
             onChange={(event) => setDraft(event.target.value)}
             maxLength={10_000}
             rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            required
+            disabled={sending}
+            className="min-h-24 w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Write a message, attach a file, or record a voice note."
           />
+
+          {attachments.length > 0 ? (
+            <ul className="space-y-2" aria-label="Files ready to send">
+              {attachments.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2"
+                >
+                  <Paperclip
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatFileSize(file.size)}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() =>
+                      setAttachments((current) =>
+                        current.filter((_, fileIndex) => fileIndex !== index),
+                      )
+                    }
+                    disabled={sending || recordingVoice}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {recordedVoice && recordedVoiceUrl ? (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <FileAudio2 className="h-4 w-4" aria-hidden="true" />
+                  Voice note · {formatDuration(recordingSeconds)} ·{" "}
+                  {formatFileSize(recordedVoice.size)}
+                </p>
+                <button
+                  type="button"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  onClick={() => {
+                    setRecordedVoice(null);
+                    setRecordingSeconds(0);
+                  }}
+                  disabled={sending}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Remove
+                </button>
+              </div>
+              <audio
+                controls
+                preload="metadata"
+                src={recordedVoiceUrl}
+                aria-label="Preview your voice note"
+                className="w-full"
+              />
+            </div>
+          ) : null}
+
+          {recordingVoice ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-rose-950">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-rose-600" />
+                <span aria-hidden="true">
+                  Recording · {formatDuration(recordingSeconds)} / 02:00
+                </span>
+                <span className="sr-only">Recording in progress. Maximum two minutes.</span>
+              </span>
+            </div>
+          ) : null}
+
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,text/plain"
+            multiple
+            className="sr-only"
+            aria-label="Choose files to attach"
+            onChange={(event) => {
+              addFiles(Array.from(event.currentTarget.files ?? []));
+              event.currentTarget.value = "";
+            }}
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-10"
+                onClick={() => attachmentInputRef.current?.click()}
+                disabled={
+                  sending ||
+                  recordingVoice ||
+                  queuedAttachments.length >= MAX_CONVERSATION_ATTACHMENTS
+                }
+              >
+                <Paperclip className="mr-2 h-4 w-4" aria-hidden="true" />
+                Attach file
+              </Button>
+              {recordingVoice ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-10"
+                  onClick={stopVoiceRecording}
+                  disabled={sending}
+                >
+                  <Square className="mr-2 h-4 w-4 fill-current" aria-hidden="true" />
+                  Stop recording
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-10"
+                  onClick={() => void startVoiceRecording()}
+                  disabled={
+                    sending ||
+                    openingMicrophone ||
+                    Boolean(recordedVoice) ||
+                    queuedAttachments.length >= MAX_CONVERSATION_ATTACHMENTS
+                  }
+                >
+                  <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {openingMicrophone ? "Opening microphone…" : "Record voice note"}
+                </Button>
+              )}
+            </div>
+            <Button
+              type="submit"
+              className="min-h-11 w-full sm:w-auto"
+              disabled={
+                (!draft.trim() && queuedAttachments.length === 0) || sending || recordingVoice
+              }
+            >
+              {sending
+                ? "Sending…"
+                : queuedAttachments.length > 0
+                  ? `Send message · ${queuedAttachments.length} attachment${queuedAttachments.length === 1 ? "" : "s"}`
+                  : "Send message"}
+            </Button>
+          </div>
+
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Up to 5 files, 10 MB each and 15 MB total. Voice notes stop at 2 minutes. Files are
+            visible only to conversation participants.
+          </p>
+          {attachmentError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {attachmentError}
+            </p>
+          ) : null}
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={!draft.trim() || sending}>
-            {sending ? "Sending…" : "Send message"}
-          </Button>
         </form>
       ) : null}
       {!inboxMode && conversation.status === "OPEN" ? (
@@ -368,8 +788,8 @@ export function ConversationThread({
           <div>
             <h3 className="font-medium">Proposed agreement changes</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Chat is for discussion. A change becomes active only after both of you agree and
-              WorkPay completes the required contract and PayPal steps.
+              Chat is for discussion. A change becomes active only after both of you agree and Tenfo
+              records the contract change and completes the required payment-policy steps.
             </p>
             {!conversation.currentContractSnapshot.agreedPrice ? (
               <p className="mt-2 text-sm text-amber-800" role="status">
@@ -625,7 +1045,7 @@ export function ConversationThread({
       {!inboxMode && conversation.status === "OPEN" ? (
         <IndependentReviewPanel conversation={conversation} currentUserId={currentUserId} />
       ) : null}
-      {error && conversation.status !== "OPEN" ? (
+      {error && (hideMessages || conversation.status !== "OPEN") ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
@@ -647,6 +1067,12 @@ function formatRequirements(
   return requirements
     .map((requirement) => `${requirement.key} | ${requirement.statement}`)
     .join("\n");
+}
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
 function parseRequirements(

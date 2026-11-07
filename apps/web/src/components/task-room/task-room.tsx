@@ -817,11 +817,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             <div hidden={currentTab !== "execution"}>
               <TaskConversationsPanel
                 taskId={taskId}
-                buyerUserId={task.userId}
                 contract={activeContract}
                 selection={providerSelection}
                 onSelectionChanged={() => room.reload()}
-                onTaskChanged={refresh}
                 onLifecycleChange={updateConversationLifecycle}
               />
             </div>
@@ -912,10 +910,10 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                       </div>
                       <p className="text-xs text-amber-800 leading-relaxed">
                         Automated checks and AI cannot determine whether this work is professionally
-                        satisfactory. WorkPay does not provide an arbitrator or judge this result.
-                        Use the agreed review criteria and contact an independent reviewer. Any
-                        PayPal authorization remains subject to its actual status; this screen does
-                        not promise that funds are held.
+                        satisfactory. Tenfo does not provide an arbitrator or judge this result. Use
+                        the agreed review criteria and contact an independent reviewer. Any PayPal
+                        authorization remains subject to its actual status; this screen does not
+                        promise that funds are held.
                       </p>
                       <Link
                         href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}

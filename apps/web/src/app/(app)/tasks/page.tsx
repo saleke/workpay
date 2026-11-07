@@ -128,8 +128,8 @@ export default function TasksPage() {
             No tasks yet
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[var(--wp-text-secondary)]">
-            Start with the outcome you need. WorkPay helps you confirm the brief and budget before
-            you choose a professional or approve any next step.
+            Start with the outcome you need. Tenfo helps you confirm the brief and budget before you
+            choose a professional or approve any next step.
           </p>
           <Link
             href="/intake"

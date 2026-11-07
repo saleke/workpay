@@ -567,6 +567,14 @@ export interface TaskConversationMessageDto {
   authorUserId: string;
   body: string;
   createdAt: string;
+  attachments?: Array<{
+    id: string;
+    kind: "AUDIO" | "FILE";
+    filename: string;
+    contentType: string;
+    sizeBytes: number;
+    createdAt: string;
+  }>;
 }
 
 export interface ConversationContractSnapshotDto {

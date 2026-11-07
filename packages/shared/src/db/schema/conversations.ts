@@ -106,6 +106,44 @@ export const taskConversationMessages = pgTable(
   }),
 );
 
+export const taskConversationAttachments = pgTable(
+  "task_conversation_attachments",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    conversationId: varchar("conversation_id", { length: 64 })
+      .notNull()
+      .references(() => taskConversations.id, { onDelete: "cascade" }),
+    messageId: varchar("message_id", { length: 64 })
+      .notNull()
+      .references(() => taskConversationMessages.id, { onDelete: "cascade" }),
+    uploaderUserId: varchar("uploader_user_id", { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    filename: varchar("filename", { length: 255 }).notNull(),
+    storageKey: varchar("storage_key", { length: 512 }).notNull().unique(),
+    contentType: varchar("content_type", { length: 255 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    messageIdx: index("task_conversation_attachments_message_idx").on(t.messageId),
+    conversationIdx: index("task_conversation_attachments_conversation_idx").on(
+      t.conversationId,
+      t.createdAt,
+    ),
+    kindCheck: check(
+      "task_conversation_attachments_kind_check",
+      sql`${t.kind} in ('AUDIO', 'FILE')`,
+    ),
+    sizeCheck: check(
+      "task_conversation_attachments_size_check",
+      sql`${t.sizeBytes} > 0 and ${t.sizeBytes} <= 10485760`,
+    ),
+  }),
+);
+
 export const taskConversationParticipants = pgTable(
   "task_conversation_participants",
   {
@@ -137,19 +175,42 @@ export const taskConversationsRelations = relations(taskConversations, ({ one, m
     references: [users.id],
   }),
   messages: many(taskConversationMessages),
+  attachments: many(taskConversationAttachments),
   participants: many(taskConversationParticipants),
 }));
 
-export const taskConversationMessagesRelations = relations(taskConversationMessages, ({ one }) => ({
-  conversation: one(taskConversations, {
-    fields: [taskConversationMessages.conversationId],
-    references: [taskConversations.id],
+export const taskConversationMessagesRelations = relations(
+  taskConversationMessages,
+  ({ one, many }) => ({
+    conversation: one(taskConversations, {
+      fields: [taskConversationMessages.conversationId],
+      references: [taskConversations.id],
+    }),
+    author: one(users, {
+      fields: [taskConversationMessages.authorUserId],
+      references: [users.id],
+    }),
+    attachments: many(taskConversationAttachments),
   }),
-  author: one(users, {
-    fields: [taskConversationMessages.authorUserId],
-    references: [users.id],
+);
+
+export const taskConversationAttachmentsRelations = relations(
+  taskConversationAttachments,
+  ({ one }) => ({
+    conversation: one(taskConversations, {
+      fields: [taskConversationAttachments.conversationId],
+      references: [taskConversations.id],
+    }),
+    message: one(taskConversationMessages, {
+      fields: [taskConversationAttachments.messageId],
+      references: [taskConversationMessages.id],
+    }),
+    uploader: one(users, {
+      fields: [taskConversationAttachments.uploaderUserId],
+      references: [users.id],
+    }),
   }),
-}));
+);
 
 export const taskConversationParticipantsRelations = relations(
   taskConversationParticipants,

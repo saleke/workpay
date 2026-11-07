@@ -10,7 +10,7 @@ export function WorkSpecification({ spec }: { spec: WorkSpecificationDto }) {
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <ListChecks className="h-4 w-4" /> What WorkPay understood
+            <ListChecks className="h-4 w-4" /> What Tenfo understood
           </CardTitle>
           <Badge variant="outline" className="gap-1">
             <Sparkles className="h-3 w-3" />

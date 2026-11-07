@@ -43,7 +43,7 @@ Describe the work
   → resolve material unknowns and confirm budget meaning
   → prepare, edit, and approve a versioned brief
   → review proposed terms and approve them
-  → consider unranked professional profiles
+  → consider professional profiles ordered by self-described scope overlap
   → choose a professional and approve the exact contact message
   → professional responds; parties agree before commercial commitment
   → collaborate, submit work, and review it against agreed criteria
@@ -68,8 +68,10 @@ must not mark it ready or approved.
 
 After the requester approves the work scope and terms, Tenfo presents available
 professional profiles as information for the requester to consider. Profiles
-are not an automated ranking, endorsement, or guarantee of availability or fit.
-The requester chooses who—if anyone—to contact.
+with self-described capability labels that overlap the approved scope may appear
+first, while every eligible profile remains available. This deterministic
+ordering is not verification, endorsement, automatic selection, or a guarantee
+of availability or fit. The requester chooses who—if anyone—to contact.
 
 Before contact, the requester reviews the recipient and exact message. Approval
 of a brief or terms alone does not search for, select, or contact a professional.

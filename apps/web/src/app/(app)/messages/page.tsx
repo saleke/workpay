@@ -113,6 +113,7 @@ function MessagesPageContent() {
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const selectedSummary = conversations.find((conversation) => conversation.id === selectedId);
 
   const refreshInbox = useCallback(async () => {
     const result = await getMessageInbox();
@@ -175,7 +176,14 @@ function MessagesPageContent() {
     return () => {
       active = false;
     };
-  }, [selectedId, currentUserId, refreshInbox, refreshVersion]);
+  }, [
+    selectedId,
+    selectedSummary?.status,
+    selectedSummary?.updatedAt,
+    currentUserId,
+    refreshInbox,
+    refreshVersion,
+  ]);
 
   const onViewed = useCallback(
     (lastReadSequence: number) => {
@@ -248,7 +256,6 @@ function MessagesPageContent() {
     });
   }, [people, filter, search]);
 
-  const selectedSummary = conversations.find((conversation) => conversation.id === selectedId);
   const selectedPerson = selectedSummary
     ? people.find((group) => group.participant.userId === selectedSummary.otherParticipant.userId)
     : undefined;
@@ -703,7 +710,7 @@ function MessagesPageContent() {
         <Sheet open={workContextOpen} onOpenChange={setWorkContextOpen}>
           <SheetContent
             side="right"
-            className="w-[min(24rem,100vw)] overflow-y-auto border-[var(--wp-border)] bg-white p-5 sm:max-w-md"
+            className="w-[min(36rem,100vw)] overflow-y-auto border-[var(--wp-border)] bg-white p-5 sm:max-w-xl"
           >
             {selectedSummary && selectedConversation ? (
               <div className="space-y-5">
@@ -829,6 +836,21 @@ function MessagesPageContent() {
                     : "Open Work Studio"}
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
+
+                {selectedSummary.status === "OPEN" && currentUserId ? (
+                  <div className="border-t border-[var(--wp-border)] pt-5">
+                    <ConversationThread
+                      key={`work-controls-${selectedConversation.id}`}
+                      conversation={selectedConversation}
+                      currentUserId={currentUserId}
+                      hideMessages
+                      onAgreementChanged={() => {
+                        setRefreshVersion((version) => version + 1);
+                        void refreshInbox();
+                      }}
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </SheetContent>

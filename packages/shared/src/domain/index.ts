@@ -33,6 +33,7 @@ export * from "./contracts/change-service.js";
 
 // Providers
 export * from "./providers/selection.js";
+export * from "./providers/relevance.js";
 export * from "./providers/discovery-service.js";
 export * from "./reviewers/recommendation.js";
 export * from "./reviewers/service.js";

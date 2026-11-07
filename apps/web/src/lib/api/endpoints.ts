@@ -203,11 +203,24 @@ export function withdrawTaskConversation(
 
 export function sendTaskConversationMessage(
   conversationId: string,
-  input: { clientMessageId: string; body: string },
+  input: { clientMessageId: string; body: string; attachments?: File[] },
 ): Promise<ApiResponse<TaskConversationDto["messages"][number]>> {
+  if (input.attachments?.length) {
+    const formData = new FormData();
+    formData.set("clientMessageId", input.clientMessageId);
+    formData.set("body", input.body);
+    for (const attachment of input.attachments) {
+      formData.append("attachments", attachment, attachment.name);
+    }
+    return apiUpload<TaskConversationDto["messages"][number]>(
+      `${BASE}/conversations/${conversationId}/messages`,
+      formData,
+      input.clientMessageId,
+    );
+  }
   return apiFetch(`${BASE}/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: input,
+    body: { clientMessageId: input.clientMessageId, body: input.body },
   });
 }
 

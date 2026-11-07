@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gt, inArray, lt, max, ne, or, sql } from "dr
 import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "../../db/client.js";
 import {
+  taskConversationAttachments,
   taskConversationMessages,
   taskConversationParticipants,
   taskConversations,
@@ -47,6 +48,65 @@ export type ConversationWithMessages = typeof taskConversations.$inferSelect & {
   hasWorkExecution: boolean;
   messages: Array<typeof taskConversationMessages.$inferSelect>;
 };
+
+export interface ConversationAttachmentInput {
+  id: string;
+  kind: "AUDIO" | "FILE";
+  filename: string;
+  storageKey: string;
+  contentType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+interface ConversationAttachmentSummary {
+  id: string;
+  kind: "AUDIO" | "FILE";
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+function attachmentSummary(
+  attachment: typeof taskConversationAttachments.$inferSelect,
+): ConversationAttachmentSummary {
+  return {
+    id: attachment.id,
+    kind: attachment.kind as "AUDIO" | "FILE",
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+    sizeBytes: attachment.sizeBytes,
+    createdAt: attachment.createdAt.toISOString(),
+  };
+}
+
+async function attachMessageAttachments<T extends { id: string }>(
+  db: Database,
+  messages: T[],
+): Promise<Array<T & { attachments: ConversationAttachmentSummary[] }>> {
+  if (messages.length === 0) return [];
+  const rows = await db
+    .select()
+    .from(taskConversationAttachments)
+    .where(
+      inArray(
+        taskConversationAttachments.messageId,
+        messages.map((message) => message.id),
+      ),
+    )
+    .orderBy(asc(taskConversationAttachments.createdAt), asc(taskConversationAttachments.id));
+  const byMessage = new Map<string, ConversationAttachmentSummary[]>();
+  for (const row of rows) {
+    const attachments = byMessage.get(row.messageId) ?? [];
+    attachments.push(attachmentSummary(row));
+    byMessage.set(row.messageId, attachments);
+  }
+  return messages.map((message) => ({
+    ...message,
+    attachments: byMessage.get(message.id) ?? [],
+  }));
+}
 
 function taskProviderKey(taskId: string, providerId: string): string {
   return JSON.stringify([taskId, providerId]);
@@ -350,6 +410,7 @@ export async function respondToTaskConversation(
     .select()
     .from(taskConversations)
     .where(eq(taskConversations.id, input.conversationId))
+    .for("update")
     .limit(1);
   if (!conversation) throw notFound("Conversation");
   if (conversation.providerUserId !== input.providerUserId) throw notFound("Conversation");
@@ -507,6 +568,7 @@ export async function sendTaskMessage(
     authorUserId: string;
     clientMessageId: string;
     body: string;
+    attachments?: ConversationAttachmentInput[];
     actor: Actor;
     correlationId: string;
   },
@@ -515,6 +577,7 @@ export async function sendTaskMessage(
     .select()
     .from(taskConversations)
     .where(eq(taskConversations.id, input.conversationId))
+    .for("update")
     .limit(1);
   if (!conversation) throw notFound("Conversation");
   if (
@@ -532,6 +595,57 @@ export async function sendTaskMessage(
     throw conflict("Messages must contain 1 to 10,000 characters.");
   }
 
+  const attachments = input.attachments ?? [];
+  const allowedFileTypes = new Set([
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "text/csv",
+    "text/plain",
+  ]);
+  const allowedAudioTypes = new Set([
+    "audio/aac",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "audio/x-m4a",
+  ]);
+  if (attachments.length > 5) throw conflict("A message can contain at most 5 attachments.");
+  if (
+    attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) >
+    15 * 1024 * 1024
+  ) {
+    throw conflict("Message attachments can total at most 15 MB.");
+  }
+  const attachmentIds = new Set<string>();
+  const storageKeys = new Set<string>();
+  for (const attachment of attachments) {
+    const isAudio = attachment.contentType.startsWith("audio/");
+    if (
+      attachmentIds.has(attachment.id) ||
+      storageKeys.has(attachment.storageKey) ||
+      !attachment.filename ||
+      attachment.filename.length > 255 ||
+      !attachment.storageKey ||
+      attachment.storageKey.length > 512 ||
+      !Number.isSafeInteger(attachment.sizeBytes) ||
+      attachment.sizeBytes < 1 ||
+      attachment.sizeBytes > 10 * 1024 * 1024 ||
+      !/^[a-f0-9]{64}$/.test(attachment.sha256) ||
+      (attachment.kind === "AUDIO" &&
+        (!isAudio || !allowedAudioTypes.has(attachment.contentType))) ||
+      (attachment.kind === "FILE" && !allowedFileTypes.has(attachment.contentType))
+    ) {
+      throw conflict("One or more message attachments are invalid.");
+    }
+    attachmentIds.add(attachment.id);
+    storageKeys.add(attachment.storageKey);
+  }
+
   const [existing] = await tx
     .select()
     .from(taskConversationMessages)
@@ -543,10 +657,38 @@ export async function sendTaskMessage(
     )
     .limit(1);
   if (existing) {
-    if (existing.authorUserId !== input.authorUserId || existing.body !== body) {
+    const previousAttachments = await tx
+      .select()
+      .from(taskConversationAttachments)
+      .where(eq(taskConversationAttachments.messageId, existing.id))
+      .orderBy(asc(taskConversationAttachments.createdAt), asc(taskConversationAttachments.id));
+    const expectedAttachments = [...attachments]
+      .map(({ kind, filename, contentType, sizeBytes, sha256 }) =>
+        JSON.stringify([kind, filename, contentType, sizeBytes, sha256]),
+      )
+      .sort();
+    const existingAttachmentDetails = previousAttachments
+      .map((attachment) =>
+        JSON.stringify([
+          attachment.kind,
+          attachment.filename,
+          attachment.contentType,
+          attachment.sizeBytes,
+          attachment.sha256,
+        ]),
+      )
+      .sort();
+    if (
+      existing.authorUserId !== input.authorUserId ||
+      existing.body !== body ||
+      JSON.stringify(existingAttachmentDetails) !== JSON.stringify(expectedAttachments)
+    ) {
       throw conflict("This message identifier was already used for different content.");
     }
-    return existing;
+    return {
+      ...existing,
+      attachments: previousAttachments.map(attachmentSummary),
+    };
   }
 
   const [updated] = await tx
@@ -570,6 +712,18 @@ export async function sendTaskMessage(
     .returning();
   if (!message) throw new Error("Conversation message insert returned no row.");
 
+  const attachmentInputs = attachments;
+  if (attachmentInputs.length > 0) {
+    await tx.insert(taskConversationAttachments).values(
+      attachmentInputs.map((attachment) => ({
+        ...attachment,
+        conversationId: conversation.id,
+        messageId: message.id,
+        uploaderUserId: input.authorUserId,
+      })),
+    );
+  }
+
   await appendEvent(tx, {
     type: "TASK_MESSAGE_SENT",
     aggregateId: conversation.taskId,
@@ -586,7 +740,17 @@ export async function sendTaskMessage(
           : conversation.buyerUserId,
     },
   });
-  return message;
+  return {
+    ...message,
+    attachments: attachmentInputs.map((attachment) => ({
+      id: attachment.id,
+      kind: attachment.kind,
+      filename: attachment.filename,
+      contentType: attachment.contentType,
+      sizeBytes: attachment.sizeBytes,
+      createdAt: message.createdAt.toISOString(),
+    })),
+  };
 }
 
 export async function listTaskConversations(
@@ -625,7 +789,7 @@ export async function listTaskConversations(
       return {
         ...conversation,
         contractSnapshot: conversation.contractSnapshot,
-        messages,
+        messages: await attachMessageAttachments(db, messages),
       };
     }),
   );
@@ -878,5 +1042,9 @@ export async function getConversationForParticipant(
   const messages = page.slice(0, 100);
   if (input.afterSequence === undefined) messages.reverse();
   const [hydratedConversation] = await hydrateConversationRows(db, [conversation]);
-  return { ...hydratedConversation, messages, hasMoreMessages };
+  return {
+    ...hydratedConversation,
+    messages: await attachMessageAttachments(db, messages),
+    hasMoreMessages,
+  };
 }

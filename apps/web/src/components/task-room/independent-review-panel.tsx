@@ -48,7 +48,14 @@ export function IndependentReviewPanel({
   }, [refresh]);
 
   const search = async () => {
-    const normalized = [...new Set(domainDraft.split(",").map((domain) => domain.trim().toLowerCase()).filter(Boolean))];
+    const normalized = [
+      ...new Set(
+        domainDraft
+          .split(",")
+          .map((domain) => domain.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
     if (
       normalized.length === 0 ||
       normalized.length > 20 ||
@@ -131,12 +138,15 @@ export function IndependentReviewPanel({
   );
 
   return (
-    <section className="space-y-3 rounded-lg border border-border p-3" aria-label="Independent review">
+    <section
+      className="space-y-3 rounded-lg border border-border p-3"
+      aria-label="Independent review"
+    >
       <div>
         <h4 className="font-medium">Independent review agreement</h4>
         <p className="mt-1 text-xs text-muted-foreground">
           The buyer and professional agree the reviewer, criteria, fee payer, and contractual
-          authority before work starts. The reviewer supplies the judgment; WorkPay does not
+          authority before work starts. The reviewer supplies the judgment; Tenfo does not
           arbitrate. Reviewer profile claims are self-supplied.
         </p>
       </div>
@@ -155,11 +165,17 @@ export function IndependentReviewPanel({
             </p>
             <p className="text-xs text-muted-foreground">
               Criteria: {engagement.requirementKeys.join(", ")} · Fee payer: {engagement.feePayer}
-              {engagement.feeMinor !== null ? ` · USD ${(engagement.feeMinor / 100).toFixed(2)}` : ""}
+              {engagement.feeMinor !== null
+                ? ` · USD ${(engagement.feeMinor / 100).toFixed(2)}`
+                : ""}
             </p>
             {needsPartyConsent ? (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={busy} onClick={() => void decide(engagement, "accept")}>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void decide(engagement, "accept")}
+                >
                   Agree to reviewer and terms
                 </Button>
                 <Button
@@ -196,7 +212,10 @@ export function IndependentReviewPanel({
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{recommendations.reason}</p>
               {recommendations.recommendations.map((reviewer) => (
-                <label key={reviewer.userId} className="flex cursor-pointer gap-2 rounded-md border p-3">
+                <label
+                  key={reviewer.userId}
+                  className="flex cursor-pointer gap-2 rounded-md border p-3"
+                >
                   <input
                     type="radio"
                     name={`reviewer-${conversation.id}`}
@@ -241,7 +260,7 @@ export function IndependentReviewPanel({
           </div>
           <p className="text-xs text-muted-foreground">
             The review plan covers {criteria.length} acceptance-relevant criteria. Fee handling is
-            outside WorkPay; WorkPay does not collect or release reviewer fees.
+            outside Tenfo; Tenfo does not collect or release reviewer fees.
           </p>
           {criteria.length === 0 ? (
             <p className="text-sm text-destructive">
@@ -257,7 +276,11 @@ export function IndependentReviewPanel({
           </Button>
         </div>
       ) : null}
-      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </section>
   );
 }

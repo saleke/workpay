@@ -25,6 +25,18 @@ describe("task state machine", () => {
     expect(canTransition("HUMAN_REVIEW", "REVISION_REQUIRED")).toBe(true);
   });
 
+  it("separates evidence submission, human review, and payment release", () => {
+    expect(canTransition("SUBMITTED", "AWAITING_CLIENT_REVIEW")).toBe(true);
+    expect(canTransition("SUBMITTED", "AWAITING_EXTERNAL_REVIEW")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "REVIEW_ACCEPTED")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "REJECTED")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "REVISION_REQUIRED")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "PAYMENT_RELEASE")).toBe(false);
+    expect(canTransition("REVIEW_ACCEPTED", "PAYMENT_RELEASE")).toBe(true);
+    expect(canTransition("PAYMENT_RELEASE", "COMPLETED")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "COMPLETED")).toBe(false);
+  });
+
   it("rejects illegal jumps", () => {
     expect(canTransition("CREATED", "COMPLETED")).toBe(false);
     expect(canTransition("CREATED", "PAYMENT_RELEASE")).toBe(false);

@@ -141,7 +141,7 @@ export async function discoverProviders(
       candidates: candidateSnapshots,
       reason:
         candidateSnapshots.length > 0
-          ? "Available profiles are listed without an automatic selection or ranking."
+          ? "All available profiles are retained; the buyer view may order them by deterministic overlap with the approved scope."
           : "No professionals are currently available to contact. You can try again later.",
     })
     .returning();

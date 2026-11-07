@@ -37,7 +37,7 @@ export function ProviderRecommendation({ selection }: { selection: ProviderSelec
         <CardTitle className="flex items-center gap-2 text-base">
           <Users className="h-4 w-4" /> Recommended provider
         </CardTitle>
-        <CardDescription>Why WorkPay selected them.</CardDescription>
+        <CardDescription>Why this profile appeared.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         {selection.status === "SELECTED" && selection.provider ? (

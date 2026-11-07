@@ -141,8 +141,8 @@ export default function HomeDashboardPage() {
             What would you like to get done?
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-            Describe the work in your own words. WorkPay helps you confirm the brief and budget
-            before you choose a professional or approve any next step.
+            Describe the work in your own words. Tenfo helps you confirm the brief and budget before
+            you choose a professional or approve any next step.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link

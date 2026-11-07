@@ -13,4 +13,5 @@
 export * from "./platform/money.js";
 export * from "./platform/ids.js";
 export * from "./platform/errors.js";
+export * from "./domain/providers/relevance.js";
 export type { DomainEvent, AggregateType, ActorType, EventVisibility } from "./events/envelope.js";

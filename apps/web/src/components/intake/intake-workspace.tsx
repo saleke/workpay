@@ -109,7 +109,7 @@ async function requestIntake(url: string, init?: RequestInit): Promise<IntakeSes
   try {
     payload = await response.json();
   } catch {
-    throw new Error("WorkPay returned an unreadable response. Your saved intake is unchanged.");
+    throw new Error("Tenfo returned an unreadable response. Your saved intake is unchanged.");
   }
 
   if (!response.ok) {
@@ -119,14 +119,14 @@ async function requestIntake(url: string, init?: RequestInit): Promise<IntakeSes
     throw new IntakeRequestError(
       errorResponse.success
         ? errorResponse.data.error.message
-        : "WorkPay could not complete that step. Your saved intake is unchanged.",
+        : "Tenfo could not complete that step. Your saved intake is unchanged.",
       errorResponse.success ? errorResponse.data.error.code : undefined,
     );
   }
 
   const parsed = intakeResponseSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new Error("WorkPay returned an invalid intake response. Your saved draft is unchanged.");
+    throw new Error("Tenfo returned an invalid intake response. Your saved draft is unchanged.");
   }
   return parsed.data.data;
 }
@@ -583,7 +583,7 @@ export function IntakeWorkspace() {
       <header className="space-y-2 border-b border-[var(--wp-border)] pb-5">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--wp-accent)]">
           <Sparkles className="h-4 w-4" />
-          WorkPay task intake
+          Tenfo task intake
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--wp-text-primary)] sm:text-3xl">
           Start with what you need done
@@ -789,7 +789,7 @@ export function IntakeWorkspace() {
                     <p className="text-sm font-semibold">Confirm a USD contract budget</p>
                     <p className="text-sm text-[var(--wp-text-secondary)]">
                       Your original currency remains in the intake record. Contracts use USD, and
-                      WorkPay will not convert the amount or choose an exchange rate for you.
+                      Tenfo will not convert the amount or choose an exchange rate for you.
                     </p>
                     <Button
                       type="button"
@@ -815,16 +815,15 @@ export function IntakeWorkspace() {
                   <CardHeader>
                     <CardTitle className="text-lg">Let’s make sure we understand</CardTitle>
                     <CardDescription>
-                      WorkPay will interpret your request using the original text and any
-                      corrections you have made. It will not set a price or treat its assumptions as
-                      confirmed.
+                      Tenfo will interpret your request using the original text and any corrections
+                      you have made. It will not set a price or treat its assumptions as confirmed.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {version.correctionContext && (
                       <p className="rounded-lg border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-3 text-sm">
-                        Your correction is saved. WorkPay will use the earlier interpretation only
-                        to understand what you are correcting.
+                        Your correction is saved. Tenfo will use the earlier interpretation only to
+                        understand what you are correcting.
                       </p>
                     )}
                     <Button type="button" onClick={handleInterpret} disabled={busy !== null}>
@@ -884,7 +883,7 @@ export function IntakeWorkspace() {
                         </ul>
                       ) : (
                         <p className="text-sm text-amber-800">
-                          WorkPay could not identify the main outcome yet. Add more context in a
+                          Tenfo could not identify the main outcome yet. Add more context in a
                           correction before continuing.
                         </p>
                       )}
@@ -975,9 +974,9 @@ export function IntakeWorkspace() {
                   <CardHeader>
                     <CardTitle className="text-lg">Only the details that affect the work</CardTitle>
                     <CardDescription>
-                      WorkPay checks for missing details that could change the result, amount of
-                      work, timing, access, or budget. It does not need you to choose technical
-                      tools or small design preferences now.
+                      Tenfo checks for missing details that could change the result, amount of work,
+                      timing, access, or budget. It does not need you to choose technical tools or
+                      small design preferences now.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1117,7 +1116,7 @@ export function IntakeWorkspace() {
                     ) : needsScopeRecheck ? (
                       <div className="space-y-3">
                         <p className="text-sm text-emerald-800">
-                          Your answers are saved. WorkPay will check whether they resolved the
+                          Your answers are saved. Tenfo will check whether they resolved the
                           remaining scope questions.
                         </p>
                         <Button
@@ -1137,7 +1136,7 @@ export function IntakeWorkspace() {
                           No additional core scope question is waiting for an answer.
                         </p>
                         <p className="text-xs text-[var(--wp-text-secondary)]">
-                          WorkPay may ask another focused question if your budget details reveal
+                          Tenfo may ask another focused question if your budget details reveal
                           something that could materially change the work.
                         </p>
                       </div>
@@ -1151,8 +1150,8 @@ export function IntakeWorkspace() {
                   <CardHeader>
                     <CardTitle className="text-lg">Confirm the budget state</CardTitle>
                     <CardDescription>
-                      WorkPay preserves the currency you stated. Contracts use USD, so enter a USD
-                      amount explicitly; WorkPay will not choose an exchange rate for you.
+                      Tenfo preserves the currency you stated. Contracts use USD, so enter a USD
+                      amount explicitly; Tenfo will not choose an exchange rate for you.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1173,7 +1172,7 @@ export function IntakeWorkspace() {
                     ) : (
                       <>
                         <p className="rounded-lg border border-[var(--wp-border)] p-3 text-sm">
-                          WorkPay understood:{" "}
+                          Tenfo understood:{" "}
                           {suggestedBudget
                             ? describeBudget(suggestedBudget)
                             : "No budget details yet."}
@@ -1292,7 +1291,7 @@ export function IntakeWorkspace() {
                         : "Prepare the professional-facing brief"}
                     </CardTitle>
                     <CardDescription>
-                      WorkPay organizes your confirmed details into a clear task brief instead of
+                      Tenfo organizes your confirmed details into a clear task brief instead of
                       sending professionals an intake question-and-answer transcript. Review and
                       edit it before approval. This does not select or contact anyone.
                     </CardDescription>
@@ -1734,7 +1733,7 @@ function ProjectSpecificationSnapshot({ version }: { version: IntakeVersion }) {
           </h3>
           <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
             {version.interpretation?.summary ??
-              "The project overview will appear once WorkPay understands the request."}
+              "The project overview will appear once Tenfo understands the request."}
           </p>
         </section>
 

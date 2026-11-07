@@ -55,11 +55,16 @@ export async function apiUpload<T = unknown>(
       }
     }
     if (!res.ok) {
+      const envelope =
+        typeof data === "object" && data !== null && "error" in data
+          ? (data as { error?: { code?: string; message?: string; details?: unknown } }).error
+          : undefined;
       return {
         data: null,
-        error: new ApiError(res.statusText || "Upload failed", res.status, {
+        error: new ApiError(envelope?.message || res.statusText || "Upload failed", res.status, {
+          code: envelope?.code,
           requestId: res.headers.get("x-request-id") ?? undefined,
-          details: data,
+          details: envelope?.details ?? data,
         }),
         status: res.status,
       };

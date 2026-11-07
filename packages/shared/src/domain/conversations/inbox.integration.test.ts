@@ -14,7 +14,13 @@ import {
 } from "../../testing/index.js";
 import type { Actor } from "../identity/authorize.js";
 import { createTask } from "../tasks/service.js";
-import { listMessageInbox, startTaskConversation } from "./service.js";
+import {
+  getConversationForParticipant,
+  listMessageInbox,
+  respondToTaskConversation,
+  sendTaskMessage,
+  startTaskConversation,
+} from "./service.js";
 
 if (process.env.RUN_DB_TESTS === "1") {
   const { getEnv } = await import("../../platform/env.js");
@@ -85,7 +91,7 @@ describeDb("message inbox (integration)", () => {
       ],
     });
 
-    await withTransaction((tx) =>
+    const conversation = await withTransaction((tx) =>
       startTaskConversation(tx, {
         taskId: task.id,
         buyerUserId: buyerUser.id,
@@ -120,5 +126,76 @@ describeDb("message inbox (integration)", () => {
         authorUserId: buyerUser.id,
       },
     });
+
+    const providerActor: Actor = { kind: "USER", id: providerUser.id, role: "provider" };
+    await withTransaction((tx) =>
+      respondToTaskConversation(tx, {
+        conversationId: conversation.conversationId,
+        providerUserId: providerUser.id,
+        response: "accept",
+        actor: providerActor,
+        correlationId,
+      }),
+    );
+
+    const attachment = {
+      id: newId("catt"),
+      kind: "AUDIO" as const,
+      filename: "voice-note.webm",
+      storageKey: `conversation-attachments/${conversation.conversationId}/voice-note.webm`,
+      contentType: "audio/webm",
+      sizeBytes: 4,
+      sha256: "b".repeat(64),
+    };
+    const clientMessageId = newId("idem");
+    const sendMessage = () =>
+      withTransaction((tx) =>
+        sendTaskMessage(tx, {
+          conversationId: conversation.conversationId,
+          authorUserId: buyerUser.id,
+          clientMessageId,
+          body: "Voice note",
+          attachments: [attachment],
+          actor: buyer,
+          correlationId,
+        }),
+      );
+    const [message, retriedMessage] = await Promise.all([sendMessage(), sendMessage()]);
+    expect(message.id).toBe(retriedMessage.id);
+    expect(message.attachments).toHaveLength(1);
+    expect(retriedMessage.attachments).toHaveLength(1);
+    expect(message.attachments).toMatchObject([
+      {
+        id: attachment.id,
+        kind: "AUDIO",
+        filename: attachment.filename,
+        contentType: attachment.contentType,
+        sizeBytes: attachment.sizeBytes,
+      },
+    ]);
+    expect(message.attachments[0]).not.toHaveProperty("storageKey");
+
+    const conflictingRetry = withTransaction((tx) =>
+      sendTaskMessage(tx, {
+        conversationId: conversation.conversationId,
+        authorUserId: buyerUser.id,
+        clientMessageId,
+        body: "A different message",
+        attachments: [attachment],
+        actor: buyer,
+        correlationId,
+      }),
+    );
+    await expect(conflictingRetry).rejects.toThrow(
+      "This message identifier was already used for different content.",
+    );
+
+    const loadedConversation = await getConversationForParticipant(db, {
+      conversationId: conversation.conversationId,
+      userId: providerUser.id,
+    });
+    expect(loadedConversation.messages.at(-1)?.attachments).toMatchObject([
+      { id: attachment.id, kind: "AUDIO", filename: "voice-note.webm" },
+    ]);
   });
 });

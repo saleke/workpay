@@ -82,6 +82,7 @@ export type IdPrefix =
   | "conv"
   | "chg"
   | "cmsg"
+  | "catt"
   | "msg"
   | "cev"
   | "resol"
