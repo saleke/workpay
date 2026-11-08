@@ -11,7 +11,9 @@ const HEX = "0123456789abcdef";
 
 function randomBytes(n: number): Uint8Array {
   const bytes = new Uint8Array(n);
-  globalThis.crypto.getRandomValues(bytes);
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi) throw new Error("The Web Crypto API is required to generate identifiers.");
+  cryptoApi.getRandomValues(bytes);
   return bytes;
 }
 
@@ -75,6 +77,7 @@ export type IdPrefix =
   | "paccept"
   | "sub"
   | "sart"
+  | "rpk"
   | "vrun"
   | "vres"
   | "adec"

@@ -10,9 +10,10 @@
  * recent decision and refuses unless it is PASS and bound to the current
  * contract hash.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -131,6 +132,9 @@ export const acceptanceDecisions = pgTable(
     submissionId: varchar("submission_id", { length: 64 })
       .notNull()
       .references(() => workSubmissions.id, { onDelete: "cascade" }),
+    submissionVersion: integer("submission_version"),
+    submissionHash: varchar("submission_hash", { length: 64 }),
+    reviewPackageId: varchar("review_package_id", { length: 64 }),
     verificationRunId: varchar("verification_run_id", { length: 64 })
       .notNull()
       .references(() => verificationRuns.id, { onDelete: "cascade" }),
@@ -151,6 +155,10 @@ export const acceptanceDecisions = pgTable(
   (t) => ({
     taskIdx: index("acceptance_decisions_task_idx").on(t.taskId, t.createdAt),
     submissionIdx: index("acceptance_decisions_submission_idx").on(t.submissionId),
+    humanReviewBindingCheck: check(
+      "acceptance_decisions_human_review_binding",
+      sql`${t.reviewedBy} is null or (${t.submissionVersion} > 0 and length(${t.submissionHash}) = 64 and ${t.reviewPackageId} is not null)`,
+    ),
   }),
 );
 

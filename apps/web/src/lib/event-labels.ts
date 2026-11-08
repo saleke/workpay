@@ -25,7 +25,8 @@ export const EVENT_LABELS: Record<string, { title: string; description: string }
   },
   PAYMENT_AUTHORIZED: {
     title: "Simulated authorization recorded",
-    description: "The payment-policy simulation recorded an authorization. No funds were held.",
+    description:
+      "The payment policy simulation recorded authorization. No funds were held or moved.",
   },
   SUBMISSION_SUBMITTED: {
     title: "Deliverables submitted",
@@ -35,17 +36,22 @@ export const EVENT_LABELS: Record<string, { title: string; description: string }
     title: "Revision requested",
     description: "Revisions requested on submitted deliverables.",
   },
+  BUYER_REVIEW_DECISION_RECORDED: {
+    title: "Buyer review recorded",
+    description: "The buyer recorded an explicit decision against the current submitted work.",
+  },
   VERIFICATION_STARTED: {
     title: "Verifying deliverables",
     description: "Automated verification running against Definition of Done.",
   },
   VERIFICATION_FAILED: {
     title: "Verification failed",
-    description: "Deliverables did not pass all checks; the simulated capture remains blocked.",
+    description:
+      "Deliverables did not pass all checks; capture remains blocked by the approval gate.",
   },
   VERIFICATION_PASSED: {
-    title: "Verification passed",
-    description: "All required acceptance criteria confirmed.",
+    title: "Automated checks passed",
+    description: "Automated evidence checks passed; buyer review remains required.",
   },
   VERIFICATION_UNCERTAIN: {
     title: "Independent review needed",
@@ -73,7 +79,8 @@ export const EVENT_LABELS: Record<string, { title: string; description: string }
   },
   PAYMENT_CAPTURED: {
     title: "Simulated capture recorded",
-    description: "Payment policy reached its simulated capture state. No funds were moved.",
+    description:
+      "Payment policy reached the simulated capture state after explicit buyer approval. No funds moved.",
   },
   CASE_OPENED: {
     title: "Platform case opened",

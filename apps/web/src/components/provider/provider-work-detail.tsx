@@ -65,7 +65,7 @@ export function ProviderWorkDetail({
     }
   }, [work.executionId, note, onChanged]);
 
-  const isPaid = work.status === "COMPLETED";
+  const isAccepted = work.status === "COMPLETED";
   const moneyAmount = formatMinorMoney(work.pay);
 
   return (
@@ -82,11 +82,13 @@ export function ProviderWorkDetail({
           <div>
             <div className="lbl">Agreed amount</div>
             <span className="amount">{moneyAmount}</span>
-            <p className="lbl mt-1">Payment-policy simulation only. No funds are held or paid.</p>
+            <p className="lbl mt-1">
+              Payment states are simulated. No funds are held while buyer review is pending.
+            </p>
           </div>
           <div>
             <div className="lbl">Payment status</div>
-            Simulated only
+            Awaiting approval gate
           </div>
           <div>
             <div className="lbl">Due</div>
@@ -125,8 +127,7 @@ export function ProviderWorkDetail({
                 {busy === "accept" ? "Accepting..." : "Accept work"}
               </button>
               <span className="lbl">
-                {moneyAmount} is the agreed amount used by the payment-policy simulation. No funds
-                are held.
+                {moneyAmount} is the agreed amount. No funds move in the current simulation.
               </span>
             </div>
           )}
@@ -142,6 +143,12 @@ export function ProviderWorkDetail({
 
           {(work.status === "IN_PROGRESS" || work.status === "REVISION_REQUESTED") && (
             <div className="space-y-4">
+              {work.status === "REVISION_REQUESTED" && work.revisionReason ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                  <strong className="block">Buyer revision reason</strong>
+                  <span className="mt-1 block">{work.revisionReason}</span>
+                </div>
+              ) : null}
               <div className="sheet-meta">Submit deliverable for verification</div>
               <div>
                 <label htmlFor="deliverable-file" className="lbl block mb-1">
@@ -172,8 +179,8 @@ export function ProviderWorkDetail({
                   {busy === "submit" ? "Submitting..." : "Submit for verification"}
                 </button>
                 <span className="lbl">
-                  Submitting work does not trigger a payment. Payment operations are simulated in
-                  this environment.
+                  Submitting work does not complete the payment simulation; buyer approval remains
+                  required.
                 </span>
               </div>
             </div>
@@ -182,21 +189,22 @@ export function ProviderWorkDetail({
           {work.status === "SUBMITTED" && (
             <div>
               <p className="note note-unsure">
-                The submission is recorded. Its verification status may still be pending.
+                The submission is recorded. Verification status may still be pending, and the
+                simulated release remains controlled by the approval gate.
               </p>
               <p className="lbl mt-2">
-                Submitting work does not trigger a payment. Payment operations are simulated in this
-                environment.
+                Automated checks provide evidence only. Buyer review remains the acceptance gate.
               </p>
             </div>
           )}
 
-          {isPaid && (
+          {isAccepted && (
             <div className="flex items-center justify-between">
               <p className="note note-met">
-                WorkPay recorded this workflow as completed. No payout was made.
+                The buyer accepted this submitted work. Any simulated release policy is tracked
+                separately from professional delivery.
               </p>
-              <div className="stamp note-met">Simulation completed</div>
+              <div className="stamp note-met">Delivery accepted</div>
             </div>
           )}
         </div>

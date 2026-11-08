@@ -13,19 +13,14 @@ import {
   scopeItems,
   workContracts,
 } from "../../db/schema/contracts.js";
-import {
-  submissionArtifacts,
-  workExecutions,
-  workSubmissions,
-} from "../../db/schema/execution.js";
-import { verificationResults, verificationRuns, acceptanceDecisions } from "../../db/schema/verification.js";
+import { submissionArtifacts, workExecutions, workSubmissions } from "../../db/schema/execution.js";
+import { verificationResults, verificationRuns } from "../../db/schema/verification.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound, validationError } from "../../platform/errors.js";
 import { newId } from "../../platform/ids.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
-import { markSubmissionAccepted, requestRevision } from "../execution/service.js";
 import { transitionTask } from "../tasks/service.js";
 
 const proposalSchema = z.object({
@@ -44,26 +39,32 @@ const reportSchema = z.object({
   contractVersion: z.number().int().positive(),
   contractHash: z.string().length(64),
   rationale: z.string().trim().min(20).max(8_000),
-  findings: z.array(
-    z.object({
-      requirementKey: z.string().trim().min(1).max(128),
-      outcome: z.enum(["PASS", "FAIL", "UNCERTAIN"]),
-      rationale: z.string().trim().min(5).max(2_000),
-      evidence: z
-        .array(
-          z.object({
-            description: z.string().trim().min(5).max(1_000),
-            url: z
-              .string()
-              .url()
-              .refine((value) => new URL(value).protocol === "https:", "Evidence links must use HTTPS")
-              .optional(),
-          }),
-        )
-        .min(1)
-        .max(20),
-    }),
-  ).min(1).max(100),
+  findings: z
+    .array(
+      z.object({
+        requirementKey: z.string().trim().min(1).max(128),
+        outcome: z.enum(["PASS", "FAIL", "UNCERTAIN"]),
+        rationale: z.string().trim().min(5).max(2_000),
+        evidence: z
+          .array(
+            z.object({
+              description: z.string().trim().min(5).max(1_000),
+              url: z
+                .string()
+                .url()
+                .refine(
+                  (value) => new URL(value).protocol === "https:",
+                  "Evidence links must use HTTPS",
+                )
+                .optional(),
+            }),
+          )
+          .min(1)
+          .max(20),
+      }),
+    )
+    .min(1)
+    .max(100),
 });
 
 export async function proposeIndependentReview(
@@ -118,36 +119,34 @@ export async function proposeIndependentReview(
   if (!task || ["COMPLETED", "CANCELLED", "EXPIRED"].includes(task.status)) {
     throw conflict("A review cannot be proposed for a closed task.");
   }
-  const [execution] = await tx
-    .select({ startedAt: workExecutions.startedAt })
-    .from(workExecutions)
-    .where(eq(workExecutions.taskId, task.id))
-    .limit(1);
-  if (execution?.startedAt) {
-    throw conflict("Independent review terms must be agreed before work starts.");
-  }
   const proposalKeys = [...new Set(proposal.requirementKeys)];
   const requirements = await tx
-    .select({ key: contractRequirements.key, acceptanceRelevant: contractRequirements.acceptanceRelevant })
+    .select({
+      key: contractRequirements.key,
+      acceptanceRelevant: contractRequirements.acceptanceRelevant,
+    })
     .from(contractRequirements)
     .where(eq(contractRequirements.contractId, contract.id));
   const validKeys = new Set(
-    requirements.filter((requirement) => requirement.acceptanceRelevant).map((requirement) => requirement.key),
+    requirements
+      .filter((requirement) => requirement.acceptanceRelevant)
+      .map((requirement) => requirement.key),
   );
   if (proposalKeys.some((key) => !validKeys.has(key))) {
-    throw validationError("Review criteria must reference acceptance-relevant contract requirements.");
+    throw validationError(
+      "Review criteria must reference acceptance-relevant contract requirements.",
+    );
   }
   const requiredHumanKeys = await tx
     .select({ key: acceptanceRules.requirementKey })
     .from(acceptanceRules)
     .where(
-      and(
-        eq(acceptanceRules.contractId, contract.id),
-        eq(acceptanceRules.method, "HUMAN_REVIEW"),
-      ),
+      and(eq(acceptanceRules.contractId, contract.id), eq(acceptanceRules.method, "HUMAN_REVIEW")),
     );
   if (requiredHumanKeys.some(({ key }) => !proposalKeys.includes(key))) {
-    throw validationError("The review must include every contract requirement marked for human review.");
+    throw validationError(
+      "The review must include every contract requirement marked for human review.",
+    );
   }
 
   const [profile] = await tx
@@ -159,6 +158,8 @@ export async function proposeIndependentReview(
     !profile ||
     !profile.isListed ||
     !profile.available ||
+    !profile.offersReview ||
+    profile.reviewAvailability !== "AVAILABLE" ||
     !profile.conflictDisclosureConfirmed ||
     proposal.reviewerUserId === conversation.buyerUserId ||
     proposal.reviewerUserId === conversation.providerUserId
@@ -178,7 +179,9 @@ export async function proposeIndependentReview(
       ),
     );
   if (conflicts.length > 0) {
-    throw validationError("The selected reviewer has disclosed a conflict with a task participant.");
+    throw validationError(
+      "The selected reviewer has disclosed a conflict with a task participant.",
+    );
   }
   const [unresolved] = await tx
     .select({ id: independentReviewEngagements.id })
@@ -208,7 +211,7 @@ export async function proposeIndependentReview(
       proposerUserId: input.actor.id,
       requirementKeys: proposalKeys,
       domains: [...new Set(proposal.domains.map((domain) => domain.toLowerCase()))],
-      authority: "CONTRACTUAL_ACCEPTANCE",
+      authority: "ADVISORY",
       feeMinor: proposal.feeMinor,
       feeCurrency: proposal.feeCurrency,
       feePayer: proposal.feePayer,
@@ -270,9 +273,7 @@ export async function decideIndependentReviewEngagement(
       throw notFound("Independent review engagement");
     }
     if (!["PROPOSED", "AWAITING_REVIEWER"].includes(engagement.status)) {
-      throw conflict(
-        "An accepted review cannot be withdrawn through the proposal decline action.",
-      );
+      throw conflict("An accepted review cannot be withdrawn through the proposal decline action.");
     }
     const [updated] = await tx
       .update(independentReviewEngagements)
@@ -330,15 +331,6 @@ export async function decideIndependentReviewEngagement(
     )
     .limit(1);
   if (!contract) throw conflict("The contract bound to this review is no longer active.");
-  const [execution] = await tx
-    .select({ startedAt: workExecutions.startedAt })
-    .from(workExecutions)
-    .where(eq(workExecutions.taskId, engagement.taskId))
-    .limit(1);
-  if (execution?.startedAt) {
-    throw conflict("All review terms and reviewer acceptance must be complete before work starts.");
-  }
-
   const now = new Date();
   if (input.actor.id === engagement.reviewerUserId) {
     if (
@@ -346,7 +338,9 @@ export async function decideIndependentReviewEngagement(
       !engagement.providerAcceptedAt ||
       engagement.status !== "AWAITING_REVIEWER"
     ) {
-      throw conflict("Both task participants must accept the review terms before reviewer acceptance.");
+      throw conflict(
+        "Both task participants must accept the review terms before reviewer acceptance.",
+      );
     }
     if (input.confirmNoConflict !== true) {
       throw validationError("The reviewer must confirm there is no undisclosed conflict.");
@@ -356,7 +350,14 @@ export async function decideIndependentReviewEngagement(
       .from(reviewerProfiles)
       .where(eq(reviewerProfiles.userId, engagement.reviewerUserId))
       .limit(1);
-    if (!profile || !profile.isListed || !profile.available || !profile.conflictDisclosureConfirmed) {
+    if (
+      !profile ||
+      !profile.isListed ||
+      !profile.available ||
+      !profile.offersReview ||
+      profile.reviewAvailability !== "AVAILABLE" ||
+      !profile.conflictDisclosureConfirmed
+    ) {
       throw conflict("The reviewer profile is no longer eligible for this engagement.");
     }
     const conflicts = await tx
@@ -405,7 +406,7 @@ export async function decideIndependentReviewEngagement(
     throw notFound("Independent review engagement");
   }
   if (!["PROPOSED", "AWAITING_REVIEWER"].includes(engagement.status)) {
-    throw conflict("The task participants can only accept a proposed review before work begins.");
+    throw conflict("The review proposal is no longer awaiting participant acceptance.");
   }
   const isBuyer = input.actor.id === engagement.buyerUserId;
   const alreadyAccepted = isBuyer
@@ -418,8 +419,7 @@ export async function decideIndependentReviewEngagement(
       ...(isBuyer ? { buyerAcceptedAt: engagement.buyerAcceptedAt ?? now } : {}),
       ...(!isBuyer ? { providerAcceptedAt: engagement.providerAcceptedAt ?? now } : {}),
       status:
-        (isBuyer || engagement.buyerAcceptedAt) &&
-        (!isBuyer || engagement.providerAcceptedAt)
+        (isBuyer || engagement.buyerAcceptedAt) && (!isBuyer || engagement.providerAcceptedAt)
           ? "AWAITING_REVIEWER"
           : "PROPOSED",
       updatedAt: now,
@@ -489,7 +489,12 @@ export async function submitIndependentReviewReport(
   const [submission] = await tx
     .select()
     .from(workSubmissions)
-    .where(and(eq(workSubmissions.id, report.submissionId), eq(workSubmissions.taskId, engagement.taskId)))
+    .where(
+      and(
+        eq(workSubmissions.id, report.submissionId),
+        eq(workSubmissions.taskId, engagement.taskId),
+      ),
+    )
     .for("update")
     .limit(1);
   if (
@@ -569,64 +574,26 @@ export async function submitIndependentReviewReport(
     .returning();
   if (!storedReport) throw new Error("Independent review report insert returned no row.");
 
-  if (outcome !== "UNCERTAIN") {
-    await tx.insert(acceptanceDecisions).values({
-      id: newId("adec"),
-      taskId: engagement.taskId,
-      submissionId: submission.id,
-      verificationRunId: run.id,
-      contractId: engagement.contractId,
-      contractVersion: engagement.contractVersion,
-      contractHash: engagement.contractHash,
-      outcome,
-      hasDeterministicFailure: Boolean(deterministicFailure),
-      explanation: deterministicFailure
-        ? "A deterministic contract check failed; the independent reviewer cannot override that objective failure."
-        : `The contractually agreed independent reviewer reported ${outcome.toLowerCase()}.`,
-      reviewedBy: engagement.reviewerUserId,
-    });
-  }
-
-  const [task] = await tx.select().from(tasks).where(eq(tasks.id, engagement.taskId)).for("update").limit(1);
+  const [task] = await tx
+    .select()
+    .from(tasks)
+    .where(eq(tasks.id, engagement.taskId))
+    .for("update")
+    .limit(1);
   if (!task) throw notFound("Task");
-  if (outcome === "PASS") {
-    const [execution] = await tx
-      .select({ id: workExecutions.id })
-      .from(workExecutions)
-      .where(eq(workExecutions.taskId, task.id))
-      .limit(1);
-    if (!execution) throw conflict("No execution is associated with this review.");
-    await markSubmissionAccepted(tx, { executionId: execution.id, submissionId: submission.id });
+  if (task.status === "AWAITING_EXTERNAL_REVIEW" || task.status === "HUMAN_REVIEW") {
     await transitionTask(tx, {
       taskId: task.id,
-      to: "PAYMENT_RELEASE",
+      to: "AWAITING_CLIENT_REVIEW",
       actor: input.actor,
       correlationId: input.correlationId,
     });
-  } else if (outcome === "FAIL") {
-    const [execution] = await tx
-      .select({ id: workExecutions.id })
-      .from(workExecutions)
-      .where(eq(workExecutions.taskId, task.id))
-      .limit(1);
-    if (!execution) throw conflict("No execution is associated with this review.");
-    await requestRevision(tx, {
-      executionId: execution.id,
-      submissionId: submission.id,
-      actor: input.actor,
-      correlationId: input.correlationId,
-      reason: deterministicFailure
-        ? "A deterministic contract check failed; the reviewer cannot override it."
-        : "The independent reviewer found that one or more agreed criteria were not met.",
-    });
-    await transitionTask(tx, {
-      taskId: task.id,
-      to: "REVISION_REQUIRED",
-      actor: input.actor,
-      correlationId: input.correlationId,
+  } else if (task.status !== "AWAITING_CLIENT_REVIEW") {
+    throw conflict("The task is not awaiting an independent or buyer review.", {
+      taskStatus: task.status,
     });
   }
-  const newStatus = outcome === "PASS" ? "CLOSED" : outcome === "UNCERTAIN" ? "INCONCLUSIVE" : "ENGAGED";
+  const newStatus = outcome === "UNCERTAIN" ? "INCONCLUSIVE" : "CLOSED";
   await tx
     .update(independentReviewEngagements)
     .set({ status: newStatus, updatedAt: new Date() })
@@ -644,10 +611,13 @@ export async function submitIndependentReviewReport(
       reportId: storedReport.id,
       submissionId: submission.id,
       contractVersion: engagement.contractVersion,
+      contractHash: engagement.contractHash,
+      reviewerUserId: engagement.reviewerUserId,
       outcome,
+      advisory: true,
     },
   });
-  return { report: storedReport, outcome };
+  return { report: storedReport, outcome, advisory: true as const };
 }
 
 export async function listIndependentReviewEngagements(
@@ -859,14 +829,10 @@ export async function listReviewerEngagements(db: Database, userId: string) {
             })),
         })),
         included: scope
-          .filter(
-            (item) => item.contractId === engagement.contractId && item.type === "INCLUDED",
-          )
+          .filter((item) => item.contractId === engagement.contractId && item.type === "INCLUDED")
           .map((item) => item.statement),
         excluded: scope
-          .filter(
-            (item) => item.contractId === engagement.contractId && item.type === "EXCLUDED",
-          )
+          .filter((item) => item.contractId === engagement.contractId && item.type === "EXCLUDED")
           .map((item) => item.statement),
       };
     })(),

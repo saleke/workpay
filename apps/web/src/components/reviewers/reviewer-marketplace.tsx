@@ -51,8 +51,8 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
         <h1 className="text-2xl font-semibold text-[var(--charcoal)]">Find a reviewer</h1>
         <p className="max-w-3xl text-sm text-[var(--text-muted)]">
           Compare independent professionals by task-domain fit and the evidence they provide.
-          Recommendations are not quality ratings; WorkPay does not verify profile claims or judge
-          the work.
+          Recommendations are not quality ratings; Tenfo does not verify profile claims or judge the
+          work.
         </p>
         <Link href="/reviewers/profile" className="inline-flex text-sm font-medium underline">
           Offer independent review services
@@ -298,13 +298,13 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
                             </p>
                           )}
                           <p className="mt-2 text-xs text-amber-800">
-                            Reviewer-supplied information is not independently verified by WorkPay.
+                            Reviewer-supplied information is not independently verified by Tenfo.
                             Confirm expertise, evidence, and conflicts directly before engaging.
                           </p>
                         </div>
 
                         <p className="border-t pt-3 text-xs text-muted-foreground">
-                          You choose whether to contact this reviewer. WorkPay has not contacted or
+                          You choose whether to contact this reviewer. Tenfo has not contacted or
                           engaged them.
                         </p>
                         {reviewer.publicContactUrl ? (

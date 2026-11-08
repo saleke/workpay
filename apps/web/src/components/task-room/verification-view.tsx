@@ -24,11 +24,11 @@ export function VerificationView({ verification }: { verification: VerificationD
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Payment simulation remains blocked</div>
+            <div className="font-semibold text-base">Payment release remains blocked</div>
             <p className="mt-0.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
               {isFailed
-                ? "A deterministic check failed on the specific property it tests. Review the finding with the professional. Payment-policy simulation is evaluated separately."
-                : "The evidence is inconclusive. AI findings are advisory and Tenfo does not provide a reviewer or adjudicator. Use the contract's independent-review process; payment cannot proceed from this result alone."}
+                ? "A deterministic check failed on the specific property it tests. Review the finding with the professional. Payment authorization remains subject to the approval gate."
+                : "The evidence is inconclusive. AI findings are advisory and Tenfo does not provide a reviewer or adjudicator. Use the contract's independent-review process; payout release cannot proceed from this result alone."}
             </p>
           </div>
         </div>
@@ -41,8 +41,7 @@ export function VerificationView({ verification }: { verification: VerificationD
             <div className="font-semibold text-base">Deterministic checks passed</div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
               The automated checks passed only the specific properties they test. This is not a
-              general quality judgment, and simulated capture remains subject to its separate policy
-              gate.
+              general quality judgment, and payout release remains subject to the approval gate.
             </p>
           </div>
         </div>

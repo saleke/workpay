@@ -81,6 +81,36 @@ export function validateEmailForRegistration(email: string): { ok: boolean; mess
   return { ok: true };
 }
 
+export function normalizeUsernameInput(username: string): {
+  ok: boolean;
+  value?: string;
+  message?: string;
+} {
+  const raw = typeof username === "string" ? username : "";
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { ok: false, message: "Username is required. Choose a public handle for your account." };
+  }
+
+  const sanitized = trimmed
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9_-]/g, "");
+  if (!sanitized) {
+    return {
+      ok: false,
+      message: "Username must contain at least one letter or number.",
+    };
+  }
+
+  const validation = validateUsername(sanitized);
+  if (!validation.ok) {
+    return { ok: false, message: validation.message };
+  }
+
+  return { ok: true, value: sanitized };
+}
+
 export function validateUsername(username: string): { ok: boolean; message?: string } {
   const normalized = username.trim().toLowerCase();
   if (normalized.length < 3) {

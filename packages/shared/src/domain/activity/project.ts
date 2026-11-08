@@ -33,7 +33,9 @@ export interface ActivityEntry {
 }
 
 function humanizeStatus(status: unknown): string {
-  const s = String(status || "").trim().toUpperCase();
+  const s = String(status || "")
+    .trim()
+    .toUpperCase();
   switch (s) {
     case "DRAFT":
       return "Draft";
@@ -56,12 +58,21 @@ function humanizeStatus(status: unknown): string {
       return "In Execution";
     case "SUBMITTED":
     case "VERIFYING":
-      return "Verifying Proof";
+      return "Evidence Submitted";
+    case "AWAITING_CLIENT_REVIEW":
+      return "Awaiting Client Review";
+    case "AWAITING_EXTERNAL_REVIEW":
+      return "Awaiting External Review";
+    case "REVIEW_ACCEPTED":
+      return "Review Accepted";
+    case "REJECTED":
+      return "Rejected";
     case "REVISION_REQUIRED":
       return "Revision Requested";
     case "HUMAN_REVIEW":
       return "Independent review needed";
     case "PAYMENT_RELEASE":
+      return "Payment Release Policy";
     case "COMPLETED":
       return "Completed";
     case "CANCELLED":
@@ -80,42 +91,48 @@ function humanizeStatus(status: unknown): string {
 }
 
 function humanizeAgentAction(actionType: unknown): { title: string; description: string } {
-  const act = String(actionType || "").trim().toUpperCase();
+  const act = String(actionType || "")
+    .trim()
+    .toUpperCase();
   switch (act) {
     case "CREATE_PLAN":
       return {
         title: "Specification Synthesized",
-        description: "WorkPay Agent compiled formal requirements, scope boundaries, and acceptance checks.",
+        description:
+          "Tenfo Agent compiled formal requirements, scope boundaries, and acceptance checks.",
       };
     case "SELECT_PROVIDER":
       return {
         title: "Specialist Matched",
-        description: "WorkPay Agent evaluated specialist capabilities and matched a candidate provider.",
+        description:
+          "Tenfo Agent evaluated specialist capabilities and presented an eligible candidate.",
       };
     case "REQUEST_CLARIFICATION":
       return {
         title: "Clarification Requested",
-        description: "WorkPay Agent identified technical ambiguities and requested prompt clarification.",
+        description:
+          "Tenfo Agent identified technical ambiguities and requested prompt clarification.",
       };
     case "SUBMIT_OFFER":
       return {
         title: "Terms Proposed",
-        description: "WorkPay Agent submitted formal commercial terms to the specialist.",
+        description: "Tenfo Agent submitted formal commercial terms to the specialist.",
       };
     case "ACCEPT_OFFER":
       return {
         title: "Terms Finalized",
-        description: "WorkPay Agent and specialist agreed to execution terms.",
+        description: "Tenfo Agent recorded the agreed execution terms.",
       };
     case "VERIFY_SUBMISSION":
       return {
         title: "Verification Executed",
-        description: "WorkPay Agent executed automated proof checks against the Definition of Done.",
+        description: "Tenfo Agent executed automated evidence checks against the agreed criteria.",
       };
     case "TRIGGER_CAPTURE":
       return {
-        title: "Capture simulation requested",
-        description: "The legacy workflow requested a payment-policy simulation; no funds were moved.",
+        title: "Simulated capture requested",
+        description:
+          "The workflow requested a simulated capture after the approval gate; no funds moved.",
       };
     default: {
       const cleanName = act
@@ -127,7 +144,7 @@ function humanizeAgentAction(actionType: unknown): { title: string; description:
         : "Autonomous Task";
       return {
         title: cleanName,
-        description: "WorkPay Agent completed an automated task for this agreement.",
+        description: "Tenfo Agent completed an automated task for this agreement.",
       };
     }
   }
@@ -275,16 +292,16 @@ export function describeEvent(
       const code = String(p.reasonCode || p.result || "APPROVED");
       return {
         title: "Payment policy evaluated",
-        description: `Deterministic payment simulation evaluated ${act} (${code}).`,
+        description: `Deterministic payment policy evaluated ${act} (${code}).`,
       };
     }
     case "PAYMENT_AUTHORIZATION_REQUESTED": {
       const { name: subj, isSelf } = resolveSubject(context, "Task Owner");
       return {
-        title: "Simulating authorization",
+        title: "Authorization requested",
         description: isSelf
-          ? "You initiated a payment authorization simulation."
-          : `${subj} initiated a payment authorization simulation.`,
+          ? "You initiated payment authorization."
+          : `${subj} initiated payment authorization.`,
       };
     }
     case "PAYMENT_AUTHORIZED": {
@@ -293,14 +310,14 @@ export function describeEvent(
       return {
         title: "Simulated authorization recorded",
         description: isSelf
-          ? `You recorded a simulated authorization of ${money}; no funds were held.`
-          : `${subj} recorded a simulated authorization of ${money}; no funds were held.`,
+          ? `You recorded a simulated authorization of ${money}; no funds were held or moved.`
+          : `${subj} recorded a simulated authorization of ${money}; no funds were held or moved.`,
       };
     }
     case "PAYMENT_AUTHORIZATION_FAILED":
       return {
-        title: "Payment simulation failed",
-        description: String(p.reason ?? "The payment authorization simulation failed."),
+        title: "Payment authorization failed",
+        description: String(p.reason ?? "The payment authorization failed."),
       };
     case "CAPTURE_COMMAND_CREATED":
       return {
@@ -311,13 +328,13 @@ export function describeEvent(
       const money = formatMoney(p.amount);
       return {
         title: "Simulated capture recorded",
-        description: `The simulation recorded capture eligibility for ${money}; no funds were moved.`,
+        description: `The policy recorded simulated capture for ${money}; no funds were charged or paid.`,
       };
     }
     case "PAYMENT_CAPTURE_FAILED":
       return {
-        title: "Capture simulation failed",
-        description: String(p.reason ?? "The simulated capture could not be completed."),
+        title: "Capture failed",
+        description: String(p.reason ?? "The capture could not be completed."),
       };
     case "PROVIDER_ACCEPTED": {
       const { name: subj, isSelf } = resolveSubject(context, "Specialist");
@@ -365,6 +382,18 @@ export function describeEvent(
           : `${subj} requested revisions on the deliverable${reason}`,
       };
     }
+    case "BUYER_REVIEW_DECISION_RECORDED": {
+      const { name: subj, isSelf } = resolveSubject(context, "Task Owner");
+      const decision = String(p.decision ?? "updated")
+        .replaceAll("_", " ")
+        .toLowerCase();
+      return {
+        title: "Buyer review recorded",
+        description: isSelf
+          ? `You recorded the delivery decision: ${decision}.`
+          : `${subj} recorded the delivery decision: ${decision}.`,
+      };
+    }
     case "VERIFICATION_STARTED":
       return {
         title: "Verification running",
@@ -372,21 +401,21 @@ export function describeEvent(
       };
     case "VERIFICATION_PASSED":
       return {
-        title: "Verification passed",
-        description: "All acceptance criteria and proof requirements confirmed.",
+        title: "Automated checks passed",
+        description: "Automated evidence checks passed; buyer review is still required.",
       };
     case "VERIFICATION_FAILED": {
       const failed = (p.failedRequirements as string[])?.join(", ");
       return {
-        title: "Verification failed",
-        description: `Deliverable did not meet acceptance criteria${failed ? `: ${failed}` : "."}`,
+        title: "Automated check failed",
+        description: `A deterministic evidence check failed${failed ? `: ${failed}` : "."} Buyer review is still required.`,
       };
     }
     case "VERIFICATION_UNCERTAIN":
       return {
         title: "Verification is uncertain",
         description:
-          "Automated checks could not confidently assess the deliverable. The parties should use their agreed independent-review or evidence process; WorkPay does not decide the result.",
+          "Automated checks could not confidently assess the deliverable. The parties should use their agreed independent-review or evidence process; Tenfo does not decide the result.",
       };
     case "CASE_OPENED":
       return {

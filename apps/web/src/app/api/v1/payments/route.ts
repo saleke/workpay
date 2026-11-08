@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
-import { payments, paymentDecisions } from "@workpay/shared/db/schema/payments";
+import { payments } from "@workpay/shared/db/schema/payments";
 import { tasks } from "@workpay/shared/db/schema/tasks";
 import type { PaymentDto } from "@/lib/api/types";
 import { requireBuyerActor } from "@/lib/server/conversation-auth";
@@ -9,7 +9,6 @@ export async function GET(req: Request) {
   try {
     const actor = await requireBuyerActor(req);
     const db = getDb();
-
     const rows = await db
       .select({ payment: payments })
       .from(payments)
@@ -25,7 +24,7 @@ export async function GET(req: Request) {
       amountMinor: p.amountMinor,
       currency: p.currency,
       status: p.status,
-      mode: "SIMULATED",
+      mode: "FAKE",
       paypalAuthorizationId: p.providerAuthorizationId,
       paypalCaptureId: p.providerCaptureId,
       authorizedAt: p.authorizedAt?.toISOString() ?? null,

@@ -1,0 +1,1 @@
+ALTER TABLE "work_executions" ADD COLUMN "revision_reason" text;

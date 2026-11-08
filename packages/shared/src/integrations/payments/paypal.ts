@@ -32,7 +32,7 @@ import type {
 interface PayPalOptions {
   clientId: string;
   clientSecret: string;
-  webhookId: string;
+  webhookId?: string;
   env: "sandbox" | "live";
   timeoutMs?: number;
 }
@@ -283,6 +283,10 @@ export class SandboxPayPal implements PaymentGateway {
   }
 
   async verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult> {
+    if (!this.options.webhookId) {
+      return { verified: false, reason: "paypal webhook id is not configured" };
+    }
+
     const headers = input.headers;
     const transmissionId = headers["paypal-transmission-id"];
     const transmissionTime = headers["paypal-transmission-time"];

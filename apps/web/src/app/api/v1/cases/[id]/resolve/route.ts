@@ -5,7 +5,7 @@ export async function POST() {
     {
       code: "PLATFORM_ADJUDICATION_DISABLED",
       message:
-        "WorkPay cannot override verification, decide a party dispute, or release money through a manual case ruling.",
+        "Tenfo cannot override verification, decide a party dispute, or release money through a manual case ruling.",
     },
     410,
   );

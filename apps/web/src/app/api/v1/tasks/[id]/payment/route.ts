@@ -5,10 +5,7 @@ import { paymentDecisions, paymentPolicyChecks } from "@workpay/shared/db/schema
 import type { PaymentDto, PaymentDecisionDto } from "@/lib/api/types";
 import { requireTaskOwner } from "@/lib/server/conversation-auth";
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: taskId } = await params;
     await requireTaskOwner(req, taskId);
@@ -34,7 +31,8 @@ export async function GET(
         .where(eq(paymentPolicyChecks.decisionId, decision.id));
 
       const decisionDetail = (decision.detail ?? {}) as Record<string, unknown>;
-      const reasonText = typeof decisionDetail.reason === "string" ? decisionDetail.reason : decision.reasonCode;
+      const reasonText =
+        typeof decisionDetail.reason === "string" ? decisionDetail.reason : decision.reasonCode;
 
       latestDecisionDto = {
         id: decision.id,
@@ -61,7 +59,7 @@ export async function GET(
       amountMinor: payment.amountMinor,
       currency: payment.currency,
       status: payment.status,
-      mode: "SIMULATED",
+      mode: "FAKE",
       paypalAuthorizationId: payment.providerAuthorizationId,
       paypalCaptureId: payment.providerCaptureId,
       authorizedAt: payment.authorizedAt?.toISOString() ?? null,

@@ -11,7 +11,7 @@
  * write fails, the business transaction rolls back with it. The two can never
  * disagree.
  */
-import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { z } from "zod";
 import { events, outboxEvents } from "../db/schema/infra.js";
@@ -114,10 +114,26 @@ export async function claimOutboxBatch(tx: AnyDb, limit = 50) {
   const rows = await tx
     .select()
     .from(outboxEvents)
-    .where(and(eq(outboxEvents.status, "PENDING"), lte(outboxEvents.availableAt, sql`now()`)))
+    .where(
+      or(
+        and(eq(outboxEvents.status, "PENDING"), lte(outboxEvents.availableAt, sql`now()`)),
+        and(eq(outboxEvents.status, "RUNNING"), lte(outboxEvents.availableAt, sql`now()`)),
+      ),
+    )
     .orderBy(asc(outboxEvents.createdAt))
     .limit(limit)
     .for("update", { skipLocked: true });
+  if (rows.length > 0) {
+    await tx
+      .update(outboxEvents)
+      .set({ status: "RUNNING", availableAt: sql`now() + interval '5 minutes'` })
+      .where(
+        inArray(
+          outboxEvents.id,
+          rows.map((row) => row.id),
+        ),
+      );
+  }
   return rows;
 }
 

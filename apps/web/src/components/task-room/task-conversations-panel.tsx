@@ -580,13 +580,14 @@ export function TaskConversationsPanel({
                         aria-live="polite"
                       >
                         {drafting
-                          ? "Preparing a draft…"
+                          ? "Polishing wording…"
                           : initialMessage.trim()
-                            ? "Improve draft with AI"
-                            : "Draft with AI"}
+                            ? "Polish wording"
+                            : "Draft a clearer message"}
                       </Button>
                       <span className="text-xs leading-relaxed text-[var(--text-muted)]">
-                        AI helps refine wording only; the final message remains yours to approve.
+                        AI can help refine the wording only; the final message remains yours to
+                        approve.
                       </span>
                     </div>
 

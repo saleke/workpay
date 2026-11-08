@@ -7,6 +7,7 @@ const USD = (minor: number) => ({ amountMinor: minor, currency: "USD" as const }
 function validCaptureInput(): PaymentPolicyInput {
   return {
     action: "CAPTURE",
+    task: { status: "PAYMENT_RELEASE", ownerUserId: "user_buyer" },
     payment: {
       id: "pay_1",
       status: "AUTHORIZED",
@@ -28,7 +29,20 @@ function validCaptureInput(): PaymentPolicyInput {
       budget: USD(15000),
     },
     acceptanceDecision: {
+      submissionId: "sub_1",
+      submissionVersion: 1,
+      submissionHash: "submissionhash",
+      reviewPackageId: "rpk_1",
       outcome: "PASS",
+      contractVersion: 1,
+      contractHash: "contracthash",
+      reviewedBy: "user_buyer",
+      hasDeterministicFailure: false,
+    },
+    currentSubmission: {
+      id: "sub_1",
+      version: 1,
+      submissionHash: "submissionhash",
       contractVersion: 1,
       contractHash: "contracthash",
     },
@@ -52,18 +66,24 @@ describe("payment policy (P1)", () => {
   it("DENYs when verification did not pass", () => {
     const input = validCaptureInput();
     input.acceptanceDecision = {
+      submissionId: "sub_1",
+      submissionVersion: 1,
+      submissionHash: "submissionhash",
+      reviewPackageId: "rpk_1",
       outcome: "FAIL",
       contractVersion: 1,
       contractHash: "contracthash",
+      reviewedBy: "user_buyer",
+      hasDeterministicFailure: false,
     };
     expect(evaluatePaymentPolicy(input).result).toBe("DENY");
-    expect(reasonFor(input)).toBe("verification.passed");
+    expect(reasonFor(input)).toBe("buyer_review.passed");
   });
 
   it("DENYs when there is no acceptance decision", () => {
     const input = validCaptureInput();
     input.acceptanceDecision = null;
-    expect(reasonFor(input)).toBe("verification.decision_present");
+    expect(reasonFor(input)).toBe("buyer_review.present");
   });
 
   it("DENYs when the decision is bound to a stale contract version", () => {
@@ -77,11 +97,41 @@ describe("payment policy (P1)", () => {
   it("DENYs when the decision is bound to a different contract hash", () => {
     const input = validCaptureInput();
     input.acceptanceDecision = {
+      submissionId: "sub_1",
+      submissionVersion: 1,
+      submissionHash: "submissionhash",
+      reviewPackageId: "rpk_1",
       outcome: "PASS",
       contractVersion: 1,
       contractHash: "tampered",
+      reviewedBy: "user_buyer",
+      hasDeterministicFailure: false,
     };
-    expect(reasonFor(input)).toBe("verification.hash_matches");
+    expect(reasonFor(input)).toBe("buyer_review.hash_matches");
+  });
+
+  it("DENYs when approval was not recorded by the task owner", () => {
+    const input = validCaptureInput();
+    input.acceptanceDecision!.reviewedBy = "user_other";
+    expect(reasonFor(input)).toBe("buyer_review.owner");
+  });
+
+  it("DENYs when approval refers to a stale submission", () => {
+    const input = validCaptureInput();
+    input.acceptanceDecision!.submissionId = "sub_old";
+    expect(reasonFor(input)).toBe("buyer_review.submission_current");
+  });
+
+  it("DENYs when approval refers to different submission evidence", () => {
+    const input = validCaptureInput();
+    input.acceptanceDecision!.submissionHash = "different-submission-hash";
+    expect(reasonFor(input)).toBe("buyer_review.evidence_current");
+  });
+
+  it("DENYs when a deterministic check failed", () => {
+    const input = validCaptureInput();
+    input.acceptanceDecision!.hasDeterministicFailure = true;
+    expect(reasonFor(input)).toBe("verification.no_deterministic_failure");
   });
 
   it("DENYs when an open case blocks capture", () => {
@@ -128,6 +178,22 @@ describe("payment policy (P1)", () => {
     modified.payment.amount = USD(9000);
     const b = evaluatePaymentPolicy(modified);
     expect(a.inputsHash).not.toBe(b.inputsHash);
+  });
+
+  it("hashes the authorization and exact evidence bindings", () => {
+    const baseline = evaluatePaymentPolicy(validCaptureInput()).inputsHash;
+    const changedAuthorization = validCaptureInput();
+    changedAuthorization.payment.providerAuthorizationId = "fake_auth_2";
+    const changedEvidence = validCaptureInput();
+    changedEvidence.acceptanceDecision!.submissionHash = "other-evidence";
+    const changedAgreementCurrency = validCaptureInput();
+    changedAgreementCurrency.agreement.amount = {
+      amountMinor: changedAgreementCurrency.agreement.amount.amountMinor,
+      currency: "EUR" as any,
+    };
+    expect(evaluatePaymentPolicy(changedAuthorization).inputsHash).not.toBe(baseline);
+    expect(evaluatePaymentPolicy(changedEvidence).inputsHash).not.toBe(baseline);
+    expect(evaluatePaymentPolicy(changedAgreementCurrency).inputsHash).not.toBe(baseline);
   });
 
   it("AUTHORIZEs a pending payment within budget", () => {

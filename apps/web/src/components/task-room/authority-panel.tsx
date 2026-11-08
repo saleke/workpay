@@ -14,7 +14,7 @@ const AGENT_CAN = [
   "Compile a draft contract for your approval",
   "Find and recommend an eligible provider",
   "Negotiate an offer within your budget",
-  "Request payment authorization",
+  "Request simulated payment authorization",
   "Request verification and a single revision",
   "Open a case for human review",
 ];

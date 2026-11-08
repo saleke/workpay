@@ -40,6 +40,7 @@ export const workExecutions = pgTable(
       .notNull()
       .references(() => providers.id, { onDelete: "cascade" }),
     status: executionStatusEnum("status").notNull().default("ASSIGNED"),
+    revisionReason: text("revision_reason"),
     /** Contract version and hash pinned at assignment time. */
     contractVersion: integer("contract_version").notNull(),
     contractHash: varchar("contract_hash", { length: 64 }).notNull(),

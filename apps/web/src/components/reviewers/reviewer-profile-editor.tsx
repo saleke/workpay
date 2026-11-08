@@ -44,6 +44,13 @@ export function ReviewerProfileEditor() {
   const [saved, setSaved] = useState(false);
   const [isListed, setIsListed] = useState(false);
   const [available, setAvailable] = useState(true);
+  const [offersWork, setOffersWork] = useState(false);
+  const [offersReview, setOffersReview] = useState(false);
+  const [acceptsReviewOnly, setAcceptsReviewOnly] = useState(false);
+  const [reviewAvailability, setReviewAvailability] = useState<"AVAILABLE" | "BUSY" | "OFFLINE">(
+    "AVAILABLE",
+  );
+  const [reviewNotice, setReviewNotice] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [publicContactUrl, setPublicContactUrl] = useState("");
   const [summary, setSummary] = useState("");
@@ -61,6 +68,11 @@ export function ReviewerProfileEditor() {
     if (savedProfile) {
       setIsListed(savedProfile.isListed);
       setAvailable(savedProfile.available);
+      setOffersWork(savedProfile.offersWork ?? false);
+      setOffersReview(savedProfile.offersReview ?? false);
+      setAcceptsReviewOnly(savedProfile.acceptsReviewOnly ?? false);
+      setReviewAvailability(savedProfile.reviewAvailability ?? "AVAILABLE");
+      setReviewNotice(savedProfile.reviewNotice ?? "");
       setDisplayName(savedProfile.displayName);
       setPublicContactUrl(savedProfile.publicContactUrl ?? "");
       setSummary(savedProfile.summary);
@@ -95,6 +107,11 @@ export function ReviewerProfileEditor() {
     const input: ReviewerProfileInputDto = {
       isListed,
       available,
+      offersWork,
+      offersReview,
+      acceptsReviewOnly,
+      reviewAvailability,
+      reviewNotice: reviewNotice.trim() || null,
       displayName,
       publicContactUrl: publicContactUrl.trim() || null,
       summary,
@@ -165,15 +182,36 @@ export function ReviewerProfileEditor() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-2">
-        <Link href="/reviewers" className="text-sm underline">
-          Back to reviewer discovery
+    <div className="mx-auto max-w-4xl space-y-6">
+      <header className="space-y-3 rounded-3xl border border-[var(--wp-border)] bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.10),_transparent_48%),linear-gradient(135deg,rgba(15,23,42,0.02),rgba(15,23,42,0.00))] p-6">
+        <Link
+          href="/reviewers"
+          className="inline-flex items-center text-sm font-medium text-violet-700 underline-offset-4 hover:underline"
+        >
+          ← Back to reviewer discovery
         </Link>
-        <h1 className="text-2xl font-semibold text-[var(--charcoal)]">Reviewer profile</h1>
-        <p className="text-sm text-muted-foreground">
-          Describe the domains and evidence relevant to reviews you can independently perform.
-          WorkPay does not verify these claims or certify review quality.
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+              Professional profile
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold text-[var(--charcoal)]">
+              Work and review availability
+            </h1>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+              {offersWork ? "Offers work" : "Not offering work"}
+            </span>
+            <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 font-medium text-violet-700">
+              {offersReview ? "Available for review" : "Not taking review"}
+            </span>
+          </div>
+        </div>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+          Show the domains where you can deliver work and the domains where you can independently
+          review. Review availability is a separate capability, and Tenfo does not certify or
+          guarantee the quality of any review claims.
         </p>
       </header>
 
@@ -210,18 +248,88 @@ export function ReviewerProfileEditor() {
               Share only information you are comfortable making visible to task owners.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            <label className="grid gap-1 text-sm">
-              <span>Display name</span>
-              <input
-                required
-                minLength={2}
-                maxLength={100}
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                className="h-10 rounded-lg border px-3"
-              />
-            </label>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 md:grid-cols-3">
+              <label className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-violet-100">
+                <input
+                  type="checkbox"
+                  checked={offersWork}
+                  onChange={(event) => setOffersWork(event.target.checked)}
+                  className="mt-1"
+                />
+                <span className="text-sm">
+                  <span className="mb-1 block font-medium text-[var(--charcoal)]">
+                    I offer work
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Available for project delivery in relevant domains.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-violet-100">
+                <input
+                  type="checkbox"
+                  checked={offersReview}
+                  onChange={(event) => {
+                    setOffersReview(event.target.checked);
+                    if (!event.target.checked) setAcceptsReviewOnly(false);
+                  }}
+                  className="mt-1"
+                />
+                <span className="text-sm">
+                  <span className="mb-1 block font-medium text-[var(--charcoal)]">
+                    I review work
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Available to assess work against agreed criteria.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-xl bg-white p-3 shadow-sm ring-1 ring-violet-100">
+                <input
+                  type="checkbox"
+                  checked={acceptsReviewOnly}
+                  onChange={(event) => setAcceptsReviewOnly(event.target.checked)}
+                  disabled={!offersReview}
+                  className="mt-1"
+                />
+                <span className="text-sm">
+                  <span className="mb-1 block font-medium text-[var(--charcoal)]">
+                    Review-only mode
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Open to review assignments without full project delivery.
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
+              <label className="grid gap-1 text-sm">
+                <span>Display name</span>
+                <input
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  className="h-11 rounded-xl border border-[var(--wp-border)] bg-white px-3"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span>Review availability</span>
+                <select
+                  value={reviewAvailability}
+                  onChange={(event) =>
+                    setReviewAvailability(event.target.value as "AVAILABLE" | "BUSY" | "OFFLINE")
+                  }
+                  className="h-11 rounded-xl border border-[var(--wp-border)] bg-white px-3"
+                >
+                  <option value="AVAILABLE">Available</option>
+                  <option value="BUSY">Busy</option>
+                  <option value="OFFLINE">Offline</option>
+                </select>
+              </label>
+            </div>
             <label className="grid gap-1 text-sm">
               <span>Public contact link (optional, HTTPS)</span>
               <input
@@ -242,7 +350,18 @@ export function ReviewerProfileEditor() {
                 rows={4}
                 value={summary}
                 onChange={(event) => setSummary(event.target.value)}
-                className="rounded-lg border p-3"
+                className="rounded-xl border border-[var(--wp-border)] bg-white p-3"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span>Short note for review availability</span>
+              <textarea
+                value={reviewNotice}
+                onChange={(event) => setReviewNotice(event.target.value)}
+                rows={2}
+                maxLength={1000}
+                placeholder="I usually review UX, accessibility, and checkout flows with a 3-day turnaround."
+                className="rounded-xl border border-[var(--wp-border)] bg-white p-3"
               />
             </label>
             <label className="grid gap-1 text-sm">
@@ -251,7 +370,7 @@ export function ReviewerProfileEditor() {
                 required
                 value={languagesText}
                 onChange={(event) => setLanguagesText(event.target.value)}
-                className="h-10 rounded-lg border px-3"
+                className="h-11 rounded-xl border border-[var(--wp-border)] bg-white px-3"
               />
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -397,7 +516,7 @@ export function ReviewerProfileEditor() {
             <CardTitle className="text-base">Supporting evidence</CardTitle>
             <CardDescription>
               Links and descriptions are supplied by you. Credentials, issuers, and examples are not
-              verified by WorkPay.
+              verified by Tenfo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -492,13 +611,13 @@ export function ReviewerProfileEditor() {
           <CardHeader>
             <CardTitle className="text-base">Conflicts and independence</CardTitle>
             <CardDescription>
-              Known WorkPay accounts listed here are excluded from your task recommendations. Always
+              Known Tenfo accounts listed here are excluded from your task recommendations. Always
               disclose task-specific interests directly before agreeing to a review.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <label className="grid gap-1 text-sm">
-              <span>Known conflicting WorkPay usernames, comma-separated</span>
+              <span>Known conflicting Tenfo usernames, comma-separated</span>
               <input
                 value={conflictUsernamesText}
                 onChange={(event) => setConflictUsernamesText(event.target.value)}

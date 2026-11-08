@@ -1,20 +1,11 @@
 import { and, eq } from "drizzle-orm";
-import {
-  getCorrelationId,
-  getDb,
-  jsonError,
-  jsonOk,
-  withTransaction,
-} from "@/lib/server/api";
+import { getCorrelationId, getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
 import {
   submissionArtifacts,
   workExecutions,
   workSubmissions,
 } from "@workpay/shared/db/schema/execution";
-import {
-  createSubmission,
-  submitWork,
-} from "@workpay/shared/domain";
+import { createSubmission, submitWork } from "@workpay/shared/domain";
 import { buildStorageKey, getObjectStorage } from "@workpay/shared/integrations";
 import { notFound, sha256HexOfBytes } from "@workpay/shared/platform";
 import type { SubmissionDto } from "@/lib/api/types";
@@ -50,9 +41,7 @@ export async function POST(req: Request) {
     const [execution] = await db
       .select()
       .from(workExecutions)
-      .where(
-        and(eq(workExecutions.id, executionId), eq(workExecutions.providerId, provider.id)),
-      )
+      .where(and(eq(workExecutions.id, executionId), eq(workExecutions.providerId, provider.id)))
       .limit(1);
 
     if (!execution) throw notFound("Execution");
@@ -78,8 +67,8 @@ export async function POST(req: Request) {
       ],
       notes: note,
     });
-    await withTransaction(async (tx) => {
-      await submitWork(tx, {
+    const finalizedSubmission = await withTransaction(async (tx) => {
+      return submitWork(tx, {
         submissionId: submission.id,
         providerId: provider.id,
         actor,
@@ -95,7 +84,10 @@ export async function POST(req: Request) {
       id: submission.id,
       executionId: submission.executionId,
       version: submission.version,
-      status: submission.status,
+      status: finalizedSubmission.status,
+      contractVersion: finalizedSubmission.contractVersion,
+      contractHash: finalizedSubmission.contractHash,
+      submissionHash: finalizedSubmission.submissionHash,
       note: submission.notes,
       artifacts: artifactRows.map((artifact) => ({
         id: artifact.id,

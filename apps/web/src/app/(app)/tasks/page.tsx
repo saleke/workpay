@@ -47,6 +47,10 @@ export default function TasksPage() {
         (t) =>
           t.status === "CONTRACT_REVIEW" ||
           t.status === "HUMAN_REVIEW" ||
+          t.status === "AWAITING_CLIENT_REVIEW" ||
+          t.status === "AWAITING_EXTERNAL_REVIEW" ||
+          t.status === "REVIEW_ACCEPTED" ||
+          t.status === "REJECTED" ||
           t.status === "REVISION_REQUIRED" ||
           t.status === "AWAITING_CLARIFICATION" ||
           t.status === "AGREEMENT_READY",
@@ -55,14 +59,17 @@ export default function TasksPage() {
       list = list.filter(
         (t) =>
           t.status !== "COMPLETED" &&
-          t.status !== "PAYMENT_RELEASE" &&
           t.status !== "CANCELLED" &&
           t.status !== "CONTRACT_REVIEW" &&
           t.status !== "HUMAN_REVIEW" &&
+          t.status !== "AWAITING_CLIENT_REVIEW" &&
+          t.status !== "AWAITING_EXTERNAL_REVIEW" &&
+          t.status !== "REVIEW_ACCEPTED" &&
+          t.status !== "REJECTED" &&
           t.status !== "REVISION_REQUIRED",
       );
     } else if (filterTab === "COMPLETED") {
-      list = list.filter((t) => t.status === "COMPLETED" || t.status === "PAYMENT_RELEASE");
+      list = list.filter((t) => t.status === "COMPLETED");
     }
 
     return list;
@@ -73,6 +80,10 @@ export default function TasksPage() {
       (t) =>
         t.status === "CONTRACT_REVIEW" ||
         t.status === "HUMAN_REVIEW" ||
+        t.status === "AWAITING_CLIENT_REVIEW" ||
+        t.status === "AWAITING_EXTERNAL_REVIEW" ||
+        t.status === "REVIEW_ACCEPTED" ||
+        t.status === "REJECTED" ||
         t.status === "REVISION_REQUIRED" ||
         t.status === "AWAITING_CLARIFICATION" ||
         t.status === "AGREEMENT_READY",
@@ -245,10 +256,14 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-3">
           {filteredTasks.map((task) => {
-            const isCompleted = task.status === "COMPLETED" || task.status === "PAYMENT_RELEASE";
+            const isCompleted = task.status === "COMPLETED";
             const isAttention =
               task.status === "CONTRACT_REVIEW" ||
               task.status === "HUMAN_REVIEW" ||
+              task.status === "AWAITING_CLIENT_REVIEW" ||
+              task.status === "AWAITING_EXTERNAL_REVIEW" ||
+              task.status === "REVIEW_ACCEPTED" ||
+              task.status === "REJECTED" ||
               task.status === "REVISION_REQUIRED" ||
               task.status === "AWAITING_CLARIFICATION" ||
               task.status === "AGREEMENT_READY";
@@ -267,22 +282,31 @@ export default function TasksPage() {
                     : task.status === "NEGOTIATION"
                       ? "Open the task to follow contact discussions"
                       : task.status === "PAYMENT_AUTHORIZATION"
-                        ? "Review payment simulation status"
+                        ? "Review payment authorization status"
                         : task.status === "WORK_IN_PROGRESS"
                           ? "Track the assigned work"
                           : task.status === "SUBMITTED" || task.status === "VERIFYING"
                             ? "Review delivery checks"
                             : task.status === "REVISION_REQUIRED"
                               ? "Review the requested revision"
-                              : task.status === "HUMAN_REVIEW"
-                                ? "Choose an independent reviewer"
-                                : task.status === "PAYMENT_RELEASE"
-                                  ? "Review completion status"
-                                  : task.status === "COMPLETED"
-                                    ? "Review completed task"
-                                    : task.status === "CANCELLED" || task.status === "EXPIRED"
-                                      ? "View task history"
-                                      : "Continue task setup";
+                              : task.status === "AWAITING_CLIENT_REVIEW"
+                                ? "Review submitted evidence and record your decision"
+                                : task.status === "AWAITING_EXTERNAL_REVIEW"
+                                  ? "Await the agreed independent review report"
+                                  : task.status === "REVIEW_ACCEPTED"
+                                    ? "Run the separate simulated release policy"
+                                    : task.status === "REJECTED"
+                                      ? "Choose revision, external review, or dispute handling"
+                                      : task.status === "HUMAN_REVIEW"
+                                        ? "Choose an independent reviewer"
+                                        : task.status === "PAYMENT_RELEASE"
+                                          ? "Check simulated release progress"
+                                          : task.status === "COMPLETED"
+                                            ? "Review completed task"
+                                            : task.status === "CANCELLED" ||
+                                                task.status === "EXPIRED"
+                                              ? "View task history"
+                                              : "Continue task setup";
 
             let statusBadge = "bg-blue-50 text-blue-700";
             let statusLabel = "In Execution";
@@ -316,11 +340,11 @@ export default function TasksPage() {
                 break;
               case "AGREEMENT_READY":
                 statusBadge = "bg-amber-50 text-amber-700";
-                statusLabel = "Terms ready for payment simulation";
+                statusLabel = "Terms ready for payment authorization";
                 break;
               case "PAYMENT_AUTHORIZATION":
                 statusBadge = "bg-amber-50 text-amber-700";
-                statusLabel = "Payment simulation pending";
+                statusLabel = "Payment authorization pending";
                 break;
               case "WORK_IN_PROGRESS":
                 statusBadge = "bg-blue-50 text-blue-700";
@@ -331,6 +355,22 @@ export default function TasksPage() {
                 statusBadge = "bg-purple-50 text-purple-700";
                 statusLabel = "Verifying Proof";
                 break;
+              case "AWAITING_CLIENT_REVIEW":
+                statusBadge = "bg-amber-100 text-amber-800";
+                statusLabel = "Buyer Review Required";
+                break;
+              case "AWAITING_EXTERNAL_REVIEW":
+                statusBadge = "bg-violet-100 text-violet-800";
+                statusLabel = "External Review Pending";
+                break;
+              case "REVIEW_ACCEPTED":
+                statusBadge = "bg-emerald-100 text-emerald-800";
+                statusLabel = "Buyer Accepted";
+                break;
+              case "REJECTED":
+                statusBadge = "bg-rose-100 text-rose-800";
+                statusLabel = "Delivery Rejected";
+                break;
               case "REVISION_REQUIRED":
                 statusBadge = "bg-rose-50 text-rose-700";
                 statusLabel = "Revision Requested";
@@ -340,6 +380,9 @@ export default function TasksPage() {
                 statusLabel = "Independent Review Needed";
                 break;
               case "PAYMENT_RELEASE":
+                statusBadge = "bg-blue-50 text-blue-700";
+                statusLabel = "Simulated Release";
+                break;
               case "COMPLETED":
                 statusBadge = "bg-emerald-50 text-emerald-700";
                 statusLabel = "Completed";

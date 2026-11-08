@@ -23,6 +23,10 @@ export const taskStatusEnum = pgEnum("task_status", [
   "WORK_IN_PROGRESS",
   "SUBMITTED",
   "VERIFYING",
+  "AWAITING_CLIENT_REVIEW",
+  "AWAITING_EXTERNAL_REVIEW",
+  "REVIEW_ACCEPTED",
+  "REJECTED",
   "REVISION_REQUIRED",
   "HUMAN_REVIEW",
   "PAYMENT_RELEASE",
@@ -179,6 +183,15 @@ export const submissionStatusEnum = pgEnum("submission_status", [
   "REVISION_REQUESTED",
   "ACCEPTED",
   "REJECTED",
+]);
+
+export const reviewPackageStatusEnum = pgEnum("review_package_status", [
+  "DRAFT",
+  "READY_FOR_REVIEW",
+  "CHANGES_REQUESTED",
+  "APPROVED",
+  "REJECTED",
+  "EXTERNAL_REVIEW_REQUESTED",
 ]);
 
 export const artifactTypeEnum = pgEnum("artifact_type", [

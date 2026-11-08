@@ -43,10 +43,10 @@ export async function GET(req: Request) {
         actorRoleTitle = "Platform reviewer";
       } else if (r.actorType === "AGENT") {
         actorRoleTitle = "Autonomous Agent";
-        actorName = "WorkPay Agent";
+        actorName = "Tenfo Agent";
       } else if (r.actorType === "SYSTEM" || r.actorType === "PAYPAL") {
         actorRoleTitle = "Platform Engine";
-        actorName = "WorkPay Platform";
+        actorName = "Tenfo Platform";
       }
 
       const { title, description } = describeEvent(r.type, r.payload, {

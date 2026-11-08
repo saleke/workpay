@@ -85,7 +85,7 @@ export function validateEmailForRegistration(email: string): { ok: boolean; mess
     return {
       ok: false,
       message:
-        "Disposable and temporary email addresses are not permitted on WorkPay. Please provide a verified corporate or personal domain email.",
+        "Disposable and temporary email addresses are not permitted on Tenfo. Please provide a verified corporate or personal domain email.",
     };
   }
   return { ok: true };

@@ -33,10 +33,10 @@ export async function GET(req: Request) {
     return jsonOk({
       status: isVerified ? "VERIFIED" : "UNVERIFIED",
       isVerified,
-      verifiedAt: isVerified ? user.idVerifiedAt?.toISOString() ?? null : null,
+      verifiedAt: isVerified ? (user.idVerifiedAt?.toISOString() ?? null) : null,
       provider: isVerified ? "Persona" : null,
       meaning:
-        "An approved Persona inquiry confirms only the outcome reported by Persona. It is not a WorkPay certification of identity attributes, qualifications, or work quality.",
+        "An approved Persona inquiry confirms only the outcome reported by Persona. It is not a Tenfo certification of identity attributes, qualifications, or work quality.",
     });
   } catch (err) {
     return jsonError(err);

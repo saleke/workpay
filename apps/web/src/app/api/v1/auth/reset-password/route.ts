@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, gt } from "drizzle-orm";
 import { getDb, jsonError } from "@/lib/server/api";
 import { hashPassword, logger } from "@workpay/shared/platform";
-import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
+import { sessions, users, verificationTokens } from "@workpay/shared/db/schema/identity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,11 +17,17 @@ export async function POST(req: NextRequest) {
     const newPassword = body.newPassword;
 
     if (!email || !tokenOrCode) {
-      return jsonError({ code: "VALIDATION_ERROR", message: "Email and reset code/token are required" }, 400);
+      return jsonError(
+        { code: "VALIDATION_ERROR", message: "Email and reset code/token are required" },
+        400,
+      );
     }
 
     if (!newPassword || newPassword.length < 8) {
-      return jsonError({ code: "VALIDATION_ERROR", message: "New password must be at least 8 characters" }, 400);
+      return jsonError(
+        { code: "VALIDATION_ERROR", message: "New password must be at least 8 characters" },
+        400,
+      );
     }
 
     const db = getDb();
@@ -44,7 +50,8 @@ export async function POST(req: NextRequest) {
       return jsonError(
         {
           code: "INVALID_RESET_CODE",
-          message: "The password reset code or link is invalid or has expired. Please request a new code.",
+          message:
+            "The password reset code or link is invalid or has expired. Please request a new code.",
         },
         400,
       );
@@ -52,16 +59,19 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = hashPassword(newPassword);
 
-    await db
-      .update(users)
-      .set({
-        passwordHash,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.email, email));
-
-    // Clear reset tokens
-    await db.delete(verificationTokens).where(eq(verificationTokens.identifier, identifier));
+    await db.transaction(async (tx) => {
+      const [updatedUser] = await tx
+        .update(users)
+        .set({
+          passwordHash,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.email, email))
+        .returning({ id: users.id });
+      if (!updatedUser) throw new Error("Password reset user no longer exists.");
+      await tx.delete(sessions).where(eq(sessions.userId, updatedUser.id));
+      await tx.delete(verificationTokens).where(eq(verificationTokens.identifier, identifier));
+    });
 
     logger.info({ email }, "user password reset successfully completed");
 

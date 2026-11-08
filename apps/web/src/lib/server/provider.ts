@@ -1,6 +1,11 @@
 import { desc, eq } from "drizzle-orm";
 import type { Database } from "@workpay/shared/db";
-import { workExecutions, workSubmissions, submissionArtifacts, providerAcceptances } from "@workpay/shared/db/schema/execution";
+import {
+  workExecutions,
+  workSubmissions,
+  submissionArtifacts,
+  providerAcceptances,
+} from "@workpay/shared/db/schema/execution";
 import { tasks, taskFiles } from "@workpay/shared/db/schema/tasks";
 import { contractRequirements, workContracts } from "@workpay/shared/db/schema/contracts";
 import { commercialAgreements } from "@workpay/shared/db/schema/negotiation";
@@ -39,10 +44,7 @@ export async function buildProviderWorkDto(
     .from(contractRequirements)
     .where(eq(contractRequirements.contractId, execution.contractId));
 
-  const filesRows = await db
-    .select()
-    .from(taskFiles)
-    .where(eq(taskFiles.taskId, execution.taskId));
+  const filesRows = await db.select().from(taskFiles).where(eq(taskFiles.taskId, execution.taskId));
 
   const [acceptance] = await db
     .select()
@@ -70,6 +72,9 @@ export async function buildProviderWorkDto(
       executionId: submission.executionId,
       version: submission.version,
       status: submission.status,
+      contractVersion: submission.contractVersion,
+      contractHash: submission.contractHash,
+      submissionHash: submission.submissionHash,
       note: submission.notes,
       artifacts: artifacts.map((art) => ({
         id: art.id,
@@ -85,8 +90,12 @@ export async function buildProviderWorkDto(
     };
   }
 
-  const payMinor = agreement ? agreement.agreedPriceMinor : contract?.budgetMinor ?? task.budgetMinor;
-  const payCurrency = (agreement ? agreement.currency : contract?.currency ?? task.currency) as "USD";
+  const payMinor = agreement
+    ? agreement.agreedPriceMinor
+    : (contract?.budgetMinor ?? task.budgetMinor);
+  const payCurrency = (
+    agreement ? agreement.currency : (contract?.currency ?? task.currency)
+  ) as "USD";
 
   return {
     executionId: execution.id,
@@ -111,10 +120,7 @@ export async function buildProviderWorkDto(
       sizeBytes: f.sizeBytes,
     })),
     latestSubmission: latestSubmissionDto,
-    revisionReason:
-      execution.status === "REVISION_REQUESTED"
-        ? submission?.notes ?? "Verification identified duplicates exceeding contract tolerance."
-        : null,
+    revisionReason: execution.status === "REVISION_REQUESTED" ? execution.revisionReason : null,
     acceptedAt: acceptance?.createdAt?.toISOString() ?? null,
     startedAt: execution.startedAt?.toISOString() ?? null,
   };

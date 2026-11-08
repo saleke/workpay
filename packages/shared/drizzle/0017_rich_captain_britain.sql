@@ -1,0 +1,2 @@
+ALTER TABLE "review_packages" ADD CONSTRAINT "review_packages_reviewed_by_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "review_packages" ADD CONSTRAINT "review_packages_version_positive" CHECK ("review_packages"."version" > 0);

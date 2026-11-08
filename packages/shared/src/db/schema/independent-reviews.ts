@@ -56,9 +56,7 @@ export const independentReviewEngagements = pgTable(
     buyerAcceptedAt: timestamp("buyer_accepted_at", { withTimezone: true }),
     providerAcceptedAt: timestamp("provider_accepted_at", { withTimezone: true }),
     reviewerAcceptedAt: timestamp("reviewer_accepted_at", { withTimezone: true }),
-    reviewerConflictConfirmed: boolean("reviewer_conflict_confirmed")
-      .notNull()
-      .default(false),
+    reviewerConflictConfirmed: boolean("reviewer_conflict_confirmed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -85,7 +83,7 @@ export const independentReviewEngagements = pgTable(
     ),
     authorityCheck: check(
       "independent_review_engagements_authority_check",
-      sql`${t.authority} = 'CONTRACTUAL_ACCEPTANCE'`,
+      sql`${t.authority} = 'ADVISORY'`,
     ),
     payerCheck: check(
       "independent_review_engagements_payer_check",
@@ -122,14 +120,16 @@ export const independentReviewReports = pgTable(
       .references(() => users.id, { onDelete: "restrict" }),
     outcome: verificationOutcomeEnum("outcome").notNull(),
     rationale: text("rationale").notNull(),
-    findings: jsonb("findings").$type<
-      Array<{
-        requirementKey: string;
-        outcome: "PASS" | "FAIL" | "UNCERTAIN";
-        rationale: string;
-        evidence: Array<{ description: string; url?: string }>;
-      }>
-    >().notNull(),
+    findings: jsonb("findings")
+      .$type<
+        Array<{
+          requirementKey: string;
+          outcome: "PASS" | "FAIL" | "UNCERTAIN";
+          rationale: string;
+          evidence: Array<{ description: string; url?: string }>;
+        }>
+      >()
+      .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -164,16 +164,13 @@ export const independentReviewEngagementsRelations = relations(
   }),
 );
 
-export const independentReviewReportsRelations = relations(
-  independentReviewReports,
-  ({ one }) => ({
-    engagement: one(independentReviewEngagements, {
-      fields: [independentReviewReports.engagementId],
-      references: [independentReviewEngagements.id],
-    }),
-    submission: one(workSubmissions, {
-      fields: [independentReviewReports.submissionId],
-      references: [workSubmissions.id],
-    }),
+export const independentReviewReportsRelations = relations(independentReviewReports, ({ one }) => ({
+  engagement: one(independentReviewEngagements, {
+    fields: [independentReviewReports.engagementId],
+    references: [independentReviewEngagements.id],
   }),
-);
+  submission: one(workSubmissions, {
+    fields: [independentReviewReports.submissionId],
+    references: [workSubmissions.id],
+  }),
+}));

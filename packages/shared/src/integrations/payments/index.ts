@@ -5,7 +5,6 @@
 import { AppError } from "../../platform/errors.js";
 import { getEnv } from "../../platform/env.js";
 import { FakePayPal } from "./fake.js";
-import { SandboxPayPal } from "./paypal.js";
 import type { PaymentGateway } from "./types.js";
 
 let cached: PaymentGateway | null = null;
@@ -17,19 +16,10 @@ export function getPaymentGateway(): PaymentGateway {
     cached = new FakePayPal();
     return cached;
   }
-  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET || !env.PAYPAL_WEBHOOK_ID) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      "PayPal credentials are required when PAYMENT_GATEWAY=paypal",
-    );
-  }
-  cached = new SandboxPayPal({
-    clientId: env.PAYPAL_CLIENT_ID,
-    clientSecret: env.PAYPAL_CLIENT_SECRET,
-    webhookId: env.PAYPAL_WEBHOOK_ID,
-    env: env.PAYPAL_ENV,
-  });
-  return cached;
+  throw new AppError(
+    "POLICY_DENIED",
+    "Live PayPal is disabled while the user-led lifecycle is being validated.",
+  );
 }
 
 /** Test helper: inject a specific gateway. */
@@ -37,20 +27,10 @@ export function setPaymentGateway(gateway: PaymentGateway | null): void {
   cached = gateway;
 }
 
-export function getPayPalOAuthClient(): SandboxPayPal | null {
-  const env = getEnv();
-  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) {
-    return null;
-  }
-  return new SandboxPayPal({
-    clientId: env.PAYPAL_CLIENT_ID,
-    clientSecret: env.PAYPAL_CLIENT_SECRET,
-    webhookId: env.PAYPAL_WEBHOOK_ID ?? "noop-webhook-id",
-    env: env.PAYPAL_ENV,
-  });
+export function getPayPalOAuthClient(): null {
+  return null;
 }
 
 export * from "./types.js";
 export { FakePayPal } from "./fake.js";
 export { SandboxPayPal, type PayPalUserInfo } from "./paypal.js";
-

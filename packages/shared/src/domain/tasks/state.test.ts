@@ -13,26 +13,34 @@ describe("task state machine", () => {
     expect(canTransition("PAYMENT_AUTHORIZATION", "WORK_IN_PROGRESS")).toBe(true);
     expect(canTransition("WORK_IN_PROGRESS", "SUBMITTED")).toBe(true);
     expect(canTransition("SUBMITTED", "VERIFYING")).toBe(true);
-    expect(canTransition("VERIFYING", "PAYMENT_RELEASE")).toBe(true);
+    expect(canTransition("VERIFYING", "AWAITING_CLIENT_REVIEW")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "REVIEW_ACCEPTED")).toBe(true);
+    expect(canTransition("REVIEW_ACCEPTED", "PAYMENT_RELEASE")).toBe(true);
     expect(canTransition("PAYMENT_RELEASE", "COMPLETED")).toBe(true);
   });
 
   it("allows the revision loop and the human-review branch", () => {
-    expect(canTransition("VERIFYING", "REVISION_REQUIRED")).toBe(true);
+    expect(canTransition("VERIFYING", "REVISION_REQUIRED")).toBe(false);
+    expect(canTransition("VERIFYING", "AWAITING_CLIENT_REVIEW")).toBe(true);
+    expect(canTransition("AWAITING_CLIENT_REVIEW", "REVISION_REQUIRED")).toBe(true);
     expect(canTransition("REVISION_REQUIRED", "WORK_IN_PROGRESS")).toBe(true);
-    expect(canTransition("VERIFYING", "HUMAN_REVIEW")).toBe(true);
-    expect(canTransition("HUMAN_REVIEW", "PAYMENT_RELEASE")).toBe(true);
+    expect(canTransition("VERIFYING", "HUMAN_REVIEW")).toBe(false);
+    expect(canTransition("HUMAN_REVIEW", "AWAITING_CLIENT_REVIEW")).toBe(true);
+    expect(canTransition("HUMAN_REVIEW", "PAYMENT_RELEASE")).toBe(false);
     expect(canTransition("HUMAN_REVIEW", "REVISION_REQUIRED")).toBe(true);
   });
 
   it("separates evidence submission, human review, and payment release", () => {
     expect(canTransition("SUBMITTED", "AWAITING_CLIENT_REVIEW")).toBe(true);
-    expect(canTransition("SUBMITTED", "AWAITING_EXTERNAL_REVIEW")).toBe(true);
+    expect(canTransition("SUBMITTED", "AWAITING_EXTERNAL_REVIEW")).toBe(false);
     expect(canTransition("AWAITING_CLIENT_REVIEW", "REVIEW_ACCEPTED")).toBe(true);
     expect(canTransition("AWAITING_CLIENT_REVIEW", "REJECTED")).toBe(true);
     expect(canTransition("AWAITING_CLIENT_REVIEW", "REVISION_REQUIRED")).toBe(true);
     expect(canTransition("AWAITING_CLIENT_REVIEW", "PAYMENT_RELEASE")).toBe(false);
     expect(canTransition("REVIEW_ACCEPTED", "PAYMENT_RELEASE")).toBe(true);
+    expect(canTransition("AWAITING_EXTERNAL_REVIEW", "AWAITING_CLIENT_REVIEW")).toBe(true);
+    expect(canTransition("AWAITING_EXTERNAL_REVIEW", "REVIEW_ACCEPTED")).toBe(false);
+    expect(canTransition("DISPUTED", "PAYMENT_RELEASE")).toBe(false);
     expect(canTransition("PAYMENT_RELEASE", "COMPLETED")).toBe(true);
     expect(canTransition("AWAITING_CLIENT_REVIEW", "COMPLETED")).toBe(false);
   });

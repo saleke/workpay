@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDisposableEmail,
   isPersonaIdentityVerified,
+  normalizeUsernameInput,
   validateEmailForRegistration,
   validateUsername,
 } from "./verification.js";
@@ -31,7 +32,9 @@ describe("Identity and verification domain rules", () => {
 
       const disposableResult = validateEmailForRegistration("evaluator@mailinator.com");
       expect(disposableResult.ok).toBe(false);
-      expect(disposableResult.message).toContain("Disposable and temporary email addresses are not permitted");
+      expect(disposableResult.message).toContain(
+        "Disposable and temporary email addresses are not permitted",
+      );
 
       const validResult = validateEmailForRegistration("sarah.dev@company.org");
       expect(validResult.ok).toBe(true);
@@ -40,6 +43,16 @@ describe("Identity and verification domain rules", () => {
   });
 
   describe("Username Handle Enforcement", () => {
+    it("normalizes explicit username entries without auto-deriving a handle from the name", () => {
+      const normalized = normalizeUsernameInput(" @Alice_Dev ");
+      expect(normalized.ok).toBe(true);
+      expect(normalized.value).toBe("alice_dev");
+
+      const blank = normalizeUsernameInput("   ");
+      expect(blank.ok).toBe(false);
+      expect(blank.message).toContain("Username is required");
+    });
+
     it("validates valid platform username handles", () => {
       expect(validateUsername("aleke").ok).toBe(true);
       expect(validateUsername("sarah_dev").ok).toBe(true);

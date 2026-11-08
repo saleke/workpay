@@ -62,7 +62,7 @@ export default function ActivityPage() {
     <PageHeader
       eyebrow="Records"
       title="Activity"
-      description="A chronological view of recorded updates for your tasks and collaborations. Simulated workflow events do not indicate that money moved."
+      description="A chronological view of recorded updates for your tasks and collaborations. Each event reflects the actual authorization, review, and release state in the configured payment flow."
     />
   );
 

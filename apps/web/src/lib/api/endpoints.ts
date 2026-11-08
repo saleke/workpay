@@ -17,6 +17,8 @@ import type {
   ProviderWorkDto,
   ReviewerProfileDto,
   ReviewerProfileInputDto,
+  ReviewPackageDecision,
+  ReviewPackageDto,
   TaskReviewerRecommendationsDto,
   SubmissionDto,
   TaskAuditStatusDto,
@@ -118,9 +120,39 @@ export function simulatePaymentAuthorization(
   });
 }
 
+export function releaseTaskPayment(
+  taskId: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<{ paymentId: string; status: string; captured: boolean }>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/payment/release`, {
+    method: "POST",
+    idempotencyKey,
+  });
+}
+
 /** B's endpoints (ENGINEERING_PLAN Appendix C). */
 export function getTaskRoom(taskId: string): Promise<ApiResponse<TaskRoomDto>> {
   return apiFetch<TaskRoomDto>(`${BASE}/tasks/${taskId}/task-room`);
+}
+
+export function submitReviewPackageDecision(
+  taskId: string,
+  input: {
+    packageId: string;
+    decision: ReviewPackageDecision;
+    reason: string;
+    expectedContractVersion: number;
+    expectedContractHash: string;
+    expectedSubmissionVersion: number;
+    expectedSubmissionHash: string;
+  },
+  idempotencyKey: string,
+): Promise<ApiResponse<ReviewPackageDto>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/review-package`, {
+    method: "POST",
+    body: input,
+    idempotencyKey,
+  });
 }
 
 export function getTaskConversations(taskId: string): Promise<ApiResponse<TaskConversationDto[]>> {
@@ -404,7 +436,7 @@ export function markNotificationRead(body: {
   return apiFetch<{ ok: boolean }>(`${BASE}/notifications`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body,
   });
 }
 

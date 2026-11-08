@@ -1,15 +1,14 @@
 /**
  * Verification service (Component 8).
  *
- * Runs the deterministic checks for a submission's contract and freezes an
- * AcceptanceDecision. The rules of the game:
+ * Runs checks for a submission's contract and persists advisory evidence. The
+ * rules of the game:
  *
  *  - A failed deterministic check forces the whole outcome to FAIL. A semantic
  *    or human rule can never overturn it.
  *  - Uncertainty escalates to human review; it never authorizes payment.
- *  - The decision is bound to the contract version and hash. Payment capture
- *    reads the latest decision and refuses anything that is not PASS on the
- *    current hash.
+ *  - Verification never records acceptance or authorizes payment. A separate
+ *    buyer review is bound to the exact submission and contract.
  *
  * Reading the submission from object storage is I/O, so it happens outside any
  * transaction; the results are written in one transaction afterwards.
@@ -19,9 +18,9 @@ import type { Database } from "../../db/client.js";
 import { withTransaction } from "../../db/client.js";
 import { acceptanceRules as acceptanceRulesTable } from "../../db/schema/contracts.js";
 import {
+  acceptanceDecisions,
   verificationResults,
   verificationRuns,
-  acceptanceDecisions,
   evidence,
 } from "../../db/schema/verification.js";
 import { workSubmissions, submissionArtifacts, workExecutions } from "../../db/schema/execution.js";
@@ -266,7 +265,6 @@ export async function evaluateRules(
 
 export interface VerificationOutcome {
   verificationRunId: string;
-  acceptanceDecisionId: string;
   outcome: "PASS" | "FAIL" | "UNCERTAIN";
   results: RuleOutcome[];
 }
@@ -297,8 +295,8 @@ export function aggregateVerificationOutcome(
 }
 
 /**
- * Execute a verification run end to end and freeze the acceptance decision.
- * The caller transitions the task based on the returned outcome.
+ * Execute a verification run end to end and freeze its evidence. The caller
+ * moves the task to explicit buyer review regardless of the machine outcome.
  */
 export async function executeVerification(options: {
   verificationRunId: string;
@@ -358,25 +356,6 @@ export async function executeVerification(options: {
       })
       .where(eq(verificationRuns.id, run.id));
 
-    const acceptanceDecisionId = newId("adec");
-    await tx.insert(acceptanceDecisions).values({
-      id: acceptanceDecisionId,
-      taskId: run.taskId,
-      submissionId: run.submissionId,
-      verificationRunId: run.id,
-      contractId: run.contractId,
-      contractVersion: run.contractVersion,
-      contractHash: run.contractHash,
-      outcome,
-      hasDeterministicFailure: failed.some((f) => f.method === "DETERMINISTIC"),
-      explanation:
-        outcome === "PASS"
-          ? "All acceptance requirements passed."
-          : outcome === "FAIL"
-            ? `Failed requirement(s): ${failed.map((f) => f.requirementKey).join(", ")}`
-            : `Needs human review: ${uncertain.map((u) => u.requirementKey).join(", ")}`,
-    });
-
     if (outcome === "PASS") {
       await appendEvent(tx, {
         type: "VERIFICATION_PASSED",
@@ -387,7 +366,6 @@ export async function executeVerification(options: {
         payload: {
           taskId: run.taskId,
           verificationRunId: run.id,
-          acceptanceDecisionId,
           submissionId: run.submissionId,
           contractId: run.contractId,
           contractVersion: run.contractVersion,
@@ -406,7 +384,6 @@ export async function executeVerification(options: {
         payload: {
           taskId: run.taskId,
           verificationRunId: run.id,
-          acceptanceDecisionId,
           submissionId: run.submissionId,
           contractId: run.contractId,
           contractVersion: run.contractVersion,
@@ -423,14 +400,13 @@ export async function executeVerification(options: {
         payload: {
           taskId: run.taskId,
           verificationRunId: run.id,
-          acceptanceDecisionId,
           submissionId: run.submissionId,
           uncertainRequirements: uncertain.map((u) => u.requirementKey),
         },
       });
     }
 
-    return { verificationRunId: run.id, acceptanceDecisionId, outcome, results };
+    return { verificationRunId: run.id, outcome, results };
   });
 }
 

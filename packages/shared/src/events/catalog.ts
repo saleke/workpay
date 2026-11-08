@@ -403,20 +403,26 @@ export const eventCatalog = {
     version: 1,
     aggregateType: "PAYMENT",
     visibility: "USER",
-    description: "Requesting payment authorization",
-    payload: z.object({ taskId: z.string(), paymentId: z.string(), amount: money }),
+    description: "Requesting simulated payment authorization",
+    payload: z.object({
+      taskId: z.string(),
+      paymentId: z.string(),
+      amount: money,
+      simulated: z.literal(true),
+    }),
   },
   PAYMENT_AUTHORIZED: {
     type: "PAYMENT_AUTHORIZED",
     version: 1,
     aggregateType: "PAYMENT",
     visibility: "USER",
-    description: "Payment authorized through PayPal",
+    description: "Simulated payment authorization recorded",
     payload: z.object({
       taskId: z.string(),
       paymentId: z.string(),
       amount: money,
       paypalAuthorizationId: z.string().nullable(),
+      simulated: z.literal(true),
     }),
   },
   PAYMENT_AUTHORIZATION_FAILED: {
@@ -461,12 +467,13 @@ export const eventCatalog = {
     version: 1,
     aggregateType: "PAYMENT",
     visibility: "USER",
-    description: "Payment released",
+    description: "Simulated capture recorded",
     payload: z.object({
       taskId: z.string(),
       paymentId: z.string(),
       amount: money,
       paypalCaptureId: z.string().nullable(),
+      simulated: z.literal(true),
     }),
   },
   PAYMENT_CAPTURE_FAILED: {
@@ -544,6 +551,27 @@ export const eventCatalog = {
       reason: z.string(),
     }),
   },
+  BUYER_REVIEW_DECISION_RECORDED: {
+    type: "BUYER_REVIEW_DECISION_RECORDED",
+    version: 1,
+    aggregateType: "SUBMISSION",
+    visibility: "USER",
+    description: "Buyer review decision recorded",
+    payload: z.object({
+      taskId: z.string(),
+      reviewPackageId: z.string(),
+      submissionId: z.string(),
+      submissionVersion: z.number().int().positive(),
+      submissionHash: z.string().length(64),
+      contractId: z.string(),
+      contractVersion: z.number().int().positive(),
+      contractHash: z.string().length(64),
+      buyerUserId: z.string(),
+      providerUserId: z.string().nullable(),
+      decision: z.enum(["APPROVED", "REJECTED", "CHANGES_REQUESTED", "EXTERNAL_REVIEW_REQUESTED"]),
+      reason: z.string(),
+    }),
+  },
 
   // ── Verification ───────────────────────────────────────────────────────────
   VERIFICATION_STARTED: {
@@ -568,7 +596,6 @@ export const eventCatalog = {
     payload: z.object({
       taskId: z.string(),
       verificationRunId: z.string(),
-      acceptanceDecisionId: z.string(),
       submissionId: z.string(),
       contractId: z.string(),
       contractVersion: z.number().int(),
@@ -586,7 +613,6 @@ export const eventCatalog = {
     payload: z.object({
       taskId: z.string(),
       verificationRunId: z.string(),
-      acceptanceDecisionId: z.string(),
       submissionId: z.string(),
       contractId: z.string(),
       contractVersion: z.number().int(),
@@ -602,7 +628,6 @@ export const eventCatalog = {
     payload: z.object({
       taskId: z.string(),
       verificationRunId: z.string(),
-      acceptanceDecisionId: z.string(),
       submissionId: z.string(),
       uncertainRequirements: z.array(z.string()),
     }),
@@ -674,7 +699,10 @@ export const eventCatalog = {
       reportId: z.string(),
       submissionId: z.string(),
       contractVersion: z.number().int(),
+      contractHash: z.string().length(64),
+      reviewerUserId: z.string(),
       outcome: z.enum(["PASS", "FAIL", "UNCERTAIN"]),
+      advisory: z.literal(true),
     }),
   },
 

@@ -6,16 +6,14 @@ import { getDb, jsonError } from "@/lib/server/api";
 import { users, verificationTokens } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
 import { hashPassword, newId, logger } from "@workpay/shared/platform";
-import {
-  isEmailDeliveryConfigured,
-  sendVerificationEmail,
-} from "@workpay/shared/integrations";
+import { isEmailDeliveryConfigured, sendVerificationEmail } from "@workpay/shared/integrations";
 import { createSession, setSessionCookie } from "@/lib/server/session";
-import { validateEmailForRegistration, validateUsername } from "@/lib/server/disposable-emails";
+import { validateEmailForRegistration } from "@/lib/server/disposable-emails";
+import { normalizeUsernameInput } from "@workpay/shared/domain";
 
 const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
-  username: z.string().trim().optional(),
+  username: z.string().trim().min(1, "Username is required").max(100),
   email: z.string().trim().toLowerCase().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["buyer", "provider"]).default("buyer"),
@@ -24,7 +22,14 @@ const registerSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const parsed = registerSchema.parse(body);
+    const result = registerSchema.safeParse(body);
+    if (!result.success) {
+      return jsonError(
+        { code: "VALIDATION_ERROR", message: "Check the registration details and try again." },
+        400,
+      );
+    }
+    const parsed = result.data;
     const db = getDb();
 
     // Step 1: Validate email against disposable/burner domain blacklist
@@ -33,25 +38,15 @@ export async function POST(req: Request) {
       return jsonError({ code: "VALIDATION_ERROR", message: emailValidation.message }, 400);
     }
 
-    // Determine and validate platform username
-    const emailPrefix = parsed.email.split("@")[0] ?? "user";
-    let normalizedUsername = (parsed.username || "").trim().toLowerCase().replace(/^@+/, "");
-    if (!normalizedUsername) {
-      // Derive candidate handle from name or email prefix
-      normalizedUsername = (parsed.name || emailPrefix)
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, "_")
-        .replace(/_+/g, "_")
-        .slice(0, 24);
-      if (normalizedUsername.length < 3) {
-        normalizedUsername = `user_${newId("user").slice(0, 8)}`;
-      }
+    // Require an explicit username handle from the user, rather than deriving one from the name.
+    const usernameResult = normalizeUsernameInput(parsed.username);
+    if (!usernameResult.ok || !usernameResult.value) {
+      return jsonError(
+        { code: "VALIDATION_ERROR", message: usernameResult.message || "Username is required." },
+        400,
+      );
     }
-
-    const usernameValidation = validateUsername(normalizedUsername);
-    if (!usernameValidation.ok) {
-      return jsonError({ code: "VALIDATION_ERROR", message: usernameValidation.message }, 400);
-    }
+    const normalizedUsername = usernameResult.value;
 
     // Check if email already registered
     const [existingEmail] = await db
@@ -99,17 +94,20 @@ export async function POST(req: Request) {
     // Automatically provision specialist capabilities so every account
     // can both commission work and fulfill assignments in Work Studio.
     const providerId = newId("provider");
-    await db.insert(providers).values({
-      id: providerId,
-      userId,
-      displayName: parsed.name,
-      type: "HUMAN",
-      status: "ACTIVE",
-      bio: null,
-      hourlyRateMinor: 5000,
-      currency: "USD",
-      payoutEmail: parsed.email,
-    }).onConflictDoNothing();
+    await db
+      .insert(providers)
+      .values({
+        id: providerId,
+        userId,
+        displayName: parsed.name,
+        type: "HUMAN",
+        status: "ACTIVE",
+        bio: null,
+        hourlyRateMinor: 5000,
+        currency: "USD",
+        payoutEmail: null,
+      })
+      .onConflictDoNothing();
 
     const requiresEmailVerification = isEmailDeliveryConfigured();
     if (requiresEmailVerification) {

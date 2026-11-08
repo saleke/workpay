@@ -5,7 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, KeyRound, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -58,7 +65,9 @@ function ResetPasswordContent() {
 
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error?.message || "Password reset failed. Please check your reset token or code.");
+        setError(
+          json.error?.message || "Password reset failed. Please check your reset token or code.",
+        );
         setLoading(false);
         return;
       }
@@ -89,7 +98,7 @@ function ResetPasswordContent() {
           Choose a New Password
         </CardTitle>
         <CardDescription className="text-xs">
-          Enter your recovery token or 6-digit code to securely update your WorkPay credentials.
+          Enter your recovery token or 6-digit code to securely update your Tenfo credentials.
         </CardDescription>
       </CardHeader>
 
@@ -109,7 +118,9 @@ function ResetPasswordContent() {
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Account Email</Label>
+            <Label htmlFor="email" className="text-xs">
+              Account Email
+            </Label>
             <div className="relative">
               <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -125,7 +136,9 @@ function ResetPasswordContent() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="tokenOrCode" className="text-xs">Reset Token or 6-Digit Code</Label>
+            <Label htmlFor="tokenOrCode" className="text-xs">
+              Reset Token or 6-Digit Code
+            </Label>
             <div className="relative">
               <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -140,7 +153,9 @@ function ResetPasswordContent() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="newPassword" className="text-xs">New Password</Label>
+            <Label htmlFor="newPassword" className="text-xs">
+              New Password
+            </Label>
             <div className="relative">
               <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -156,7 +171,9 @@ function ResetPasswordContent() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword" className="text-xs">Confirm New Password</Label>
+            <Label htmlFor="confirmPassword" className="text-xs">
+              Confirm New Password
+            </Label>
             <div className="relative">
               <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -189,7 +206,13 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Loading recovery portal...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-xs text-muted-foreground">
+          Loading recovery portal...
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );

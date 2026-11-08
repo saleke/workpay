@@ -63,7 +63,8 @@ const PERSONAS: PersonaConfig[] = [
     roleTitle: "Task Owner",
     badge: "Task Owner",
     badgeColor: "text-[var(--room-text-strong)]",
-    description: "Posts tasks, reviews requirements, approves contracts, and authorizes PayPal payments.",
+    description:
+      "Posts tasks, reviews requirements, approves contracts, and exercises simulated payment policy.",
     homeUrl: "/tasks",
     icon: User,
   },
@@ -73,7 +74,7 @@ const PERSONAS: PersonaConfig[] = [
     roleTitle: "Specialist",
     badge: "Specialist",
     badgeColor: "text-[var(--room-text-strong)]",
-    description: "Receives matched contracts, submits deliverables, and receives PayPal settlements.",
+    description: "Accepts agreed assignments, submits deliverables, and responds to buyer review.",
     homeUrl: "/provider",
     icon: Briefcase,
   },
@@ -83,7 +84,8 @@ const PERSONAS: PersonaConfig[] = [
     roleTitle: "Reviewer",
     badge: "Reviewer",
     badgeColor: "text-[var(--room-text-strong)]",
-    description: "Inspects unclear verifications, examines evidence diffs, and rules on payment release.",
+    description:
+      "Provides optional, attributable review evidence without deciding buyer acceptance or payment.",
     homeUrl: "/review",
     icon: Scale,
   },
@@ -179,11 +181,7 @@ export function PersonaSwitcher() {
   };
 
   if (!mounted) {
-    return (
-      <div className="text-[var(--text-small)] text-[var(--room-muted)]">
-        Alice
-      </div>
-    );
+    return <div className="text-[var(--text-small)] text-[var(--room-muted)]">Alice</div>;
   }
 
   const current: PersonaConfig = PERSONAS.find((p) => p.key === activePersona) ?? PERSONAS[0]!;
@@ -198,7 +196,11 @@ export function PersonaSwitcher() {
               className="flex items-center gap-2 text-xs font-medium text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)] transition-all duration-150 px-2.5 py-1.5 rounded-lg border border-[var(--wp-border)] bg-white/90 hover:bg-[var(--wp-surface-subtle)] hover:border-[var(--wp-border-strong)] shadow-xs active:scale-[0.98] cursor-pointer"
             >
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--wp-surface-subtle)] text-[10px] font-bold text-[var(--wp-text-primary)] border border-[var(--wp-border)]">
-                {authUser ? (authUser.name ? authUser.name[0]?.toUpperCase() : "U") : current.name[0]}
+                {authUser
+                  ? authUser.name
+                    ? authUser.name[0]?.toUpperCase()
+                    : "U"
+                  : current.name[0]}
               </span>
               <span className="text-[var(--wp-text-primary)] font-medium">
                 {authUser ? authUser.name || authUser.email.split("@")[0] : current.name}
@@ -216,8 +218,12 @@ export function PersonaSwitcher() {
             {authUser ? (
               <>
                 <DropdownMenuLabel className="flex flex-col px-2.5 py-1.5 text-xs text-muted-foreground font-normal">
-                  <span className="font-semibold text-[var(--wp-text-primary)] text-sm">{authUser.name || "My Account"}</span>
-                  <span className="text-[11px] text-[var(--wp-text-secondary)] font-mono">{authUser.email}</span>
+                  <span className="font-semibold text-[var(--wp-text-primary)] text-sm">
+                    {authUser.name || "My Account"}
+                  </span>
+                  <span className="text-[11px] text-[var(--wp-text-secondary)] font-mono">
+                    {authUser.email}
+                  </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1.5 bg-[var(--wp-border)]" />
                 <DropdownMenuItem
@@ -232,8 +238,12 @@ export function PersonaSwitcher() {
             ) : null}
 
             <DropdownMenuLabel className="flex items-center justify-between px-2.5 py-1 text-xs text-muted-foreground font-medium">
-              <span className="text-[11px] uppercase tracking-wider font-semibold">Demo Actor Perspectives</span>
-              <span className="text-[10px] text-muted-foreground font-mono font-normal">1-Click Switch</span>
+              <span className="text-[11px] uppercase tracking-wider font-semibold">
+                Demo Actor Perspectives
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono font-normal">
+                1-Click Switch
+              </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="my-1 bg-[var(--wp-border)]" />
 
@@ -355,38 +365,54 @@ export function PersonaSwitcher() {
               Tenfo validation journey
             </DialogTitle>
             <DialogDescription className="text-xs">
-              A user-led flow with explicit consent at every consequential step. Payments are simulated.
+              A user-led flow with explicit consent at every consequential step. Payments follow the
+              configured gateway and release gate, not a blanket trust shortcut.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 pt-2 text-xs">
             <div className="rounded-xl border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <h4 className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 mb-1">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">1</span>
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">
+                  1
+                </span>
                 Alice: define the task and choose who to contact
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Start with <strong>New Task</strong>. Confirm Tenfo's interpretation, answer only material questions, approve the exact brief and terms, then review available professional profiles. Nobody is selected or contacted until Alice approves the recipient and exact first message.
+                Start with <strong>New Task</strong>. Confirm Tenfo's interpretation, answer only
+                material questions, approve the exact brief and terms, then review available
+                professional profiles. Nobody is selected or contacted until Alice approves the
+                recipient and exact first message.
               </p>
             </div>
 
             <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
               <h4 className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 mb-1">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">2</span>
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">
+                  2
+                </span>
                 Bob: accept contact and agree terms
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Switch to <strong>Bob (Professional)</strong> and open <strong>Work Studio</strong>. Bob may decline the contact request, ask questions, or agree structured commercial changes. Only after both parties agree and Alice starts the policy simulation does an assignment appear for Bob to accept and start.
+                Switch to <strong>Bob (Professional)</strong> and open <strong>Work Studio</strong>.
+                Bob may decline the contact request, ask questions, or agree structured commercial
+                changes. Only after both parties agree and Alice authorizes the payment path does an
+                assignment appear for Bob to accept and start.
               </p>
             </div>
 
             <div className="rounded-xl border border-purple-200/70 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
               <h4 className="font-semibold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 mb-1">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">3</span>
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">
+                  3
+                </span>
                 Evidence and independent review
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Objective checks evaluate only the properties they can prove. Subjective criteria remain uncertain unless the parties appoint an independent reviewer and agree the exact review plan. Payment authorization and capture states are simulated; no funds move.
+                Objective checks evaluate only the properties they can prove. Subjective criteria
+                remain uncertain unless the parties appoint an independent reviewer and agree the
+                exact review plan. Payment authorization and capture remain under the approval gate
+                and cannot release funds without the correct review state.
               </p>
             </div>
 

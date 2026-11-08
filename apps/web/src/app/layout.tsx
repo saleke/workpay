@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -17,13 +17,27 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tenfo",
-  description: "Clearer work, faster matches, and trusted collaboration.",
+  applicationName: "Tenfo",
+  title: {
+    default: "Tenfo",
+    template: "%s | Tenfo",
+  },
+  description: "Clear agreements for accountable professional work.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
-    apple: "/icon.svg",
+    apple: "/apple-touch-icon.png",
   },
+  openGraph: {
+    type: "website",
+    siteName: "Tenfo",
+    title: "Tenfo",
+    description: "Clear agreements for accountable professional work.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#174B35",
 };
 
 export default function RootLayout({

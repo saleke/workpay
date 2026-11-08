@@ -11,7 +11,13 @@ import { taskConversations } from "../../db/schema/conversations.js";
 import { events, outboxEvents } from "../../db/schema/infra.js";
 import { reviewerConflicts, reviewerProfiles } from "../../db/schema/reviewers.js";
 import { providers } from "../../db/schema/providers.js";
-import { hasTestDatabase, resetDatabase, closeTestDb, createProvider, createUser } from "../../testing/index.js";
+import {
+  hasTestDatabase,
+  resetDatabase,
+  closeTestDb,
+  createProvider,
+  createUser,
+} from "../../testing/index.js";
 import { newCorrelationId, newId } from "../../platform/ids.js";
 import { money } from "../../platform/money.js";
 import type { Actor } from "../identity/authorize.js";
@@ -46,7 +52,10 @@ describeDb("independent review engagement (integration)", () => {
     const providerUser = await createUser(db, { role: "provider", name: "Professional" });
     const reviewerUser = await createUser(db, { role: "admin_reviewer", name: "Reviewer" });
     const provider = await createProvider(db);
-    await db.update(providers).set({ userId: providerUser.id }).where(eq(providers.id, provider.id));
+    await db
+      .update(providers)
+      .set({ userId: providerUser.id })
+      .where(eq(providers.id, provider.id));
 
     const buyer: Actor = { kind: "USER", id: buyerUser.id, role: "buyer" };
     const professional: Actor = { kind: "USER", id: providerUser.id, role: "provider" };
@@ -142,6 +151,8 @@ describeDb("independent review engagement (integration)", () => {
         displayName: "Independent reviewer",
         isListed: true,
         available: true,
+        offersReview: true,
+        reviewAvailability: "AVAILABLE",
         summary: "Independent review of analytical work.",
         conflictDisclosureConfirmed: true,
       })
@@ -296,18 +307,13 @@ describeDb("independent review engagement (integration)", () => {
       ),
     ).rejects.toThrow("An accepted review cannot be withdrawn");
 
-    const reviewEvents = await db
-      .select()
-      .from(events)
-      .where(eq(events.aggregateId, proposal.id));
+    const reviewEvents = await db.select().from(events).where(eq(events.aggregateId, proposal.id));
     const acceptedEvents = reviewEvents.filter(
       (event) => event.type === "INDEPENDENT_REVIEW_PARTY_ACCEPTED",
     );
     expect(acceptedEvents).toHaveLength(1);
     const reviewEventIds = reviewEvents.map((event) => event.id);
-    const matchingOutbox = reviewEventIds.length
-      ? await db.select().from(outboxEvents)
-      : [];
+    const matchingOutbox = reviewEventIds.length ? await db.select().from(outboxEvents) : [];
     expect(matchingOutbox.filter((event) => reviewEventIds.includes(event.eventId))).toHaveLength(
       reviewEventIds.length,
     );

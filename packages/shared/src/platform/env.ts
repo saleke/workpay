@@ -98,7 +98,7 @@ export const envSchema = z
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
     SENTRY_DSN: optionalString,
 
-    EMAIL_FROM: z.string().default("WorkPay <noreply@workpay.local>"),
+    EMAIL_FROM: z.string().default("Tenfo <noreply@tenfo.local>"),
     SMTP_HOST: optionalString,
     SMTP_PORT: z.coerce.number().int().positive().max(65_535).default(587),
     SMTP_SECURE: booleanish.default(false),

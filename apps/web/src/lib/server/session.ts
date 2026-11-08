@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@workpay/shared/db";
 import { isPersonaIdentityVerified } from "@workpay/shared/domain";
@@ -49,7 +49,9 @@ export async function createSession(userId: string): Promise<string> {
 /**
  * Validate a session token and return the associated user, or null if expired/invalid.
  */
-export async function getSessionUser(sessionToken?: string | null): Promise<AuthenticatedUser | null> {
+export async function getSessionUser(
+  sessionToken?: string | null,
+): Promise<AuthenticatedUser | null> {
   if (!sessionToken) return null;
   const db = getDb();
 
@@ -116,6 +118,22 @@ export async function getSessionUser(sessionToken?: string | null): Promise<Auth
 export async function destroySession(sessionToken: string): Promise<void> {
   const db = getDb();
   await db.delete(sessions).where(eq(sessions.sessionToken, sessionToken));
+}
+
+export async function destroyAllOtherSessionsForUser(
+  userId: string,
+  keepSessionToken?: string | null,
+): Promise<void> {
+  const db = getDb();
+
+  if (keepSessionToken) {
+    await db
+      .delete(sessions)
+      .where(and(eq(sessions.userId, userId), ne(sessions.sessionToken, keepSessionToken)));
+    return;
+  }
+
+  await db.delete(sessions).where(eq(sessions.userId, userId));
 }
 
 /**

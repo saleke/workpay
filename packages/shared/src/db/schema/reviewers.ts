@@ -30,6 +30,13 @@ export const reviewerProfiles = pgTable(
     publicContactUrl: text("public_contact_url"),
     isListed: boolean("is_listed").notNull().default(false),
     available: boolean("available").notNull().default(true),
+    offersWork: boolean("offers_work").notNull().default(false),
+    offersReview: boolean("offers_review").notNull().default(false),
+    acceptsReviewOnly: boolean("accepts_review_only").notNull().default(false),
+    reviewAvailability: varchar("review_availability", { length: 16 })
+      .notNull()
+      .default("AVAILABLE"),
+    reviewNotice: text("review_notice"),
     summary: text("summary").notNull(),
     languages: text("languages")
       .array()
@@ -57,6 +64,10 @@ export const reviewerProfiles = pgTable(
     listingDisclosureCheck: check(
       "reviewer_profiles_listing_requires_disclosure",
       sql`${table.isListed} = false or ${table.conflictDisclosureConfirmed} = true`,
+    ),
+    reviewAvailabilityCheck: check(
+      "reviewer_profiles_review_availability_valid",
+      sql`${table.reviewAvailability} in ('AVAILABLE', 'BUSY', 'OFFLINE')`,
     ),
   }),
 );

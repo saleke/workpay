@@ -7,7 +7,7 @@
  * 3. Asynchronous deliverable verification and conditional payment capture.
  * 4. Graceful termination on SIGINT/SIGTERM.
  */
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { createServer, type Server } from "node:http";
 import { getDb, withTransaction } from "@workpay/shared/db/client";
 import { events, notifications, outboxEvents } from "@workpay/shared/db/schema/infra";
@@ -20,13 +20,10 @@ import {
 } from "@workpay/shared/events/outbox";
 import {
   agentVerifySubmission,
-  canTransition,
-  captureIfAllowed,
+  executeVerification,
   ensureAgent,
-  getPaymentForTask,
+  handoffSubmissionToBuyerReview,
   projectConversationNotification,
-  systemActor,
-  transitionTask,
 } from "@workpay/shared/domain";
 import { newId } from "@workpay/shared/platform";
 import { logger } from "@workpay/shared/platform";
@@ -86,38 +83,6 @@ async function startHealthServer(): Promise<Server> {
   return server;
 }
 
-async function captureAndCompleteIfAllowed(taskId: string, correlationId: string): Promise<void> {
-  const db = getDb();
-  const payment = await getPaymentForTask(db, taskId);
-  if (payment?.status === "AUTHORIZED") {
-    await captureIfAllowed({
-      paymentId: payment.id,
-      actor: systemActor(),
-      correlationId,
-    });
-  }
-
-  const currentPayment = await getPaymentForTask(db, taskId);
-  if (currentPayment?.status !== "CAPTURED") return;
-  await withTransaction(async (tx) => {
-    const [currentTask] = await tx
-      .select()
-      .from(tasks)
-      .where(eq(tasks.id, taskId))
-      .for("update")
-      .limit(1);
-    if (!currentTask || currentTask.status === "COMPLETED") return;
-    if (!canTransition(currentTask.status, "COMPLETED")) return;
-    await transitionTask(tx, {
-      taskId,
-      to: "COMPLETED",
-      actor: systemActor(),
-      correlationId,
-      patch: { completedAt: new Date() },
-    });
-  });
-}
-
 /**
  * Maps domain events into user-friendly notifications.
  */
@@ -152,53 +117,59 @@ function getNotificationContent(
         title: "Offer sent",
         body: `A negotiation offer was submitted for "${taskTitle}".`,
       };
-    case "AGREEMENT_REACHED":
+    case "COMMERCIAL_AGREEMENT_CREATED":
       return {
         title: "Agreement reached",
-        body: `Terms agreed for "${taskTitle}". Payment authorization required.`,
+        body: `Terms agreed for "${taskTitle}". Simulated authorization is the next policy step.`,
       };
     case "PAYMENT_AUTHORIZED":
       return {
         title: "Simulated authorization recorded",
-        body: `Payment-policy simulation recorded authorization for "${taskTitle}". No funds were held or moved.`,
+        body: `Payment policy recorded authorization for "${taskTitle}". No funds were held or moved.`,
       };
     case "WORK_STARTED":
       return {
         title: "Work in progress",
         body: `The specialist has started working on "${taskTitle}".`,
       };
-    case "WORK_SUBMITTED":
+    case "SUBMISSION_SUBMITTED":
       return {
         title: "Deliverable submitted",
         body: `Specialist submitted work for "${taskTitle}". Automated verification against Definition of Done has commenced.`,
       };
-    case "VERIFICATION_COMPLETED": {
-      const outcome = String(payload.outcome || "COMPLETED");
-      const title =
-        outcome === "PASS"
-          ? "Deliverable verified"
-          : outcome === "FAIL"
-            ? "Revision requested"
-            : outcome === "HUMAN_REVIEW"
-              ? "Independent review may be needed"
-              : `Verification ${outcome.toLowerCase()}`;
-      const body =
-        outcome === "PASS"
-          ? `All acceptance criteria confirmed for "${taskTitle}". The simulated capture path is eligible for policy review.`
-          : outcome === "FAIL"
-            ? `Deliverable did not meet all acceptance criteria for "${taskTitle}". Revision requested from specialist.`
-            : `Verification flagged an ambiguity on "${taskTitle}". Payment remains blocked unless the parties use an agreed independent review process.`;
-      return { title, body };
-    }
+    case "VERIFICATION_PASSED":
+      return {
+        title: "Evidence checks passed",
+        body: `Automated evidence checks passed for "${taskTitle}". Review the submitted work and record your own decision.`,
+      };
+    case "VERIFICATION_FAILED":
+      return {
+        title: "Evidence check failed",
+        body: `A deterministic evidence check failed for "${taskTitle}". Buyer review is still required and simulated release remains blocked.`,
+      };
+    case "VERIFICATION_UNCERTAIN":
+      return {
+        title: "Evidence needs review",
+        body: `Automated checks were inconclusive for "${taskTitle}". Review the evidence or use an agreed independent reviewer.`,
+      };
+    case "BUYER_REVIEW_DECISION_RECORDED":
+      return {
+        title: "Buyer review recorded",
+        body: `A buyer decision was recorded for "${taskTitle}": ${String(
+          payload.decision ?? "updated",
+        )
+          .replaceAll("_", " ")
+          .toLowerCase()}. ${String(payload.reason ?? "")}`.trim(),
+      };
     case "PAYMENT_CAPTURED":
       return {
         title: "Simulated capture recorded",
-        body: `The policy simulation recorded capture for "${taskTitle}". No funds were charged or paid.`,
+        body: `Payment policy recorded a simulated capture for "${taskTitle}". No funds were charged or paid.`,
       };
     case "TASK_COMPLETED":
       return {
         title: "Task completed",
-        body: `Task "${taskTitle}" is now complete and settled.`,
+        body: `Task "${taskTitle}" is complete. Payment states in this environment were simulated.`,
       };
     case "CASE_OPENED":
       return {
@@ -261,7 +232,12 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
               .insert(notifications)
               .values({
                 id: newId("notif"),
-                userId: conversationNotification?.userId ?? task.userId,
+                userId:
+                  conversationNotification?.userId ??
+                  (ev.type === "BUYER_REVIEW_DECISION_RECORDED" &&
+                  typeof payload.providerUserId === "string"
+                    ? payload.providerUserId
+                    : task.userId),
                 taskId: task.id,
                 eventId: ev.id,
                 type: ev.type,
@@ -281,19 +257,19 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
               .select()
               .from(verificationRuns)
               .where(eq(verificationRuns.submissionId, submissionId))
+              .orderBy(desc(verificationRuns.startedAt))
               .limit(1);
 
+            const { actor: agentActor } = await ensureAgent({
+              taskId: task.id,
+              userId: task.userId,
+            });
             let verificationOutcome = existingRuns[0]?.outcome ?? null;
             if (existingRuns.length === 0) {
               logger.info(
                 { taskId: task.id, submissionId },
                 "Triggering async verification for submission",
               );
-              const { actor: agentActor } = await ensureAgent({
-                taskId: task.id,
-                userId: task.userId,
-              });
-
               const verResult = await agentVerifySubmission({
                 taskId: task.id,
                 submissionId,
@@ -301,15 +277,36 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
                 correlationId: ev.correlationId,
               });
               verificationOutcome = verResult.outcome;
+            } else if (existingRuns[0]?.status === "RUNNING") {
+              const verResult = await executeVerification({
+                verificationRunId: existingRuns[0].id,
+                actor: agentActor,
+                correlationId: ev.correlationId,
+              });
+              verificationOutcome = verResult.outcome;
+              await handoffSubmissionToBuyerReview({
+                taskId: task.id,
+                submissionId,
+                actor: agentActor,
+                correlationId: ev.correlationId,
+              });
+            } else if (existingRuns[0]?.status === "COMPLETED") {
+              await handoffSubmissionToBuyerReview({
+                taskId: task.id,
+                submissionId,
+                actor: agentActor,
+                correlationId: ev.correlationId,
+              });
+            } else {
+              throw new Error("Verification run failed and requires operator review.");
             }
-            if (verificationOutcome === "PASS") {
-              await captureAndCompleteIfAllowed(task.id, ev.correlationId);
+            if (verificationOutcome) {
+              logger.info(
+                { taskId: task.id, submissionId, verificationOutcome },
+                "Verification evidence is ready for explicit buyer review",
+              );
             }
           }
-        }
-
-        if (ev.type === "INDEPENDENT_REVIEW_REPORTED" && task && payload.outcome === "PASS") {
-          await captureAndCompleteIfAllowed(task.id, ev.correlationId);
         }
       }
 

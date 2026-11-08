@@ -24,7 +24,7 @@ export class NodemailerEmailClient implements EmailClient {
 
   constructor(options: SmtpOptions) {
     this.options = options;
-    this.defaultFrom = options.from || "WorkPay <noreply@workpay.local>";
+    this.defaultFrom = options.from || "Tenfo <noreply@tenfo.local>";
     this.outboxDir = options.outboxDir || join(process.cwd(), ".workpay-storage", "emails");
 
     if (options.host && options.auth?.user && options.auth?.pass) {
@@ -37,7 +37,10 @@ export class NodemailerEmailClient implements EmailClient {
           pass: options.auth.pass,
         },
       });
-      logger.info({ host: options.host, port: options.port }, "initialized live SMTP email transporter");
+      logger.info(
+        { host: options.host, port: options.port },
+        "initialized live SMTP email transporter",
+      );
     }
   }
 

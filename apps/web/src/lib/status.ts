@@ -23,6 +23,10 @@ const TASK_TONES: Record<TaskStatus, Tone> = {
   WORK_IN_PROGRESS: "progress",
   SUBMITTED: "progress",
   VERIFYING: "progress",
+  AWAITING_CLIENT_REVIEW: "attention",
+  AWAITING_EXTERNAL_REVIEW: "attention",
+  REVIEW_ACCEPTED: "success",
+  REJECTED: "danger",
   REVISION_REQUIRED: "attention",
   HUMAN_REVIEW: "attention",
   PAYMENT_RELEASE: "success",
@@ -50,6 +54,10 @@ const TASK_LABELS: Record<TaskStatus, string> = {
   WORK_IN_PROGRESS: "Work in progress",
   SUBMITTED: "Work submitted",
   VERIFYING: "Checking the result",
+  AWAITING_CLIENT_REVIEW: "Awaiting your review",
+  AWAITING_EXTERNAL_REVIEW: "Awaiting independent review",
+  REVIEW_ACCEPTED: "Review accepted",
+  REJECTED: "Delivery rejected",
   REVISION_REQUIRED: "Needs your attention",
   HUMAN_REVIEW: "Needs human review",
   PAYMENT_RELEASE: "Releasing payment",
@@ -82,15 +90,15 @@ export function contractStatusLabel(status: ContractStatus): string {
 }
 
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {
-  PENDING: "Preparing",
-  AUTHORIZATION_REQUESTED: "Authorizing",
-  AUTHORIZED: "Authorized (not yet released)",
-  CAPTURE_REQUESTED: "Releasing payment",
-  CAPTURED: "Paid",
+  PENDING: "Simulation pending",
+  AUTHORIZATION_REQUESTED: "Simulating authorization",
+  AUTHORIZED: "Simulated authorization recorded",
+  CAPTURE_REQUESTED: "Simulated release pending",
+  CAPTURED: "Simulation completed",
   VOIDED: "Voided",
   REFUNDED: "Refunded",
-  FAILED: "Payment failed",
-  UNKNOWN: "Checking with PayPal",
+  FAILED: "Simulation failed",
+  UNKNOWN: "Reconciliation required",
 };
 
 export function paymentStatusLabel(status: PaymentStatus): string {

@@ -13,6 +13,7 @@ import {
   Lock,
 } from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
+import { paymentStatusLabel } from "@/lib/status";
 import { useApi } from "@/lib/use-api";
 import { listPayments, listTasks } from "@/lib/api/endpoints";
 import type { TaskDto, PaymentDto } from "@/lib/api/types";
@@ -52,11 +53,7 @@ export default function PaymentsPage() {
     for (const p of payments) {
       if (p.status === "CAPTURED") {
         capturedMinor += p.amountMinor;
-      } else if (
-        p.status === "AUTHORIZED" ||
-        p.status === "PENDING" ||
-        p.status === "AUTHORIZATION_REQUESTED"
-      ) {
+      } else if (p.status === "AUTHORIZED") {
         heldMinor += p.amountMinor;
       }
     }
@@ -70,12 +67,7 @@ export default function PaymentsPage() {
 
   const filteredPayments = useMemo(() => {
     if (filter === "HELD") {
-      return payments.filter(
-        (p) =>
-          p.status === "AUTHORIZED" ||
-          p.status === "PENDING" ||
-          p.status === "AUTHORIZATION_REQUESTED",
-      );
+      return payments.filter((p) => p.status === "AUTHORIZED");
     }
     if (filter === "CAPTURED") {
       return payments.filter((p) => p.status === "CAPTURED");
@@ -86,8 +78,8 @@ export default function PaymentsPage() {
   const header = (
     <PageHeader
       eyebrow="Records"
-      title="Payment simulation"
-      description="Inspect policy-validation records for agreed amounts and simulated authorization or capture paths. No entry represents money charged, held, captured, or paid."
+      title="Payment records"
+      description="Review validation-only authorization and capture-policy records. No funds are held, charged, or paid."
       actions={
         <Link
           href="/intake"
@@ -104,7 +96,7 @@ export default function PaymentsPage() {
       <div className="space-y-6 pb-12">
         {header}
         <ErrorState
-          title="Payment simulation records could not be loaded"
+          title="Payment records could not be loaded"
           description={paymentsError.message}
           onRetry={reloadPayments}
         />
@@ -120,7 +112,7 @@ export default function PaymentsPage() {
           className="workpay-card p-8 text-center text-sm text-[var(--wp-text-secondary)]"
           role="status"
         >
-          Loading simulation records…
+          Loading payment records…
         </div>
       </div>
     );
@@ -132,7 +124,7 @@ export default function PaymentsPage() {
       {tasksError ? (
         <ErrorState
           title="Task details are unavailable"
-          description="Simulation records are shown below, but task titles may be incomplete."
+          description="Payment records are shown below, but task titles may be incomplete."
           onRetry={reloadTasks}
         />
       ) : null}
@@ -148,7 +140,7 @@ export default function PaymentsPage() {
             {summary.heldStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Policy states awaiting completion evidence. No funds are on hold.
+            Policy-authorized amounts awaiting buyer review. No funds are held.
           </p>
         </div>
 
@@ -161,7 +153,7 @@ export default function PaymentsPage() {
             {summary.capturedStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Capture paths accepted by policy. No professional was paid.
+            Completed policy simulations after final buyer approval. No payout occurred.
           </p>
         </div>
 
@@ -174,7 +166,7 @@ export default function PaymentsPage() {
             {summary.totalCount}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Simulation records attached to tasks.
+            Payment records attached to tasks.
           </p>
         </div>
       </div>
@@ -183,7 +175,7 @@ export default function PaymentsPage() {
       <div
         className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] pb-2 text-sm font-medium"
         role="group"
-        aria-label="Filter payment simulation records"
+        aria-label="Filter payment records"
       >
         <button
           type="button"
@@ -228,10 +220,10 @@ export default function PaymentsPage() {
         <div className="workpay-card p-12 text-center">
           <Receipt className="h-8 w-8 text-[var(--text-muted)] mx-auto mb-3" />
           <h2 className="text-base font-semibold text-[var(--charcoal)]">
-            No simulation records match this filter
+            No payment records match this filter
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Records appear only when a policy simulation has been started for a task.
+            Records appear only when a task has reached a payment authorization or approval state.
           </p>
         </div>
       ) : (
@@ -259,13 +251,13 @@ export default function PaymentsPage() {
               : "Not recorded";
 
             let badgeBg = "bg-amber-100 text-amber-800";
-            let badgeText = "Simulated authorization";
+            let badgeText = paymentStatusLabel(p.status);
             if (isCaptured) {
               badgeBg = "bg-emerald-100 text-emerald-800";
-              badgeText = "Simulated capture";
+              badgeText = "Simulation completed";
             } else if (isRefunded) {
               badgeBg = "bg-gray-100 text-gray-700";
-              badgeText = "Simulation voided";
+              badgeText = "Void / refunded";
             }
 
             return (
@@ -322,7 +314,7 @@ export default function PaymentsPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-[var(--text-muted)] block">Simulation reference:</span>
+                      <span className="text-[var(--text-muted)] block">Gateway reference:</span>
                       <span className="font-mono font-medium text-[var(--charcoal)] truncate block">
                         {p.paypalAuthorizationId || "Not available"}
                       </span>
@@ -330,7 +322,7 @@ export default function PaymentsPage() {
 
                     <div>
                       <span className="text-[var(--text-muted)] block">
-                        {isCaptured ? "Simulation completed:" : "Simulation state recorded:"}
+                        {isCaptured ? "Capture completed:" : "Status recorded:"}
                       </span>
                       <span className="font-medium text-[var(--charcoal)] block">{dateStr}</span>
                     </div>
@@ -353,8 +345,8 @@ export default function PaymentsPage() {
                   <div className="pt-2 flex items-center justify-between">
                     <span className="text-[11px] text-[var(--text-muted)]">
                       {isCaptured
-                        ? "Policy simulation recorded capture"
-                        : "No funds are held or moved"}
+                        ? "Simulated capture recorded after the approval gate"
+                        : "No funds are held; policy release remains blocked until approval"}
                     </span>
 
                     <Link

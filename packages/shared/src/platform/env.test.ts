@@ -16,4 +16,17 @@ describe("environment schema", () => {
       expect(result.data.PERSONA_WEBHOOK_SECRET).toBeUndefined();
     }
   });
+
+  it("rejects PayPal gateways while live money movement is disabled", () => {
+    const result = envSchema.safeParse({
+      DATABASE_URL: "postgres://localhost/workpay",
+      AUTH_SECRET: "test-auth-secret-with-enough-length",
+      PAYMENT_GATEWAY: "paypal",
+      PAYPAL_ENV: "sandbox",
+      PAYPAL_CLIENT_ID: "client-id",
+      PAYPAL_CLIENT_SECRET: "client-secret",
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

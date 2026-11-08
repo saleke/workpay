@@ -48,8 +48,13 @@ const evidenceInputSchema = z.object({
 
 export const reviewerProfileInputSchema = z
   .object({
-    isListed: z.boolean(),
-    available: z.boolean(),
+    isListed: z.boolean().default(false),
+    available: z.boolean().default(true),
+    offersWork: z.boolean().default(false),
+    offersReview: z.boolean().default(false),
+    acceptsReviewOnly: z.boolean().default(false),
+    reviewAvailability: z.enum(["AVAILABLE", "BUSY", "OFFLINE"]).default("AVAILABLE"),
+    reviewNotice: z.string().trim().max(1000).nullable().optional(),
     displayName: z.string().trim().min(2).max(100),
     publicContactUrl: z
       .string()
@@ -79,6 +84,20 @@ export const reviewerProfileInputSchema = z
         code: z.ZodIssueCode.custom,
         path: ["conflictDisclosureConfirmed"],
         message: "Confirm the conflict-disclosure commitment before listing.",
+      });
+    }
+    if (value.isListed && !value.offersReview) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["offersReview"],
+        message: "Enable review services before listing this review profile.",
+      });
+    }
+    if (value.acceptsReviewOnly && !value.offersReview) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["acceptsReviewOnly"],
+        message: "Review-only availability requires review services to be enabled.",
       });
     }
   });
@@ -155,6 +174,11 @@ export async function saveReviewerProfile(
       userId,
       isListed: input.isListed,
       available: input.available,
+      offersWork: input.offersWork,
+      offersReview: input.offersReview,
+      acceptsReviewOnly: input.acceptsReviewOnly,
+      reviewAvailability: input.reviewAvailability,
+      reviewNotice: input.reviewNotice?.trim() || null,
       displayName: input.displayName,
       publicContactUrl: input.publicContactUrl,
       summary: input.summary,
@@ -327,6 +351,8 @@ export async function getTaskReviewerRecommendations(
       and(
         eq(reviewerProfiles.isListed, true),
         eq(reviewerProfiles.available, true),
+        eq(reviewerProfiles.offersReview, true),
+        eq(reviewerProfiles.reviewAvailability, "AVAILABLE"),
         inArray(reviewerProfiles.id, matchingProfileIds),
       ),
     );

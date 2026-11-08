@@ -113,7 +113,8 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
           </div>
         </div>
         <CardDescription className="text-xs sm:text-sm">
-          WorkPay does not wait passively. The Autonomous Auditor actively tracks deadline burn-down, collects milestone check-ins, and escalates early if delivery risks appear.
+          Tenfo does not wait passively. The Autonomous Auditor actively tracks deadline burn-down,
+          collects milestone check-ins, and escalates early if delivery risks appear.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -160,7 +161,8 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
 
               {audit.checkins.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                  No check-ins logged yet. The assigned specialist will report status updates directly from Work Studio.
+                  No check-ins logged yet. The assigned specialist will report status updates
+                  directly from Work Studio.
                 </div>
               ) : (
                 <div className="grid gap-2">

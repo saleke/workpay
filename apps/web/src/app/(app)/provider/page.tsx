@@ -72,7 +72,7 @@ function getProviderRowInfo(w: ProviderWorkDto) {
   } else if (isCompleted) {
     stateLabel = "Completed";
     badgeClass = "bg-[var(--wp-success-subtle)] text-[var(--wp-success)]";
-    noteText = "The validation workflow reached its completed state. No payout was made.";
+    noteText = "The buyer accepted the submitted work. No payout was made.";
   }
 
   const deadlineText = w.deadline
@@ -195,7 +195,7 @@ export default function ProviderPortalPage() {
                 <div className="text-right">
                   <div className="text-base font-bold text-[var(--charcoal)]">{info.moneyStr}</div>
                   <div className="text-[11px] text-[var(--text-muted)]">
-                    {info.isCompleted ? "Simulation only · no payout" : "Agreed amount"}
+                    {info.isCompleted ? "Buyer accepted work" : "Agreed amount"}
                   </div>
                 </div>
 

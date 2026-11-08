@@ -6,22 +6,35 @@ export const MAX_VOICE_NOTE_SECONDS = 120;
 
 const AUDIO_TYPES = new Set([
   "audio/aac",
-  "audio/mp4",
+  "audio/m4a",
   "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
   "audio/ogg",
   "audio/wav",
   "audio/webm",
   "audio/x-m4a",
+  "audio/x-wav",
 ]);
 
 const FILE_TYPES = new Set([
+  "application/msword",
   "application/pdf",
+  "application/rtf",
+  "application/vnd.ms-excel",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/bmp",
+  "image/gif",
   "image/jpeg",
   "image/png",
   "image/webp",
   "text/csv",
   "text/plain",
+  "text/rtf",
 ]);
 
 export type ConversationAttachmentKind = "AUDIO" | "FILE";
@@ -47,18 +60,35 @@ export function conversationAttachmentMatchesContent(
   const extension = filename.split(".").at(-1)?.toLowerCase() ?? "";
   const validExtension =
     (mimeType === "audio/aac" && extension === "aac") ||
-    (mimeType === "audio/mp4" && (extension === "m4a" || extension === "mp4")) ||
-    (mimeType === "audio/mpeg" && extension === "mp3") ||
-    (mimeType === "audio/ogg" && (extension === "ogg" || extension === "oga")) ||
-    (mimeType === "audio/wav" && extension === "wav") ||
+    (["audio/m4a", "audio/mp4", "audio/x-m4a"].includes(mimeType) &&
+      (extension === "m4a" || extension === "mp4")) ||
+    (["audio/mpeg", "audio/mp3"].includes(mimeType) && extension === "mp3") ||
+    (["audio/ogg"].includes(mimeType) && (extension === "ogg" || extension === "oga")) ||
+    (["audio/wav", "audio/x-wav"].includes(mimeType) && extension === "wav") ||
     (mimeType === "audio/webm" && extension === "webm") ||
-    (mimeType === "audio/x-m4a" && extension === "m4a") ||
     (mimeType === "application/pdf" && extension === "pdf") ||
-    (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
-      extension === "docx") ||
+    ([
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ].includes(mimeType) &&
+      (extension === "doc" || extension === "docx")) ||
+    ([
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ].includes(mimeType) &&
+      (extension === "xls" || extension === "xlsx")) ||
+    ([
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ].includes(mimeType) &&
+      (extension === "ppt" || extension === "pptx")) ||
+    (["application/rtf", "text/rtf"].includes(mimeType) && extension === "rtf") ||
+    (["application/vnd.oasis.opendocument.text"].includes(mimeType) && extension === "odt") ||
     (mimeType === "image/jpeg" && (extension === "jpg" || extension === "jpeg")) ||
     (mimeType === "image/png" && extension === "png") ||
     (mimeType === "image/webp" && extension === "webp") ||
+    (mimeType === "image/gif" && extension === "gif") ||
+    (mimeType === "image/bmp" && extension === "bmp") ||
     (mimeType === "text/csv" && extension === "csv") ||
     (mimeType === "text/plain" && extension === "txt");
   if (!validExtension) return false;
@@ -67,9 +97,11 @@ export function conversationAttachmentMatchesContent(
     case "audio/aac":
       return bytes[0] === 0xff && (bytes[1] === 0xf1 || bytes[1] === 0xf9);
     case "audio/mp4":
+    case "audio/m4a":
     case "audio/x-m4a":
       return bytes.length >= 8 && String.fromCharCode(...bytes.slice(4, 8)) === "ftyp";
     case "audio/mpeg":
+    case "audio/mp3":
       return (
         hasPrefix(bytes, [0x49, 0x44, 0x33]) ||
         (bytes[0] === 0xff && bytes[1] !== undefined && (bytes[1] & 0xe0) === 0xe0)
@@ -77,6 +109,7 @@ export function conversationAttachmentMatchesContent(
     case "audio/ogg":
       return hasPrefix(bytes, [0x4f, 0x67, 0x67, 0x53]);
     case "audio/wav":
+    case "audio/x-wav":
       return (
         hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) &&
         bytes.length >= 12 &&
@@ -86,8 +119,18 @@ export function conversationAttachmentMatchesContent(
       return hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]);
     case "application/pdf":
       return hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
+    case "application/msword":
+    case "application/vnd.ms-excel":
+    case "application/vnd.ms-powerpoint":
+      return hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0]);
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    case "application/vnd.oasis.opendocument.text":
       return hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]);
+    case "application/rtf":
+    case "text/rtf":
+      return hasPrefix(bytes, [0x7b, 0x5c, 0x72, 0x74, 0x66]);
     case "image/jpeg":
       return hasPrefix(bytes, [0xff, 0xd8, 0xff]);
     case "image/png":
@@ -98,6 +141,13 @@ export function conversationAttachmentMatchesContent(
         bytes.length >= 12 &&
         String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
       );
+    case "image/gif":
+      return (
+        hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
+        hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+      );
+    case "image/bmp":
+      return hasPrefix(bytes, [0x42, 0x4d]);
     case "text/csv":
     case "text/plain":
       return !bytes.includes(0);

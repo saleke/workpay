@@ -4,6 +4,11 @@ import { reviewerProfileInputSchema } from "./service.js";
 const validProfile = {
   isListed: true,
   available: true,
+  offersWork: true,
+  offersReview: true,
+  acceptsReviewOnly: false,
+  reviewAvailability: "AVAILABLE",
+  reviewNotice: "I review analytical work for accuracy and reproducibility.",
   displayName: "Independent reviewer",
   publicContactUrl: "https://example.com/contact",
   summary: "I review analytical work for accuracy and reproducibility.",
@@ -46,6 +51,28 @@ describe("reviewerProfileInputSchema", () => {
           ...validProfile.expertise,
           { ...validProfile.expertise[0], domainTag: "Data Analysis" },
         ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts work-plus-review capability and review availability state", () => {
+    expect(
+      reviewerProfileInputSchema.safeParse({
+        ...validProfile,
+        offersWork: true,
+        offersReview: true,
+        acceptsReviewOnly: true,
+        reviewAvailability: "BUSY",
+        reviewNotice: "Open to review-only UX and QA work on a limited basis.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects unsupported review availability values", () => {
+    expect(
+      reviewerProfileInputSchema.safeParse({
+        ...validProfile,
+        reviewAvailability: "ON_HOLD",
       }).success,
     ).toBe(false);
   });

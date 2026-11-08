@@ -20,7 +20,7 @@ import { TopProgressBar } from "@/components/nav/top-progress-bar";
 import { EnvironmentToggle } from "@/components/nav/environment-toggle";
 import { UserNav } from "@/components/nav/user-nav";
 import { NotificationsBell } from "@/components/notifications/notifications-bell";
-import { WorkPayLogoMark } from "@/components/brand/logo";
+import { TenfoLogo } from "@/components/brand/logo";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getMessageInbox } from "@/lib/api/endpoints";
@@ -88,17 +88,19 @@ function isActiveRoute(href: string, pathname: string): boolean {
 }
 
 function currentPageLabel(pathname: string): string {
-  const item = navGroups.flatMap((group) => group.items).find((entry) => {
-    if (entry.href === "/tasks") {
-      return (
-        pathname === "/intake" ||
-        pathname === "/tasks/new" ||
-        pathname.startsWith("/tasks/") ||
-        pathname.startsWith("/invite/")
-      );
-    }
-    return isActiveRoute(entry.href, pathname);
-  });
+  const item = navGroups
+    .flatMap((group) => group.items)
+    .find((entry) => {
+      if (entry.href === "/tasks") {
+        return (
+          pathname === "/intake" ||
+          pathname === "/tasks/new" ||
+          pathname.startsWith("/tasks/") ||
+          pathname.startsWith("/invite/")
+        );
+      }
+      return isActiveRoute(entry.href, pathname);
+    });
   if (pathname === "/intake" || pathname === "/tasks/new") return "New task";
   if (pathname.startsWith("/invite/")) return "Work invitation";
   return item?.label ?? "Tenfo";
@@ -157,7 +159,9 @@ function NavigationLinks({
                   )}
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                  <span className={cn("min-w-0 flex-1 truncate", compact && "sr-only xl:not-sr-only")}>
+                  <span
+                    className={cn("min-w-0 flex-1 truncate", compact && "sr-only xl:not-sr-only")}
+                  >
                     {item.label}
                   </span>
                   {count > 0 ? (
@@ -165,7 +169,8 @@ function NavigationLinks({
                       aria-label={`${count} ${item.badge === "messages" ? "unread messages" : "contact requests needing a response"}`}
                       className={cn(
                         "ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--wp-accent)] px-1.5 text-[10px] font-bold leading-5 text-white",
-                        compact && "absolute right-0.5 top-0.5 min-w-4 px-1 leading-4 xl:static xl:ml-auto",
+                        compact &&
+                          "absolute right-0.5 top-0.5 min-w-4 px-1 leading-4 xl:static xl:ml-auto",
                       )}
                     >
                       {count > 9 ? "9+" : count}
@@ -193,7 +198,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const inbox = await getMessageInbox();
       if (!active || !inbox.data) return;
       setUnreadMessageCount(
-        inbox.data.conversations.reduce((total, conversation) => total + conversation.unreadCount, 0),
+        inbox.data.conversations.reduce(
+          (total, conversation) => total + conversation.unreadCount,
+          0,
+        ),
       );
       setPendingContactCount(
         inbox.data.conversations.filter(
@@ -226,10 +234,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className="mb-7 flex min-h-10 items-center justify-center gap-2.5 rounded-lg px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] xl:justify-start"
             aria-label="Tenfo home"
           >
-            <WorkPayLogoMark size={30} />
-            <span className="hidden text-lg font-bold tracking-tight text-[var(--wp-text-primary)] xl:inline">
-              Tenfo
-            </span>
+            <TenfoLogo size={30} wordmarkClassName="hidden xl:inline" />
           </Link>
 
           <Link
@@ -296,8 +301,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       onClick={() => setMobileMenuOpen(false)}
                       className="mb-6 flex min-h-11 items-center gap-3 pr-10"
                     >
-                      <WorkPayLogoMark size={30} />
-                      <span className="text-lg font-bold tracking-tight">Tenfo</span>
+                      <TenfoLogo size={30} />
                     </Link>
                     <Link
                       href="/intake"
@@ -342,8 +346,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="flex shrink-0 items-center gap-2 md:hidden"
                   aria-label="Tenfo home"
                 >
-                  <WorkPayLogoMark size={27} />
-                  <span className="text-base font-bold tracking-tight">Tenfo</span>
+                  <TenfoLogo size={27} wordmarkClassName="text-base" />
                 </Link>
                 <div className="hidden min-w-0 md:block">
                   <p className="truncate text-xs text-[var(--wp-text-muted)]">Workspace</p>

@@ -5,12 +5,14 @@ import {
   getContractWithDetails,
   getExecutionForTask,
   getLatestSubmission,
+  getLatestReviewPackage,
   getLatestWorkSpecification,
   getTaskById,
 } from "@workpay/shared/domain";
 import { providerSelections } from "@workpay/shared/db/schema/providers";
 import { agentActions, agentRuns } from "@workpay/shared/db/schema/agent";
 import { providerAcceptances } from "@workpay/shared/db/schema/execution";
+import { independentReviewReports } from "@workpay/shared/db/schema/independent-reviews";
 import { cases, caseImpacts } from "@workpay/shared/db/schema/cases";
 import type {
   TaskRoomDto,
@@ -137,7 +139,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (selection) {
       const candidates = (selection.candidates as ProviderSnapshotDto[]) ?? [];
       const topPick = selection.providerId
-        ? candidates.find((c) => c.providerId === selection.providerId) ?? null
+        ? (candidates.find((c) => c.providerId === selection.providerId) ?? null)
         : null;
       const alternatives = candidates.filter((c) => c.providerId !== selection.providerId);
 
@@ -196,6 +198,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           executionId: submissionInfo.submission.executionId,
           version: submissionInfo.submission.version,
           status: submissionInfo.submission.status,
+          contractVersion: submissionInfo.submission.contractVersion,
+          contractHash: submissionInfo.submission.contractHash,
+          submissionHash: submissionInfo.submission.submissionHash,
           note: submissionInfo.submission.notes,
           artifacts: submissionInfo.artifacts.map((art) => ({
             id: art.id,
@@ -229,6 +234,47 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         latestSubmission: latestSubmissionDto,
       };
     }
+
+    const reviewPackage = await getLatestReviewPackage(db, taskId);
+    const [advisoryReport] = reviewPackage
+      ? await db
+          .select({
+            id: independentReviewReports.id,
+            outcome: independentReviewReports.outcome,
+            rationale: independentReviewReports.rationale,
+            reviewerUserId: independentReviewReports.reviewerUserId,
+            createdAt: independentReviewReports.createdAt,
+          })
+          .from(independentReviewReports)
+          .where(eq(independentReviewReports.submissionId, reviewPackage.submissionId))
+          .orderBy(desc(independentReviewReports.createdAt))
+          .limit(1)
+      : [];
+    const reviewPackageDto = reviewPackage
+      ? {
+          ...reviewPackage,
+          previewLinks: reviewPackage.previewLinks as Array<{ label: string; url: string }>,
+          fileReferences: reviewPackage.fileReferences as Array<{
+            id: string;
+            name: string;
+            kind: "PRIMARY_DELIVERABLE" | "SUPPORTING_FILE" | "EVIDENCE";
+            contentType: string | null;
+            sizeBytes: number;
+          }>,
+          knownIssues: reviewPackage.knownIssues as string[],
+          reviewerDecision: reviewPackage.reviewerDecision as
+            "APPROVED" | "REJECTED" | "CHANGES_REQUESTED" | "EXTERNAL_REVIEW_REQUESTED" | null,
+          advisoryReport: advisoryReport
+            ? {
+                ...advisoryReport,
+                createdAt: advisoryReport.createdAt.toISOString(),
+              }
+            : null,
+          createdAt: reviewPackage.createdAt.toISOString(),
+          updatedAt: reviewPackage.updatedAt.toISOString(),
+          reviewedAt: reviewPackage.reviewedAt?.toISOString() ?? null,
+        }
+      : null;
 
     // 7. Cases DTO
     const casesRows = await db
@@ -272,6 +318,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       providerSelection: providerSelectionDto,
       agentRun: agentRunDto,
       execution: executionDto,
+      reviewPackage: reviewPackageDto,
       cases: casesDto,
     };
 

@@ -29,11 +29,13 @@ import {
   getTaskRoom,
   getSubmissionVerification,
   modifyContractCriteria,
+  releaseTaskPayment,
   simulatePaymentAuthorization,
 } from "@/lib/api/endpoints";
 import type { ContractDto, TaskRoomDto, VerificationDto } from "@/lib/api/types";
 import { TaskConversationsPanel } from "./task-conversations-panel";
 import { PaymentPanel } from "./payment-panel";
+import { ReviewPackagePanel } from "./review-package-panel";
 import { Button } from "@/components/ui/button";
 
 function newIdempotencyKey(): string {
@@ -88,6 +90,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
   const [simulatingPayment, setSimulatingPayment] = useState(false);
+  const [releasingPayment, setReleasingPayment] = useState(false);
 
   const refresh = useCallback(() => {
     room.reload();
@@ -168,11 +171,24 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     }
   };
 
-  const beginPaymentSimulation = async () => {
+  const beginPaymentAuthorization = async () => {
     setSimulatingPayment(true);
     setActionError(null);
     const result = await simulatePaymentAuthorization(taskId, newIdempotencyKey());
     setSimulatingPayment(false);
+    if (result.error) {
+      setActionError(result.error.message);
+      return;
+    }
+    setActiveTab("payment");
+    refresh();
+  };
+
+  const releasePayment = async () => {
+    setReleasingPayment(true);
+    setActionError(null);
+    const result = await releaseTaskPayment(taskId, newIdempotencyKey());
+    setReleasingPayment(false);
     if (result.error) {
       setActionError(result.error.message);
       return;
@@ -281,12 +297,21 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   if (isDraftOrAwaiting) {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Scope needs approval";
+  } else if (task.status === "AWAITING_CLIENT_REVIEW") {
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
+    statusText = "Awaiting client review";
+  } else if (task.status === "AWAITING_EXTERNAL_REVIEW") {
+    statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
+    statusText = "Awaiting independent review";
+  } else if (task.status === "REVIEW_ACCEPTED") {
+    statusBadgeClass = "bg-[var(--wp-success-subtle)] text-[var(--wp-success)]";
+    statusText = "Review accepted";
   } else if (task.status === "HUMAN_REVIEW") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Independent review needed";
-  } else if (task.status === "REVISION_REQUIRED") {
+  } else if (task.status === "REVISION_REQUIRED" || task.status === "REJECTED") {
     statusBadgeClass = "bg-[var(--wp-danger-subtle)] text-[var(--wp-danger)]";
-    statusText = "Revision requested";
+    statusText = task.status === "REJECTED" ? "Delivery rejected" : "Revision requested";
   } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
     statusText = "Review in progress";
@@ -304,7 +329,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     statusText = "Discussion open · not committed";
   } else if (task.status === "AGREEMENT_READY") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
-    statusText = "Ready for payment test";
+    statusText = "Ready for simulated authorization";
   } else if (task.status === "PROVIDER_SEARCH") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
     statusText = "Finding professionals";
@@ -313,13 +338,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     statusText = "Contact in progress";
   } else if (task.status === "PAYMENT_AUTHORIZATION") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
-    statusText = "Payment test in progress";
+    statusText = "Simulated authorization in progress";
   } else if (task.status === "COMPLETED") {
     statusBadgeClass = "bg-[var(--wp-success-subtle)] text-[var(--wp-success)]";
     statusText = "Task complete";
   } else if (task.status === "PAYMENT_RELEASE") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
-    statusText = "Payment review";
+    statusText = "Simulated release policy";
   } else if (task.status === "CANCELLED" || task.status === "EXPIRED") {
     statusBadgeClass = "bg-[var(--wp-surface-subtle)] text-[var(--wp-text-muted)]";
     statusText = task.status === "CANCELLED" ? "Task cancelled" : "Task expired";
@@ -331,37 +356,44 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const nextStepLabel =
     isDraftOrAwaiting && activeContract
       ? "Review and approve the scope"
-      : task.status === "HUMAN_REVIEW"
-        ? "Choose an independent reviewer"
-        : task.status === "REVISION_REQUIRED"
-          ? "Review the requested revision"
-          : task.status === "SUBMITTED" || task.status === "VERIFYING"
-            ? "Deliverables are being reviewed"
-            : task.status === "PAYMENT_RELEASE"
-              ? "Review payment status"
-              : task.status === "COMPLETED"
-                ? "Task is complete"
-                : task.status === "CANCELLED"
-                  ? "Task cancelled"
-                  : task.status === "EXPIRED"
-                    ? "Task expired"
-                    : !execution && lifecycle.pending > 0
-                      ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
-                      : !execution && lifecycle.open > 0
-                        ? "Continue the discussion; work is not committed"
-                        : execution?.status === "ASSIGNED"
-                          ? "Review the assignment and accept to begin"
-                          : execution?.status === "ACCEPTED" || execution?.status === "IN_PROGRESS"
-                            ? "Work is in progress"
-                            : task.status === "AGREEMENT_READY"
-                              ? "Run the payment simulation"
-                              : task.status === "PROVIDER_SEARCH"
-                                ? profileCount > 0
-                                  ? "Choose a professional to contact"
-                                  : "Finding available professionals"
-                                : task.status === "NEGOTIATION"
-                                  ? "Continue your contact discussion"
-                                  : "Review task details";
+      : task.status === "AWAITING_CLIENT_REVIEW"
+        ? "Review the live delivery package and decide whether to accept it"
+        : task.status === "AWAITING_EXTERNAL_REVIEW"
+          ? "Await the agreed independent report, then record the buyer decision"
+          : task.status === "REVIEW_ACCEPTED"
+            ? "The delivery has been accepted; run the separate simulated release policy"
+            : task.status === "HUMAN_REVIEW"
+              ? "Choose an independent reviewer"
+              : task.status === "REVISION_REQUIRED" || task.status === "REJECTED"
+                ? "Review the requested revision or rejection"
+                : task.status === "SUBMITTED" || task.status === "VERIFYING"
+                  ? "Deliverables are being reviewed"
+                  : task.status === "PAYMENT_RELEASE"
+                    ? "Review simulated release status"
+                    : task.status === "COMPLETED"
+                      ? "Task is complete"
+                      : task.status === "CANCELLED"
+                        ? "Task cancelled"
+                        : task.status === "EXPIRED"
+                          ? "Task expired"
+                          : !execution && lifecycle.pending > 0
+                            ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
+                            : !execution && lifecycle.open > 0
+                              ? "Continue the discussion; work is not committed"
+                              : execution?.status === "ASSIGNED"
+                                ? "Review the assignment and accept to begin"
+                                : execution?.status === "ACCEPTED" ||
+                                    execution?.status === "IN_PROGRESS"
+                                  ? "Work is in progress"
+                                  : task.status === "AGREEMENT_READY"
+                                    ? "Run simulated authorization and assign work"
+                                    : task.status === "PROVIDER_SEARCH"
+                                      ? profileCount > 0
+                                        ? "Choose a professional to contact"
+                                        : "Finding available professionals"
+                                      : task.status === "NEGOTIATION"
+                                        ? "Continue your contact discussion"
+                                        : "Review task details";
 
   const workspaceSections = [
     {
@@ -409,7 +441,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       status: payment.loading
         ? "Loading"
         : isPaymentCaptured
-          ? "Simulation captured"
+          ? "Captured"
           : payment.data
             ? payment.data.status.replaceAll("_", " ").toLowerCase()
             : "Not started",
@@ -519,8 +551,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
                   {lifecycle.pending > 0
-                    ? "Your contact request is waiting for a professional. Follow the response in your conversation."
-                    : "A professional accepted your request to discuss. Work starts only after exact terms and an assignment are accepted."}
+                    ? "Your contact request is waiting for a response. Keep watching the conversation for the next step."
+                    : "A professional accepted the discussion. Work starts only after the exact terms and assignment are accepted by both parties."}
                 </p>
                 <Button
                   type="button"
@@ -537,7 +569,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") ? (
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Compare profiles and choose who to contact. Your approved scope stays unchanged.
+                  Compare profiles and choose a professional to contact. The approved scope remains
+                  unchanged.
                 </p>
                 <Button
                   type="button"
@@ -545,23 +578,41 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   onClick={() => setActiveTab("execution")}
                   className="mt-4 w-full max-w-md"
                 >
-                  Review professionals
+                  Review profiles
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </>
             ) : task.status === "AGREEMENT_READY" ? (
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  This records a payment-policy simulation only. It does not charge, hold, or pay
-                  funds.
+                  The task is ready for simulated authorization and assignment. No funds are held or
+                  moved in this validation environment.
                 </p>
                 <Button
                   type="button"
-                  onClick={() => void beginPaymentSimulation()}
+                  onClick={() => void beginPaymentAuthorization()}
                   disabled={simulatingPayment}
                   className="mt-4 w-full max-w-md"
                 >
-                  {simulatingPayment ? "Running payment test…" : "Run payment test"}
+                  {simulatingPayment
+                    ? "Running simulated authorization…"
+                    : "Simulate authorization and assign work"}
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </>
+            ) : task.status === "REVIEW_ACCEPTED" || task.status === "PAYMENT_RELEASE" ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  The buyer accepted this delivery. Run the separate simulated release gate to
+                  validate policy and completion; no funds will be charged or paid.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void releasePayment()}
+                  disabled={releasingPayment}
+                  className="mt-4 w-full max-w-md"
+                >
+                  {releasingPayment ? "Running release policy…" : "Run simulated release"}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </>
@@ -901,6 +952,26 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     })}
                   </div>
 
+                  {(task.status === "SUBMITTED" ||
+                    task.status === "VERIFYING" ||
+                    task.status === "AWAITING_CLIENT_REVIEW" ||
+                    task.status === "AWAITING_EXTERNAL_REVIEW" ||
+                    task.status === "REVIEW_ACCEPTED" ||
+                    task.status === "REJECTED" ||
+                    task.status === "REVISION_REQUIRED" ||
+                    task.status === "HUMAN_REVIEW") && (
+                    <ReviewPackagePanel
+                      taskId={taskId}
+                      taskTitle={task.title}
+                      contractSummary={
+                        activeContract?.summary ?? workSpecification?.summary ?? null
+                      }
+                      taskStatus={task.status}
+                      reviewPackage={room.data.reviewPackage}
+                      onChanged={refresh}
+                    />
+                  )}
+
                   {/* Human Review Decision Surface (Section 11) */}
                   {task.status === "HUMAN_REVIEW" && (
                     <div className="p-5 rounded-xl border border-amber-300 bg-amber-50/40 space-y-3">
@@ -911,9 +982,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                       <p className="text-xs text-amber-800 leading-relaxed">
                         Automated checks and AI cannot determine whether this work is professionally
                         satisfactory. Tenfo does not provide an arbitrator or judge this result. Use
-                        the agreed review criteria and contact an independent reviewer. Any PayPal
-                        authorization remains subject to its actual status; this screen does not
-                        promise that funds are held.
+                        the agreed review criteria and contact an independent reviewer. Payment
+                        states are simulated and this screen does not represent funds being held.
                       </p>
                       <Link
                         href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
@@ -927,7 +997,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               </div>
             )}
 
-            {/* Payment status and simulation details */}
+            {/* Payment status and authorization details */}
             {currentTab === "payment" && (
               <div className="space-y-3">
                 <PaymentPanel payment={payment.data ?? null} />
@@ -938,7 +1008,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
                       {task.status === "AGREEMENT_READY"
-                        ? "The agreed terms are ready for a payment-policy simulation. Use the Next step action above to record this test; no real funds move."
+                        ? "The agreed terms are ready for simulated authorization and assignment. No funds are held or moved."
                         : "Payment activity follows an agreed work arrangement. Contact and discussion alone do not authorize a payment or commit either party."}
                     </p>
                     {!execution && task.status !== "AGREEMENT_READY" ? (

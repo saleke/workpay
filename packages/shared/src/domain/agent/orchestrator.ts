@@ -29,15 +29,11 @@ import { isTerminal, type TaskStatus } from "../tasks/state.js";
 import { transitionTask } from "../tasks/service.js";
 import { planTask } from "../planning/service.js";
 import { draftContract } from "../contracts/service.js";
-import {
-  prepareBuyerOffer,
-  submitBuyerAgentOffer,
-  acceptOffer,
-} from "../negotiation/service.js";
+import { prepareBuyerOffer, submitBuyerAgentOffer, acceptOffer } from "../negotiation/service.js";
 import { ensurePaymentForAgreement, authorizePayment } from "../payments/service.js";
-import { assignExecution, markSubmissionAccepted, requestRevision } from "../execution/service.js";
-import { workExecutions } from "../../db/schema/execution.js";
+import { assignExecution } from "../execution/service.js";
 import { startVerification, executeVerification } from "../verification/service.js";
+import { createReviewPackageForSubmission } from "../review-packages/service.js";
 import { getAIClient } from "../../integrations/ai/index.js";
 import { startAgentRun, recordAgentAction } from "./service.js";
 import { evaluateAgentAuthority, type AgentActionType } from "./authority.js";
@@ -439,49 +435,34 @@ export async function agentVerifySubmission(options: {
     actor: options.actor,
     correlationId: options.correlationId,
   });
-
-  const next: TaskStatus =
-    outcome.outcome === "PASS"
-      ? "PAYMENT_RELEASE"
-      : outcome.outcome === "FAIL"
-        ? "REVISION_REQUIRED"
-        : "HUMAN_REVIEW";
-  await withTransaction(async (tx) => {
-    if (outcome.outcome === "PASS" || outcome.outcome === "FAIL") {
-      const [execution] = await tx
-        .select()
-        .from(workExecutions)
-        .where(eq(workExecutions.taskId, options.taskId))
-        .limit(1);
-      if (execution) {
-        if (outcome.outcome === "PASS") {
-          await markSubmissionAccepted(tx, {
-            executionId: execution.id,
-            submissionId: options.submissionId,
-          });
-        } else {
-          await requestRevision(tx, {
-            executionId: execution.id,
-            submissionId: options.submissionId,
-            actor: options.actor,
-            correlationId: options.correlationId,
-            reason: "Automated acceptance checks failed; a revision is required.",
-          });
-        }
-      }
-    }
-    await transitionTask(tx, {
-      taskId: options.taskId,
-      to: next,
-      actor: options.actor,
-      correlationId: options.correlationId,
-    });
-  });
+  await handoffSubmissionToBuyerReview(options);
 
   return {
     ok: true as const,
     outcome: outcome.outcome,
     verificationRunId,
-    acceptanceDecisionId: outcome.acceptanceDecisionId,
   };
+}
+
+export async function handoffSubmissionToBuyerReview(options: {
+  taskId: string;
+  submissionId: string;
+  actor: Actor;
+  correlationId: string;
+}) {
+  return withTransaction(async (tx) => {
+    const reviewPackage = await createReviewPackageForSubmission(tx, options);
+    const task = await loadTask(tx, options.taskId);
+    if (task.status === "VERIFYING") {
+      await transitionTask(tx, {
+        taskId: options.taskId,
+        to: "AWAITING_CLIENT_REVIEW",
+        actor: options.actor,
+        correlationId: options.correlationId,
+      });
+    } else if (task.status !== "AWAITING_CLIENT_REVIEW") {
+      throw new Error(`Task ${task.id} cannot enter buyer review from ${task.status}`);
+    }
+    return reviewPackage;
+  });
 }

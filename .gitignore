@@ -22,6 +22,7 @@ bin/
 screenshots/
 packages/shared/screenshots/
 *.png
+!apps/web/public/apple-touch-icon.png
 *.jpg
 *.jpeg
 *.webp

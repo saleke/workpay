@@ -145,9 +145,9 @@ export function IndependentReviewPanel({
       <div>
         <h4 className="font-medium">Independent review agreement</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          The buyer and professional agree the reviewer, criteria, fee payer, and contractual
-          authority before work starts. The reviewer supplies the judgment; Tenfo does not
-          arbitrate. Reviewer profile claims are self-supplied.
+          The buyer and professional agree the reviewer, criteria, and fee terms before work moves
+          forward. The reviewer provides independent judgment; the platform does not arbitrate the
+          outcome. Reviewer profile claims are self-supplied and should be checked separately.
         </p>
       </div>
 
@@ -226,8 +226,8 @@ export function IndependentReviewPanel({
                     <span className="block font-medium">{reviewer.displayName}</span>
                     <span className="block text-xs text-muted-foreground">{reviewer.summary}</span>
                     <span className="block text-xs text-muted-foreground">
-                      Matching domains: {reviewer.matchedDomains.join(", ")} · Evidence is supplied
-                      by the reviewer and not independently verified.
+                      Matching domains: {reviewer.matchedDomains.join(", ")} · Review evidence is
+                      supplied by the reviewer and is not independently verified by the platform.
                     </span>
                   </span>
                 </label>
@@ -260,7 +260,8 @@ export function IndependentReviewPanel({
           </div>
           <p className="text-xs text-muted-foreground">
             The review plan covers {criteria.length} acceptance-relevant criteria. Fee handling is
-            outside Tenfo; Tenfo does not collect or release reviewer fees.
+            an agreement between the parties and the reviewer; the platform does not collect or
+            release reviewer payments.
           </p>
           {criteria.length === 0 ? (
             <p className="text-sm text-destructive">

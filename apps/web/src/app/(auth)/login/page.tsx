@@ -175,7 +175,7 @@ export default function LoginPage() {
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Payment states are simulated. No funds are charged, held, captured, or paid.
+              Payment states are simulated for evaluation. No funds are held, charged, or paid.
             </p>
           </section>
         ) : null}

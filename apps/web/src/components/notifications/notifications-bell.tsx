@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/use-api";
+import { clearApiCache, useApi } from "@/lib/use-api";
 import { listNotifications, markNotificationRead } from "@/lib/api/endpoints";
 import { formatDateTime } from "@/lib/format";
 import type { NotificationDto } from "@/lib/api/types";
@@ -63,7 +63,7 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationDto[]>([]);
   const [filterTab, setFilterTab] = useState<
-    "ALL" | "UNREAD" | "WORK" | "PAYMENTS" | "VERIFICATIONS"
+    "ALL" | "UNREAD" | "TASKS" | "MESSAGES" | "PAYMENTS" | "REVIEWS"
   >("ALL");
   const [isPending, startTransition] = useTransition();
 
@@ -88,7 +88,9 @@ export function NotificationsBell() {
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (filterTab === "UNREAD") return !item.readAt;
-      if (filterTab === "WORK")
+      if (filterTab === "TASKS")
+        return item.type.includes("TASK") || item.type.includes("CONTRACT");
+      if (filterTab === "MESSAGES")
         return item.type.includes("CONVERSATION") || item.type.includes("MESSAGE");
       if (filterTab === "PAYMENTS")
         return (
@@ -96,11 +98,12 @@ export function NotificationsBell() {
           item.type.includes("MONEY") ||
           item.type.includes("CAPTURE")
         );
-      if (filterTab === "VERIFICATIONS")
+      if (filterTab === "REVIEWS")
         return (
           item.type.includes("VERIF") ||
           item.type.includes("SUBMITTED") ||
           item.type.includes("CASE") ||
+          item.type.includes("REVIEW") ||
           item.type.includes("REVISION")
         );
       return true;
@@ -109,16 +112,22 @@ export function NotificationsBell() {
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    startTransition(async () => {
+    startTransition(() => {
       setItems((prev) =>
         prev.map((item) => ({
           ...item,
           readAt: item.readAt ?? new Date().toISOString(),
         })),
       );
-      await markNotificationRead({ markAllRead: true });
-      reload();
     });
+
+    try {
+      await markNotificationRead({ markAllRead: true });
+      clearApiCache("notifications");
+      reload();
+    } catch (error) {
+      console.error("Could not mark all notifications as read.", error);
+    }
   };
 
   const handleItemClick = async (item: NotificationDto) => {
@@ -126,7 +135,13 @@ export function NotificationsBell() {
       setItems((prev) =>
         prev.map((n) => (n.id === item.id ? { ...n, readAt: new Date().toISOString() } : n)),
       );
-      await markNotificationRead({ id: item.id });
+      try {
+        await markNotificationRead({ id: item.id });
+        clearApiCache("notifications");
+        reload();
+      } catch (error) {
+        console.error(`Could not mark notification ${item.id} as read.`, error);
+      }
     }
     setOpen(false);
   };
@@ -207,15 +222,27 @@ export function NotificationsBell() {
           </button>
           <button
             type="button"
-            onClick={() => setFilterTab("WORK")}
+            onClick={() => setFilterTab("TASKS")}
             className={cn(
               "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
-              filterTab === "WORK"
+              filterTab === "TASKS"
                 ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
                 : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
             )}
           >
-            Work
+            Tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("MESSAGES")}
+            className={cn(
+              "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
+              filterTab === "MESSAGES"
+                ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
+                : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
+            )}
+          >
+            Messages
           </button>
           <button
             type="button"
@@ -231,15 +258,15 @@ export function NotificationsBell() {
           </button>
           <button
             type="button"
-            onClick={() => setFilterTab("VERIFICATIONS")}
+            onClick={() => setFilterTab("REVIEWS")}
             className={cn(
               "px-2 py-0.5 rounded-md font-medium transition-all text-[11px] cursor-pointer",
-              filterTab === "VERIFICATIONS"
+              filterTab === "REVIEWS"
                 ? "bg-white text-[var(--wp-text-primary)] font-semibold shadow-2xs border border-[var(--wp-border)]"
                 : "text-[var(--wp-text-secondary)] hover:text-[var(--wp-text-primary)]",
             )}
           >
-            Verifications
+            Reviews
           </button>
         </div>
 
@@ -252,13 +279,15 @@ export function NotificationsBell() {
               <p className="text-sm font-medium text-foreground">
                 {filterTab === "UNREAD"
                   ? "No unread notifications"
-                  : filterTab === "WORK"
-                    ? "No work requests or messages"
-                    : filterTab === "PAYMENTS"
-                      ? "No payment notifications"
-                      : filterTab === "VERIFICATIONS"
-                        ? "No verification notifications"
-                        : "All caught up"}
+                  : filterTab === "TASKS"
+                    ? "No task updates"
+                    : filterTab === "MESSAGES"
+                      ? "No new messages"
+                      : filterTab === "PAYMENTS"
+                        ? "No payment notifications"
+                        : filterTab === "REVIEWS"
+                          ? "No review updates"
+                          : "All caught up"}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 New work requests, messages, payment updates, and verification results will appear
@@ -273,12 +302,11 @@ export function NotificationsBell() {
               const content = (
                 <div
                   className={cn(
-                    "flex items-start gap-3 p-3.5 transition-colors cursor-pointer text-left w-full",
+                    "flex items-start gap-3 p-3.5 transition-colors text-left w-full",
                     isUnread
                       ? "bg-primary/[0.04] hover:bg-primary/[0.08]"
                       : "hover:bg-muted/50 opacity-80 hover:opacity-100",
                   )}
-                  onClick={() => handleItemClick(n)}
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background border border-border/70 shadow-2xs mt-0.5">
                     {getNotificationIcon(n.type)}
@@ -317,14 +345,23 @@ export function NotificationsBell() {
                     key={n.id}
                     href={targetHref}
                     className="block focus:outline-hidden"
-                    onClick={() => handleItemClick(n)}
+                    onClick={() => void handleItemClick(n)}
                   >
                     {content}
                   </Link>
                 );
               }
 
-              return <div key={n.id}>{content}</div>;
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  className="block w-full text-left"
+                  onClick={() => void handleItemClick(n)}
+                >
+                  {content}
+                </button>
+              );
             })
           )}
         </div>

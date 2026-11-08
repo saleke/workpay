@@ -14,7 +14,11 @@
 import { describe, expect, it } from "vitest";
 import { money, parseMoneyInput, type Money } from "./platform/money.js";
 import { evaluatePaymentPolicy } from "./domain/payments/policy.js";
-import { evaluateAgentAuthority, AGENT_AUTHORITY_VERSION, type AgentActionType } from "./domain/agent/authority.js";
+import {
+  evaluateAgentAuthority,
+  AGENT_AUTHORITY_VERSION,
+  type AgentActionType,
+} from "./domain/agent/authority.js";
 import { canTransition } from "./domain/tasks/state.js";
 import { authorize, ACTIONS } from "./domain/identity/authorize.js";
 import { sha256HexOfBytes } from "./platform/hashing.js";
@@ -66,6 +70,25 @@ describe("Appendix D: Architectural Invariants", () => {
       capturedAmountMinor: null,
       providerAuthorizationId: "auth_paypal_123",
     };
+    const baseTask = { status: "PAYMENT_RELEASE", ownerUserId: "buyer_1" };
+    const baseSubmission = {
+      id: "sub_current",
+      version: 1,
+      submissionHash: "submission_hash_current",
+      contractVersion: 1,
+      contractHash: "hash_v1_approved",
+    };
+    const reviewDecision = (outcome: "PASS" | "FAIL" | "UNCERTAIN") => ({
+      submissionId: baseSubmission.id,
+      submissionVersion: baseSubmission.version,
+      submissionHash: baseSubmission.submissionHash,
+      reviewPackageId: "rpk_current",
+      contractVersion: 1,
+      contractHash: "hash_v1_approved",
+      outcome,
+      reviewedBy: baseTask.ownerUserId,
+      hasDeterministicFailure: outcome === "FAIL",
+    });
 
     it("DENIES capture with FAIL verdict", () => {
       const decision = evaluatePaymentPolicy({
@@ -73,16 +96,14 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
-        acceptanceDecision: {
-          contractVersion: 1,
-          contractHash: "hash_v1_approved",
-          outcome: "FAIL",
-        },
+        task: baseTask,
+        currentSubmission: baseSubmission,
+        acceptanceDecision: reviewDecision("FAIL"),
       });
 
       expect(decision.result).toBe("DENY");
-      expect(decision.reasonCode).toBe("verification.passed");
-      const verCheck = decision.checks.find((c) => c.checkId === "verification.passed");
+      expect(decision.reasonCode).toBe("buyer_review.passed");
+      const verCheck = decision.checks.find((c) => c.checkId === "buyer_review.passed");
       expect(verCheck?.result).toBe("FAIL");
     });
 
@@ -92,15 +113,13 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
-        acceptanceDecision: {
-          contractVersion: 1,
-          contractHash: "hash_v1_approved",
-          outcome: "UNCERTAIN",
-        },
+        task: baseTask,
+        currentSubmission: baseSubmission,
+        acceptanceDecision: reviewDecision("UNCERTAIN"),
       });
 
       expect(decision.result).toBe("DENY");
-      const verCheck = decision.checks.find((c) => c.checkId === "verification.passed");
+      const verCheck = decision.checks.find((c) => c.checkId === "buyer_review.passed");
       expect(verCheck?.result).toBe("FAIL");
     });
 
@@ -110,11 +129,9 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
-        acceptanceDecision: {
-          contractVersion: 1,
-          contractHash: "hash_v1_approved",
-          outcome: "PASS",
-        },
+        task: baseTask,
+        currentSubmission: baseSubmission,
+        acceptanceDecision: reviewDecision("PASS"),
         blockingCase: {
           id: "case_dispute_1",
           category: "WORK_DISPUTE",
@@ -136,17 +153,17 @@ describe("Appendix D: Architectural Invariants", () => {
         },
         agreement: baseAgreement,
         payment: basePayment,
-        acceptanceDecision: {
-          contractVersion: 1, // Stale version
-          contractHash: "hash_v1_approved",
-          outcome: "PASS",
-        },
+        task: baseTask,
+        currentSubmission: baseSubmission,
+        acceptanceDecision: reviewDecision("PASS"),
       });
 
       expect(decision.result).toBe("DENY");
-      const versionCheck = decision.checks.find((c) => c.checkId === "verification.contract_current");
+      const versionCheck = decision.checks.find(
+        (c) => c.checkId === "buyer_review.contract_current",
+      );
       expect(versionCheck?.result).toBe("FAIL");
-      const hashCheck = decision.checks.find((c) => c.checkId === "verification.hash_matches");
+      const hashCheck = decision.checks.find((c) => c.checkId === "buyer_review.hash_matches");
       expect(hashCheck?.result).toBe("FAIL");
     });
 
@@ -156,12 +173,10 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
+        task: baseTask,
+        currentSubmission: baseSubmission,
         systemPaymentPaused: true,
-        acceptanceDecision: {
-          contractVersion: 1,
-          contractHash: "hash_v1_approved",
-          outcome: "PASS",
-        },
+        acceptanceDecision: reviewDecision("PASS"),
       });
 
       expect(decision.result).toBe("DENY");
@@ -174,6 +189,8 @@ describe("Appendix D: Architectural Invariants", () => {
         action: "AUTHORIZE",
         contract: baseContract,
         agreement: baseAgreement,
+        task: baseTask,
+        currentSubmission: null,
         acceptanceDecision: null,
         payment: {
           id: "pay_test_mismatch",
@@ -277,7 +294,9 @@ describe("Appendix D: Architectural Invariants", () => {
   // ── Invariant D2/I1: Deliverable Integrity & Verification ───────────────────
   describe("D2/I1: Verification binds to contract hash and deliverable checksum", () => {
     it("Verifies deliverable checksum changes when deliverable is modified", () => {
-      const v1Bytes = new TextEncoder().encode("id,email\n1,alice@example.com\n2,alice@example.com");
+      const v1Bytes = new TextEncoder().encode(
+        "id,email\n1,alice@example.com\n2,alice@example.com",
+      );
       const v2Bytes = new TextEncoder().encode("id,email\n1,alice@example.com\n2,bob@example.com");
 
       const v1Hash = sha256HexOfBytes(v1Bytes);

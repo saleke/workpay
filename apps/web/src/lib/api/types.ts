@@ -24,6 +24,10 @@ export type TaskStatus =
   | "WORK_IN_PROGRESS"
   | "SUBMITTED"
   | "VERIFYING"
+  | "AWAITING_CLIENT_REVIEW"
+  | "AWAITING_EXTERNAL_REVIEW"
+  | "REVIEW_ACCEPTED"
+  | "REJECTED"
   | "REVISION_REQUIRED"
   | "HUMAN_REVIEW"
   | "PAYMENT_RELEASE"
@@ -236,6 +240,11 @@ export interface ReviewerProfileDto {
   id: string;
   isListed: boolean;
   available: boolean;
+  offersWork: boolean;
+  offersReview: boolean;
+  acceptsReviewOnly: boolean;
+  reviewAvailability: "AVAILABLE" | "BUSY" | "OFFLINE";
+  reviewNotice: string | null;
   displayName: string;
   publicContactUrl: string | null;
   summary: string;
@@ -252,6 +261,11 @@ export interface ReviewerProfileDto {
 export interface ReviewerProfileInputDto {
   isListed: boolean;
   available: boolean;
+  offersWork: boolean;
+  offersReview: boolean;
+  acceptsReviewOnly: boolean;
+  reviewAvailability: "AVAILABLE" | "BUSY" | "OFFLINE";
+  reviewNotice: string | null;
   displayName: string;
   publicContactUrl: string | null;
   summary: string;
@@ -323,7 +337,7 @@ export interface IndependentReviewEngagementDto {
   proposerUserId: string;
   requirementKeys: string[];
   domains: string[];
-  authority: "CONTRACTUAL_ACCEPTANCE";
+  authority: "ADVISORY";
   feeMinor: number | null;
   feeCurrency: string;
   feePayer: "BUYER" | "PROVIDER" | "SHARED" | "DIRECT";
@@ -424,7 +438,7 @@ export interface PaymentDto {
   amountMinor: number;
   currency: string;
   status: PaymentStatus;
-  mode: "SIMULATED" | "LIVE";
+  mode: "FAKE" | "SANDBOX" | "LIVE";
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
   payoutEmail?: string | null;
@@ -449,9 +463,62 @@ export interface SubmissionDto {
   executionId: string;
   version: number;
   status: SubmissionStatus;
+  contractVersion: number;
+  contractHash: string;
+  submissionHash: string | null;
   note: string | null;
   artifacts: SubmissionArtifactDto[];
   createdAt: string;
+}
+
+export type ReviewPackageDecision =
+  "APPROVED" | "REJECTED" | "CHANGES_REQUESTED" | "EXTERNAL_REVIEW_REQUESTED";
+
+export interface ReviewPackageDto {
+  id: string;
+  taskId: string;
+  executionId: string;
+  submissionId: string;
+  submissionVersion: number;
+  submissionHash: string;
+  contractId: string;
+  contractVersion: number;
+  contractHash: string;
+  verificationRunId: string;
+  buyerUserId: string;
+  providerId: string;
+  status:
+    | "DRAFT"
+    | "READY_FOR_REVIEW"
+    | "CHANGES_REQUESTED"
+    | "APPROVED"
+    | "REJECTED"
+    | "EXTERNAL_REVIEW_REQUESTED";
+  version: number;
+  summary: string;
+  notes: string | null;
+  previewLinks: Array<{ label: string; url: string }>;
+  fileReferences: Array<{
+    id: string;
+    name: string;
+    kind: SubmissionArtifactDto["type"];
+    contentType: string | null;
+    sizeBytes: number;
+  }>;
+  knownIssues: string[];
+  reviewerDecision: ReviewPackageDecision | null;
+  decisionReason: string | null;
+  reviewedBy: string | null;
+  advisoryReport: {
+    id: string;
+    outcome: VerificationOutcome;
+    rationale: string;
+    reviewerUserId: string;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
 }
 
 export interface ExecutionDto {
@@ -556,6 +623,7 @@ export interface TaskRoomDto {
   providerSelection: ProviderSelectionDto | null;
   agentRun: { id: string; status: string; actions: AgentActionDto[] } | null;
   execution: ExecutionDto | null;
+  reviewPackage: ReviewPackageDto | null;
   cases: CaseDto[];
 }
 

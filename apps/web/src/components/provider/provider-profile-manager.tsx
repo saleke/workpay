@@ -1224,13 +1224,13 @@ export function ProviderProfileManager() {
           </CardHeader>
           <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
             <p>
-              Agreed prices can be exercised through the payment-policy simulation, but no funds are
-              charged or paid. A future marketplace payment design will require separate
-              professional onboarding and explicit buyer approval at the payment provider.
+              Current payment states are simulated, so no funds are held and no payout occurs. A
+              future marketplace design requires separate professional onboarding, explicit buyer
+              approval, webhooks, reconciliation, and payment-provider consent.
             </p>
             <Button asChild variant="outline" size="sm" className="text-xs font-medium gap-1.5">
               <Link href="/payments">
-                <span>View simulation records</span>
+                <span>View payment records</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>

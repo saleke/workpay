@@ -67,7 +67,7 @@ export function ProviderWorkList() {
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1 font-semibold text-foreground text-sm font-mono">
                 <DollarSign className="h-4 w-4 text-emerald-600 -mr-1" />
-                {formatMinorMoney(w.pay)} Agreed amount · simulation only
+                {formatMinorMoney(w.pay)} Agreed amount
               </span>
               <span className="flex items-center gap-1">
                 <FileCode className="h-3.5 w-3.5 text-primary" />

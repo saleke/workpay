@@ -597,22 +597,35 @@ export async function sendTaskMessage(
 
   const attachments = input.attachments ?? [];
   const allowedFileTypes = new Set([
+    "application/msword",
     "application/pdf",
+    "application/rtf",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/bmp",
+    "image/gif",
     "image/jpeg",
     "image/png",
     "image/webp",
     "text/csv",
     "text/plain",
+    "text/rtf",
   ]);
   const allowedAudioTypes = new Set([
     "audio/aac",
+    "audio/m4a",
     "audio/mp4",
+    "audio/mp3",
     "audio/mpeg",
     "audio/ogg",
     "audio/wav",
     "audio/webm",
     "audio/x-m4a",
+    "audio/x-wav",
   ]);
   if (attachments.length > 5) throw conflict("A message can contain at most 5 attachments.");
   if (

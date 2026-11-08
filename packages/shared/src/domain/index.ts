@@ -51,6 +51,7 @@ export * from "./payments/service.js";
 
 // Execution and submission
 export * from "./execution/service.js";
+export * from "./review-packages/service.js";
 
 // Verification
 export * from "./verification/checks.js";

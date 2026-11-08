@@ -66,6 +66,10 @@ export default function HomeDashboardPage() {
       return (
         t.status === "CONTRACT_REVIEW" ||
         t.status === "HUMAN_REVIEW" ||
+        t.status === "AWAITING_CLIENT_REVIEW" ||
+        t.status === "AWAITING_EXTERNAL_REVIEW" ||
+        t.status === "REVIEW_ACCEPTED" ||
+        t.status === "REJECTED" ||
         t.status === "REVISION_REQUIRED" ||
         t.status === "AWAITING_CLARIFICATION" ||
         t.status === "AGREEMENT_READY"
@@ -76,11 +80,10 @@ export default function HomeDashboardPage() {
   // Derive active tasks from the authoritative task states.
   const activeTasks = useMemo(() => {
     return tasks.filter(
-      (t) => t.status !== "COMPLETED" && t.status !== "PAYMENT_RELEASE" && t.status !== "CANCELLED",
+      (t) => t.status !== "COMPLETED" && t.status !== "CANCELLED" && t.status !== "EXPIRED",
     );
   }, [tasks]);
 
-  // Payment records are simulation data only; these totals never represent held funds.
   const commitments = useMemo(() => {
     let heldMinor = 0;
     let settledMinor = 0;
@@ -88,11 +91,7 @@ export default function HomeDashboardPage() {
     for (const p of payments) {
       if (p.status === "CAPTURED") {
         settledMinor += p.amountMinor;
-      } else if (
-        p.status === "AUTHORIZED" ||
-        p.status === "PENDING" ||
-        p.status === "AUTHORIZATION_REQUESTED"
-      ) {
+      } else if (p.status === "AUTHORIZED") {
         heldMinor += p.amountMinor;
       }
     }
@@ -160,9 +159,9 @@ export default function HomeDashboardPage() {
       </section>
 
       {paymentsError ? (
-        <section aria-label="Payment simulation status">
+        <section aria-label="Payment status">
           <ErrorState
-            title="Payment simulation data is unavailable"
+            title="Payment records are unavailable"
             description={paymentsError.message}
             onRetry={reloadPayments}
           />
@@ -173,7 +172,7 @@ export default function HomeDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Simulated authorization</span>
+            <span>Simulated authorizations</span>
             <ShieldCheck className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
@@ -181,8 +180,8 @@ export default function HomeDashboardPage() {
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             {paymentsError
-              ? "Payment simulation records could not be loaded."
-              : "Agreement amounts in the policy simulation. No funds are held."}
+              ? "Payment records could not be loaded."
+              : "Policy-authorized amounts; no funds are held or moved."}
           </p>
         </div>
 
@@ -196,8 +195,8 @@ export default function HomeDashboardPage() {
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             {paymentsError
-              ? "Payment simulation records could not be loaded."
-              : "Capture paths accepted by policy during validation. No professional was paid."}
+              ? "Payment records could not be loaded."
+              : "Completed policy simulations; no funds were charged or paid."}
           </p>
         </div>
 
@@ -228,24 +227,33 @@ export default function HomeDashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {attentionTasks.map((task) => {
-              const isContractReview =
-                task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY";
-              const isHumanReview = task.status === "HUMAN_REVIEW";
-              const isRevision = task.status === "REVISION_REQUIRED";
-
-              const badgeText = isContractReview
-                ? "Contract Awaiting Sign-off"
-                : isHumanReview
-                  ? "Verification Uncertain"
-                  : isRevision
-                    ? "Revision Requested"
-                    : "Action Needed";
-
-              const actionLabel = isContractReview
-                ? "Review & Sign Contract"
-                : isHumanReview
-                  ? "Inspect Evidence & Decide"
-                  : "View Revision Progress";
+              let badgeText = "Action Needed";
+              let actionLabel = "Open Task";
+              if (task.status === "CONTRACT_REVIEW") {
+                badgeText = "Contract Awaiting Sign-off";
+                actionLabel = "Review Contract";
+              } else if (task.status === "AGREEMENT_READY") {
+                badgeText = "Terms Ready";
+                actionLabel = "Review Simulated Authorization";
+              } else if (task.status === "AWAITING_CLIENT_REVIEW") {
+                badgeText = "Buyer Review Required";
+                actionLabel = "Inspect Evidence & Decide";
+              } else if (task.status === "AWAITING_EXTERNAL_REVIEW") {
+                badgeText = "External Review Pending";
+                actionLabel = "View Review Status";
+              } else if (task.status === "REVIEW_ACCEPTED") {
+                badgeText = "Delivery Accepted";
+                actionLabel = "Run Simulated Release";
+              } else if (task.status === "REJECTED" || task.status === "REVISION_REQUIRED") {
+                badgeText = "Revision Required";
+                actionLabel = "View Revision Progress";
+              } else if (task.status === "HUMAN_REVIEW") {
+                badgeText = "Review Evidence Needed";
+                actionLabel = "Inspect Evidence";
+              } else if (task.status === "AWAITING_CLARIFICATION") {
+                badgeText = "Clarification Needed";
+                actionLabel = "Answer Question";
+              }
 
               return (
                 <div
@@ -278,7 +286,7 @@ export default function HomeDashboardPage() {
                           currency: task.currency,
                         })}
                       </span>{" "}
-                      simulated authorization
+                      budget ceiling
                     </div>
 
                     <Link
@@ -336,12 +344,27 @@ export default function HomeDashboardPage() {
               let statusBg = "bg-blue-50 text-blue-700";
               let statusLabel = "In Execution";
 
-              if (task.status === "CONTRACT_REVIEW" || task.status === "AGREEMENT_READY") {
+              if (task.status === "CONTRACT_REVIEW") {
                 statusBg = "bg-amber-50 text-amber-800";
-                statusLabel = "Awaiting Approval";
+                statusLabel = "Contract Approval";
+              } else if (task.status === "AGREEMENT_READY") {
+                statusBg = "bg-amber-50 text-amber-800";
+                statusLabel = "Terms Ready";
               } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
                 statusBg = "bg-purple-50 text-purple-700";
-                statusLabel = "Verifying Proof";
+                statusLabel = "Checking Evidence";
+              } else if (task.status === "AWAITING_CLIENT_REVIEW") {
+                statusBg = "bg-amber-50 text-amber-800";
+                statusLabel = "Buyer Review";
+              } else if (task.status === "AWAITING_EXTERNAL_REVIEW") {
+                statusBg = "bg-violet-50 text-violet-700";
+                statusLabel = "External Review";
+              } else if (task.status === "REVIEW_ACCEPTED") {
+                statusBg = "bg-emerald-50 text-emerald-700";
+                statusLabel = "Buyer Accepted";
+              } else if (task.status === "PAYMENT_RELEASE") {
+                statusBg = "bg-blue-50 text-blue-700";
+                statusLabel = "Simulated Release";
               } else if (task.status === "PLANNING" || task.status === "CREATED") {
                 statusBg = "bg-gray-100 text-gray-700";
                 statusLabel = "Synthesizing";

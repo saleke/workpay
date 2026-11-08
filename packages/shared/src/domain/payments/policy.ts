@@ -16,7 +16,7 @@
 import { hashObject } from "../../platform/hashing.js";
 import { money, type Money } from "../../platform/money.js";
 
-export const POLICY_VERSION = "pay-policy-v1";
+export const POLICY_VERSION = "pay-policy-v2";
 
 export type PaymentAction = "AUTHORIZE" | "CAPTURE" | "VOID" | "REFUND";
 export type PolicyResult = "ALLOW" | "DENY";
@@ -31,6 +31,10 @@ export interface PolicyCheck {
 
 export interface PaymentPolicyInput {
   action: PaymentAction;
+  task: {
+    status: string;
+    ownerUserId: string;
+  };
   /** Payment facts. */
   payment: {
     id: string;
@@ -56,7 +60,20 @@ export interface PaymentPolicyInput {
   };
   /** Most recent acceptance decision bound to a contract version, if any. */
   acceptanceDecision: {
+    submissionId: string;
+    submissionVersion: number | null;
+    submissionHash: string | null;
+    reviewPackageId: string | null;
     outcome: "PASS" | "FAIL" | "UNCERTAIN";
+    contractVersion: number;
+    contractHash: string;
+    reviewedBy: string | null;
+    hasDeterministicFailure: boolean;
+  } | null;
+  currentSubmission: {
+    id: string;
+    version: number;
+    submissionHash: string | null;
     contractVersion: number;
     contractHash: string;
   } | null;
@@ -170,6 +187,15 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
   const checks = commonChecks(input);
 
   checks.push(
+    input.task.status === "PAYMENT_RELEASE"
+      ? pass("task.payment_release", "Task reached the explicit payment release gate")
+      : fail(
+          "task.payment_release",
+          `Task is not at the payment release gate (${input.task.status})`,
+        ),
+  );
+
+  checks.push(
     input.payment.status === "AUTHORIZED"
       ? pass("payment.authorized", "Payment is authorized")
       : fail("payment.authorized", `Payment is not authorized (status ${input.payment.status})`),
@@ -205,30 +231,77 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
   );
 
   const decision = input.acceptanceDecision;
-  if (!decision) {
-    checks.push(fail("verification.decision_present", "No acceptance decision exists"));
-    checks.push(na("verification.passed", "No decision to evaluate"));
-    checks.push(na("verification.contract_current", "No decision to evaluate"));
+  const submission = input.currentSubmission;
+  if (!submission) {
+    checks.push(fail("submission.current", "No current submission exists"));
   } else {
+    checks.push(pass("submission.current", "The current submission is identified"));
+    checks.push(
+      submission.contractVersion === input.contract.currentVersion &&
+        submission.contractHash === input.contract.currentHash
+        ? pass("submission.contract_current", "Submission is bound to the current contract")
+        : fail("submission.contract_current", "Submission is bound to a stale contract"),
+    );
+  }
+  if (!decision) {
+    checks.push(
+      fail("buyer_review.present", "No buyer approval exists for the current submission"),
+    );
+    checks.push(na("buyer_review.owner", "No buyer approval to evaluate"));
+    checks.push(na("buyer_review.submission_current", "No buyer approval to evaluate"));
+    checks.push(na("buyer_review.passed", "No buyer approval to evaluate"));
+    checks.push(na("buyer_review.contract_current", "No buyer approval to evaluate"));
+    checks.push(na("verification.no_deterministic_failure", "No buyer approval to evaluate"));
+  } else {
+    checks.push(pass("buyer_review.present", "A buyer review decision exists"));
+    checks.push(
+      decision.reviewedBy === input.task.ownerUserId
+        ? pass("buyer_review.owner", "The task owner recorded the approval")
+        : fail("buyer_review.owner", "The approval was not recorded by the task owner"),
+    );
+    checks.push(
+      submission && decision.submissionId === submission.id
+        ? pass("buyer_review.submission_current", "Approval refers to the current submission")
+        : fail("buyer_review.submission_current", "Approval refers to a stale submission"),
+    );
+    checks.push(
+      submission &&
+        decision.submissionVersion === submission.version &&
+        decision.submissionHash === submission.submissionHash &&
+        Boolean(decision.reviewPackageId)
+        ? pass("buyer_review.evidence_current", "Approval is bound to the current evidence package")
+        : fail(
+            "buyer_review.evidence_current",
+            "Approval is not bound to the current evidence package",
+          ),
+    );
     checks.push(
       decision.contractVersion === input.contract.currentVersion
-        ? pass("verification.contract_current", "Decision refers to the current contract version")
-        : fail("verification.contract_current", "Decision refers to a stale contract version", {
+        ? pass("buyer_review.contract_current", "Approval refers to the current contract version")
+        : fail("buyer_review.contract_current", "Approval refers to a stale contract version", {
             decisionVersion: decision.contractVersion,
             currentVersion: input.contract.currentVersion,
           }),
     );
     checks.push(
       decision.contractHash === input.contract.currentHash
-        ? pass("verification.hash_matches", "Decision is bound to the current contract hash")
-        : fail("verification.hash_matches", "Decision is bound to a different contract hash"),
+        ? pass("buyer_review.hash_matches", "Approval is bound to the current contract hash")
+        : fail("buyer_review.hash_matches", "Approval is bound to a different contract hash"),
     );
     checks.push(
       decision.outcome === "PASS"
-        ? pass("verification.passed", "Verification passed")
-        : fail("verification.passed", `Verification outcome is ${decision.outcome}`, {
+        ? pass("buyer_review.passed", "The buyer approved the delivery")
+        : fail("buyer_review.passed", `Buyer review outcome is ${decision.outcome}`, {
             outcome: decision.outcome,
           }),
+    );
+    checks.push(
+      !decision.hasDeterministicFailure
+        ? pass("verification.no_deterministic_failure", "No deterministic contract check failed")
+        : fail(
+            "verification.no_deterministic_failure",
+            "A deterministic contract check failed and blocks release",
+          ),
     );
   }
 
@@ -268,26 +341,7 @@ export function evaluatePaymentPolicy(input: PaymentPolicyInput): PolicyDecision
     reasonCode,
     checks,
     policyVersion: POLICY_VERSION,
-    inputsHash: hashObject({
-      action: input.action,
-      paymentId: input.payment.id,
-      paymentStatus: input.payment.status,
-      amountMinor: input.payment.amount.amountMinor,
-      currency: input.payment.amount.currency,
-      agreementId: input.agreement.id,
-      agreementStatus: input.agreement.status,
-      agreementAmountMinor: input.agreement.amount.amountMinor,
-      agreementContractVersion: input.agreement.contractVersion,
-      contractVersion: input.contract.currentVersion,
-      contractHash: input.contract.currentHash,
-      contractBudgetMinor: input.contract.budget.amountMinor,
-      decisionOutcome: input.acceptanceDecision?.outcome ?? null,
-      decisionContractVersion: input.acceptanceDecision?.contractVersion ?? null,
-      blockingCaseId: input.blockingCase?.id ?? null,
-      hasSucceededCapture: input.hasSucceededCapture,
-      pendingContractChangeId: input.pendingContractChange?.id ?? null,
-      systemPaymentPaused: input.systemPaymentPaused,
-    }),
+    inputsHash: hashObject(input),
   };
 }
 

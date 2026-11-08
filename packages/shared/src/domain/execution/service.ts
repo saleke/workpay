@@ -254,17 +254,15 @@ export interface SubmissionArtifactInput {
  * Create a submission draft with its artifacts. Artifacts are written to object
  * storage; the database keeps only metadata and content hashes.
  */
-export async function createSubmission(
-  options: {
-    executionId: string;
-    providerId: string;
-    actor: Actor;
-    correlationId: string;
-    notes?: string;
-    summary?: Record<string, unknown>;
-    artifacts: SubmissionArtifactInput[];
-  },
-) {
+export async function createSubmission(options: {
+  executionId: string;
+  providerId: string;
+  actor: Actor;
+  correlationId: string;
+  notes?: string;
+  summary?: Record<string, unknown>;
+  artifacts: SubmissionArtifactInput[];
+}) {
   if (options.artifacts.length === 0) {
     throw conflict("A submission must include at least one artifact.");
   }
@@ -494,6 +492,31 @@ export async function markSubmissionAccepted(
     .where(eq(workSubmissions.id, options.submissionId));
 }
 
+export async function rejectSubmission(
+  tx: Database,
+  options: { executionId: string; submissionId: string; reason: string },
+) {
+  const [submission] = await tx
+    .select({ id: workSubmissions.id })
+    .from(workSubmissions)
+    .where(
+      and(
+        eq(workSubmissions.id, options.submissionId),
+        eq(workSubmissions.executionId, options.executionId),
+      ),
+    )
+    .limit(1);
+  if (!submission) throw notFound("Submission");
+  await tx
+    .update(workSubmissions)
+    .set({ status: "REJECTED" })
+    .where(eq(workSubmissions.id, submission.id));
+  await tx
+    .update(workExecutions)
+    .set({ status: "REVISION_REQUESTED", revisionReason: options.reason })
+    .where(eq(workExecutions.id, options.executionId));
+}
+
 export async function requestRevision(
   tx: Database,
   options: {
@@ -513,7 +536,7 @@ export async function requestRevision(
 
   await tx
     .update(workExecutions)
-    .set({ status: "REVISION_REQUESTED" })
+    .set({ status: "REVISION_REQUESTED", revisionReason: options.reason })
     .where(eq(workExecutions.id, execution.id));
   await tx
     .update(workSubmissions)

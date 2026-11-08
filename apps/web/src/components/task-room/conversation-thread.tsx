@@ -65,9 +65,11 @@ export function ConversationThread({
   const [hasOlderMessages, setHasOlderMessages] = useState(conversation.hasMoreMessages ?? false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [rejectedFiles, setRejectedFiles] = useState<string[]>([]);
   const [recordedVoice, setRecordedVoice] = useState<File | null>(null);
   const [recordingVoice, setRecordingVoice] = useState(false);
   const [openingMicrophone, setOpeningMicrophone] = useState(false);
@@ -105,11 +107,45 @@ export function ConversationThread({
   const recordingStartedAtRef = useRef(0);
   const recordingRequestRef = useRef(0);
   const pendingMessageRef = useRef<{ id: string; fingerprint: string } | null>(null);
+  const lastSequenceRef = useRef(messages.at(-1)?.sequence ?? 0);
   const queuedAttachments = [...attachments, ...(recordedVoice ? [recordedVoice] : [])];
+
+  const draftStorageKey = `workpay:conversation-draft:${conversation.id}`;
+
+  useEffect(() => {
+    try {
+      const savedDraft = window.localStorage.getItem(draftStorageKey);
+      if (savedDraft && !draft.trim()) {
+        setDraft(savedDraft);
+        setDraftRestored(true);
+        window.setTimeout(() => setDraftRestored(false), 2200);
+      }
+    } catch {
+      // Ignore localStorage failures silently.
+    }
+    // Reset saved draft when the thread changes to avoid cross-thread leakage.
+    return () => {
+      setDraftRestored(false);
+    };
+  }, [conversation.id, draftStorageKey]);
+
+  useEffect(() => {
+    if (!conversation.id) return;
+    try {
+      if (draft.trim()) {
+        window.localStorage.setItem(draftStorageKey, draft);
+      } else {
+        window.localStorage.removeItem(draftStorageKey);
+      }
+    } catch {
+      // Ignore localStorage failures silently.
+    }
+  }, [conversation.id, draft, draftStorageKey]);
 
   useEffect(() => {
     setMessages(conversation.messages);
     setHasOlderMessages(conversation.hasMoreMessages ?? false);
+    lastSequenceRef.current = conversation.messages.at(-1)?.sequence ?? 0;
   }, [conversation.messages, conversation.id]);
 
   useEffect(() => {
@@ -194,8 +230,8 @@ export function ConversationThread({
 
   useEffect(() => {
     if (conversation.status !== "OPEN" || hideMessages) return;
-    const timer = setInterval(() => {
-      const lastSequence = messages.at(-1)?.sequence ?? 0;
+    const timer = window.setInterval(() => {
+      const lastSequence = lastSequenceRef.current;
       void getTaskConversationMessages(conversation.id, lastSequence).then((response) => {
         if (response.error) {
           setError(response.error.message);
@@ -207,13 +243,16 @@ export function ConversationThread({
             scrollAnchorRef.current = { height: list.scrollHeight, top: list.scrollTop };
           }
           setMessages((current) => mergeMessages(current, response.data!.messages));
-          const lastReadSequence = response.data.messages.at(-1)?.sequence;
-          if (lastReadSequence !== undefined) onViewed?.(lastReadSequence);
+          const newestSequence = response.data.messages.at(-1)?.sequence;
+          if (newestSequence !== undefined) {
+            lastSequenceRef.current = newestSequence;
+            onViewed?.(newestSequence);
+          }
         }
       });
     }, 5_000);
-    return () => clearInterval(timer);
-  }, [conversation.id, conversation.status, hideMessages, messages, onViewed]);
+    return () => window.clearInterval(timer);
+  }, [conversation.id, conversation.status, hideMessages, onViewed]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -251,30 +290,55 @@ export function ConversationThread({
   };
 
   const addFiles = (selectedFiles: File[]) => {
-    const combined = [...attachments, ...selectedFiles];
+    const validFiles: File[] = [];
+    const rejected: string[] = [];
+
+    for (const file of selectedFiles) {
+      if (file.size === 0) {
+        rejected.push(`${file.name} is empty.`);
+        continue;
+      }
+      if (file.size > MAX_CONVERSATION_ATTACHMENT_BYTES) {
+        rejected.push(`${file.name} is larger than 10 MB.`);
+        continue;
+      }
+      if (!conversationAttachmentKind(file.type)) {
+        rejected.push(`${file.name} has an unsupported format.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    const combined = [...attachments, ...validFiles];
     const allAttachments = [...combined, ...(recordedVoice ? [recordedVoice] : [])];
+
     if (allAttachments.length > MAX_CONVERSATION_ATTACHMENTS) {
-      setAttachmentError(`Send no more than ${MAX_CONVERSATION_ATTACHMENTS} attachments at once.`);
+      const overflowCount = allAttachments.length - MAX_CONVERSATION_ATTACHMENTS;
+      setAttachmentError(
+        `You can attach up to ${MAX_CONVERSATION_ATTACHMENTS} files at once. ${overflowCount} file${overflowCount === 1 ? "" : "s"} were not added.`,
+      );
+      setRejectedFiles(rejected);
       return;
     }
-    if (
-      selectedFiles.some(
-        (file) =>
-          file.size === 0 ||
-          file.size > MAX_CONVERSATION_ATTACHMENT_BYTES ||
-          conversationAttachmentKind(file.type) !== "FILE",
-      )
-    ) {
-      setAttachmentError("Choose an image, PDF, DOCX, CSV, or plain-text file up to 10 MB.");
-      return;
-    }
+
     if (
       allAttachments.reduce((total, file) => total + file.size, 0) > MAX_CONVERSATION_UPLOAD_BYTES
     ) {
-      setAttachmentError("Attachments must total no more than 15 MB.");
+      setAttachmentError("Attachments must total no more than 15 MB. Some files were not added.");
+      setRejectedFiles(rejected);
       return;
     }
+
     setAttachments(combined);
+    setRejectedFiles(rejected);
+    if (rejected.length > 0) {
+      setAttachmentError(
+        rejected.length === 1
+          ? `${rejected[0]} Please choose a supported file type or a smaller file.`
+          : `Some files were skipped: ${rejected.slice(0, 2).join(" ")}${rejected.length > 2 ? " …" : ""}`,
+      );
+      return;
+    }
     setAttachmentError(null);
   };
 
@@ -283,7 +347,9 @@ export function ConversationThread({
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setAttachmentError("Voice recording is not supported in this browser.");
+      setAttachmentError(
+        "Voice recording is not supported in this browser. You can still attach a file instead.",
+      );
       return;
     }
     const requestId = ++recordingRequestRef.current;
@@ -358,8 +424,8 @@ export function ConversationThread({
       if (recordingRequestRef.current !== requestId) return;
       setAttachmentError(
         recordingError instanceof Error && recordingError.name === "NotAllowedError"
-          ? "Allow microphone access in your browser to record a voice note."
-          : "The microphone could not be opened. Check your device and try again.",
+          ? "Microphone access was blocked. Allow access to record a voice note, or attach a file instead."
+          : "The microphone could not be opened. Check your device and try again, or attach a file instead.",
       );
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -619,6 +685,24 @@ export function ConversationThread({
             placeholder="Write a message, attach a file, or record a voice note."
           />
 
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
+              Question
+            </span>
+            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
+              Evidence
+            </span>
+            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
+              Approval
+            </span>
+          </div>
+
+          {draftRestored ? (
+            <p className="text-xs text-[var(--wp-accent)]">
+              Draft restored from your previous message.
+            </p>
+          ) : null}
+
           {attachments.length > 0 ? (
             <ul className="space-y-2" aria-label="Files ready to send">
               {attachments.map((file, index) => (
@@ -698,7 +782,7 @@ export function ConversationThread({
           <input
             ref={attachmentInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv,text/plain"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.odt,.jpg,.jpeg,.png,.webp,.gif,.bmp,.mp3,.wav,.m4a,.ogg,.webm,audio/*,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain,text/rtf"
             multiple
             className="sr-only"
             aria-label="Choose files to attach"
@@ -768,13 +852,21 @@ export function ConversationThread({
           </div>
 
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Up to 5 files, 10 MB each and 15 MB total. Voice notes stop at 2 minutes. Files are
-            visible only to conversation participants.
+            Supported: images, PDFs, Office docs, spreadsheets, text files, and audio. Up to 5
+            files, 10 MB each and 15 MB total. Voice notes stop at 2 minutes and are visible only to
+            conversation participants.
           </p>
           {attachmentError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {attachmentError}
-            </p>
+            <div className="space-y-1" role="alert">
+              <p className="text-sm text-destructive">{attachmentError}</p>
+              {rejectedFiles.length > 0 ? (
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {rejectedFiles.slice(0, 3).map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
           {error ? (
             <p className="text-sm text-destructive" role="alert">
@@ -873,7 +965,7 @@ export function ConversationThread({
                 <div className="space-y-2">
                   <p className="text-sm text-amber-800" role="status">
                     Both participants agreed. The existing contract and payment remain unchanged
-                    until the new version and required PayPal adjustment are completed.
+                    until the new version and required simulated policy adjustment are completed.
                   </p>
                   <Button
                     type="button"
@@ -899,20 +991,20 @@ export function ConversationThread({
               ) : null}
               {request.status === "ACTIVATING" ? (
                 <p className="text-sm text-amber-800" role="status">
-                  PayPal is processing the new authorization and release of the previous hold. The
-                  contract remains unchanged until both steps are confirmed.
+                  The payment simulation is reconciling the updated authorization state. The
+                  contract remains unchanged until that state is confirmed.
                 </p>
               ) : null}
               {request.status === "ACTIVATION_RECONCILIATION_REQUIRED" ? (
                 <p className="text-sm text-destructive" role="alert">
-                  PayPal did not provide a confirmed outcome. The change is not active and payment
-                  actions are paused until the authorization state is reconciled.
+                  The simulation did not provide a confirmed outcome. The change is not active and
+                  policy actions are paused until the state is reconciled.
                 </p>
               ) : null}
               {request.status === "ACTIVATION_FAILED" ? (
                 <p className="text-sm text-destructive" role="status">
-                  PayPal declined the new authorization. The current contract and existing hold
-                  remain in effect; propose a new change if you still want to proceed.
+                  The simulated authorization was declined. The current contract remains in effect;
+                  propose a new change if you still want to proceed.
                 </p>
               ) : null}
               {request.status === "CANCELLATION_PENDING" ? (
@@ -1021,9 +1113,10 @@ export function ConversationThread({
               </label>
               <p className="text-xs text-muted-foreground">
                 These are proposed terms, not a charge. The buyer's ceiling is separate from the
-                price agreed with the professional. Existing PayPal authorization or capture is not
-                changed by sending or accepting this proposal. Leave the price blank if none has
-                been agreed; an existing agreed price stays in effect unless you enter a new one.
+                price agreed with the professional. Existing simulated authorization or capture
+                state is not changed by sending or accepting this proposal. Leave the price blank if
+                none has been agreed; an existing agreed price stays in effect unless you enter a
+                new one.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={sending || !changeReason.trim()}>
@@ -1106,7 +1199,7 @@ function changeRequestStatus(status: ContractChangeRequestDto["status"]): string
     case "ACCEPTED_PENDING_ACTIVATION":
       return "Agreed — activation pending";
     case "ACTIVATING":
-      return "PayPal adjustment in progress";
+      return "Simulation adjustment in progress";
     case "ACTIVATION_FAILED":
       return "Activation failed";
     case "ACTIVATION_RECONCILIATION_REQUIRED":

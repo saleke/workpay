@@ -4,15 +4,16 @@ export function buildVerificationEmail(options: {
   otpCode: string;
   verificationUrl: string;
 }): { subject: string; text: string; html: string } {
-  const subject = `Your WorkPay Verification Code: ${options.otpCode}`;
+  const subject = `Your Tenfo Verification Code: ${options.otpCode}`;
   const greeting = options.name ? `Hello ${options.name},` : "Hello,";
 
-  const text = `${greeting}\n\n` +
-    `Your 6-digit confirmation code for WorkPay is: ${options.otpCode}\n\n` +
+  const text =
+    `${greeting}\n\n` +
+    `Your 6-digit confirmation code for Tenfo is: ${options.otpCode}\n\n` +
     `Alternatively, you can verify your email address directly by visiting this link:\n` +
     `${options.verificationUrl}\n\n` +
-    `This verification code will expire in 24 hours. If you did not create a WorkPay account, please ignore this email.\n\n` +
-    `WorkPay Team`;
+    `This verification code will expire in 24 hours. If you did not create a Tenfo account, please ignore this email.\n\n` +
+    `Tenfo Team`;
 
   const html = `
 <!DOCTYPE html>
@@ -34,7 +35,7 @@ export function buildVerificationEmail(options: {
 </head>
 <body>
   <div class="card">
-    <div class="logo">WorkPay</div>
+    <div class="logo">Tenfo</div>
     <div class="title">Verify your email address</div>
     <div class="body-text">${greeting}<br>Thank you for signing up. Please enter the verification code below to activate your account:</div>
     <div class="otp-box">
@@ -57,15 +58,16 @@ export function buildPasswordResetEmail(options: {
   otpCode: string;
   resetUrl: string;
 }): { subject: string; text: string; html: string } {
-  const subject = `Your WorkPay Password Reset Code: ${options.otpCode}`;
+  const subject = `Your Tenfo Password Reset Code: ${options.otpCode}`;
 
-  const text = `Hello,\n\n` +
-    `A password reset was requested for your WorkPay account.\n\n` +
+  const text =
+    `Hello,\n\n` +
+    `A password reset was requested for your Tenfo account.\n\n` +
     `Your 6-digit confirmation code is: ${options.otpCode}\n\n` +
     `Or click the link below to set a new password:\n` +
     `${options.resetUrl}\n\n` +
     `This code will expire in 1 hour. If you did not request a password reset, please secure your account immediately.\n\n` +
-    `WorkPay Security Team`;
+    `Tenfo Security Team`;
 
   const html = `
 <!DOCTYPE html>
@@ -87,7 +89,7 @@ export function buildPasswordResetEmail(options: {
 </head>
 <body>
   <div class="card">
-    <div class="logo">WorkPay</div>
+    <div class="logo">Tenfo</div>
     <div class="title">Reset your password</div>
     <div class="body-text">We received a request to reset your password. Use the code below to complete the reset:</div>
     <div class="otp-box">

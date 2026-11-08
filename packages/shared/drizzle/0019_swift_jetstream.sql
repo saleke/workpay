@@ -1,0 +1,2 @@
+UPDATE "acceptance_decisions" SET "reviewed_by" = NULL WHERE "reviewed_by" IS NOT NULL AND ("submission_version" IS NULL OR "submission_hash" IS NULL OR "review_package_id" IS NULL);--> statement-breakpoint
+ALTER TABLE "acceptance_decisions" ADD CONSTRAINT "acceptance_decisions_human_review_binding" CHECK ("acceptance_decisions"."reviewed_by" is null or ("acceptance_decisions"."submission_version" > 0 and length("acceptance_decisions"."submission_hash") = 64 and "acceptance_decisions"."review_package_id" is not null));
