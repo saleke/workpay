@@ -93,7 +93,7 @@ commands.extend(
     [
         "./deploy/deploy.sh",
         f"test \"$(git rev-parse HEAD)\" = {shlex.quote(commit)}",
-        f"curl -fsS --max-time 30 {shlex.quote(os.environ['HEALTH_URL'])}",
+        f"curl -fsS --connect-timeout 5 --max-time 15 --retry 20 --retry-all-errors --retry-delay 2 --retry-max-time 120 {shlex.quote(os.environ['HEALTH_URL'])}",
     ]
 )
 
@@ -154,6 +154,6 @@ if [[ "$STATUS" != "Success" ]]; then
   exit 1
 fi
 
-curl -fsS --max-time 30 "$HEALTH_URL" >/dev/null
+curl -fsS --connect-timeout 5 --max-time 15 --retry 20 --retry-all-errors --retry-delay 2 --retry-max-time 120 "$HEALTH_URL" >/dev/null
 echo "Deployment succeeded: ${LOCAL_COMMIT:0:12}"
 echo "Health check passed: $HEALTH_URL"
