@@ -7,9 +7,7 @@ import {
   Check,
   CircleDollarSign,
   Clock3,
-  FileCheck2,
   Send,
-  ShieldCheck,
   UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -180,24 +178,15 @@ export function WorkCommitmentPanel({
   return (
     <section
       aria-label="Work commitment"
-      className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_18px_50px_-38px_rgba(15,23,42,0.8)]"
+      className="overflow-hidden rounded-2xl border border-[var(--wp-border)] bg-white"
     >
-      <div className="bg-[linear-gradient(135deg,#172033_0%,#26365d_58%,#304b7b_100%)] px-4 py-4 text-white">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-200">
-              Mutual commitment
-            </p>
-            <h3 className="mt-1 text-base font-semibold tracking-tight">
-              Choose the work, together
-            </h3>
-          </div>
-          <ShieldCheck className="h-5 w-5 text-emerald-300" aria-hidden="true" />
-        </div>
-        <p className="mt-2 max-w-md text-xs leading-5 text-slate-200">
-          Messages stay non-binding. Work becomes committed only after the professional accepts the
-          exact proposal and the client confirms that professional.
+      <div className="border-b border-[var(--wp-border)] px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--wp-accent)]">
+          Work proposal
         </p>
+        <h3 className="mt-1 text-base font-semibold tracking-tight text-[var(--wp-text-primary)]">
+          {commitment ? "Terms and acceptance" : isBuyer ? "Send terms" : "Waiting for terms"}
+        </h3>
       </div>
 
       <div className="space-y-4 p-4">
@@ -211,16 +200,6 @@ export function WorkCommitmentPanel({
 
         {!loading && !commitment && isBuyer ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
-              <p className="flex items-center gap-2 text-xs font-semibold text-indigo-950">
-                <FileCheck2 className="h-4 w-4" /> Send an exact work proposal
-              </p>
-              <p className="mt-1 text-xs leading-5 text-indigo-900/80">
-                This invites the professional to accept scope version{" "}
-                {conversation.currentContractVersion}. It does not select them until you confirm
-                after their response.
-              </p>
-            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1.5 text-xs font-medium text-slate-700">
                 Compensation (USD)
@@ -251,21 +230,9 @@ export function WorkCommitmentPanel({
                 </span>
               </label>
             </div>
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-xs leading-5 text-slate-600">
-              <input
-                type="checkbox"
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-slate-300 accent-indigo-700"
-              />
-              <span>
-                I reviewed the scope and understand the professional must accept before I make the
-                final selection.
-              </span>
-            </label>
             <Button
               className="min-h-11 w-full bg-indigo-700 hover:bg-indigo-800"
-              disabled={busy || !acknowledged || !amount.trim()}
+              disabled={busy || !amount.trim()}
               onClick={() => void sendProposal()}
             >
               <Send className="mr-2 h-4 w-4" />
@@ -277,10 +244,7 @@ export function WorkCommitmentPanel({
         {!loading && !commitment && !isBuyer ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
             <p className="text-sm font-semibold text-slate-800">No work proposal yet</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              This remains a discussion. If the client sends exact terms, they will appear here and
-              in Proposed work inside Work Studio.
-            </p>
+            <p className="mt-1 text-xs text-slate-500">Terms from the client will appear here.</p>
           </div>
         ) : null}
 
@@ -311,17 +275,12 @@ export function WorkCommitmentPanel({
                 </p>
               </div>
             </div>
-            <p className="text-[10px] text-slate-500">
-              Contract v{commitment.contractVersion} · terms {commitment.termsHash.slice(0, 10)}
-            </p>
-
             {commitment.status === "AWAITING_PROVIDER" && !isBuyer ? (
               <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <div>
                   <p className="text-sm font-semibold text-amber-950">Your decision is required</p>
                   <p className="mt-1 text-xs leading-5 text-amber-900">
-                    Accept only if you can deliver this exact scope for the stated compensation and
-                    target date. The client must still confirm you afterward.
+                    Confirm that you can deliver these terms.
                   </p>
                 </div>
                 <label className="flex items-start gap-2 text-xs leading-5 text-amber-950">
@@ -367,8 +326,7 @@ export function WorkCommitmentPanel({
                   Waiting for professional review
                 </p>
                 <p className="text-xs leading-5 text-sky-900">
-                  You are not committed yet. You will make the final selection if the professional
-                  accepts.
+                  The professional is reviewing your proposal.
                 </p>
                 <Button
                   variant="outline"
@@ -387,9 +345,7 @@ export function WorkCommitmentPanel({
                     <UserCheck className="h-4 w-4" /> Professional accepted. Your choice is next.
                   </p>
                   <p className="mt-1 text-xs leading-5 text-emerald-900">
-                    Confirming selects {commitment.providerDisplayName}, closes competing work
-                    proposals for this task, and creates the agreement used for payment
-                    authorization.
+                    Confirming selects {commitment.providerDisplayName} for this task.
                   </p>
                 </div>
                 <label className="flex items-start gap-2 text-xs leading-5 text-emerald-950">
@@ -425,8 +381,7 @@ export function WorkCommitmentPanel({
               <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
                 <p className="text-sm font-semibold text-indigo-950">Accepted by you</p>
                 <p className="mt-1 text-xs leading-5 text-indigo-900">
-                  The client is deciding among accepted proposals. Do not begin work until they
-                  confirm you and Work Studio moves it to accepted work.
+                  The client is making the final selection.
                 </p>
                 <Button
                   variant="outline"
@@ -445,8 +400,7 @@ export function WorkCommitmentPanel({
                   <BadgeCheck className="h-4 w-4" /> Mutual work commitment confirmed
                 </p>
                 <p className="mt-1 text-xs leading-5 text-emerald-900">
-                  Both sides accepted the same terms. Payment authorization and permission to start
-                  remain separate safeguards.
+                  Both sides accepted these terms.
                 </p>
               </div>
             ) : null}

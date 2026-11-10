@@ -119,6 +119,7 @@ export function IndependentReviewPanel({
   const [reviewBrief, setReviewBrief] = useState("");
   const [feePayer, setFeePayer] = useState<"BUYER" | "PROVIDER" | "SHARED" | "DIRECT">("DIRECT");
   const [engagements, setEngagements] = useState<IndependentReviewEngagementDto[]>([]);
+  const [showSetup, setShowSetup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -195,6 +196,7 @@ export function IndependentReviewPanel({
       }
       setSelectedReviewerId("");
       setReviewBrief("");
+      setShowSetup(false);
       await refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "The reviewer fee is invalid.");
@@ -232,6 +234,7 @@ export function IndependentReviewPanel({
   const selectedReviewer = recommendations?.recommendations.find(
     (reviewer) => reviewer.userId === selectedReviewerId,
   );
+  if (!canPropose && engagements.length === 0 && !error) return null;
 
   return (
     <section
@@ -239,9 +242,9 @@ export function IndependentReviewPanel({
       aria-label="Independent review"
     >
       <div>
-        <h4 className="font-medium">Independent review agreement</h4>
+        <h4 className="font-medium">Independent review</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          Agree the reviewer, review focus, and fee arrangement before sending a package to them.
+          Bring in a reviewer when another perspective would help.
         </p>
       </div>
 
@@ -293,7 +296,13 @@ export function IndependentReviewPanel({
         );
       })}
 
-      {canPropose ? (
+      {canPropose && !showSetup ? (
+        <Button type="button" variant="outline" onClick={() => setShowSetup(true)}>
+          Set up a reviewer
+        </Button>
+      ) : null}
+
+      {canPropose && showSetup ? (
         <div className="space-y-3 border-t border-border pt-3">
           <label className="grid gap-1 text-sm">
             <span>Review domains</span>
@@ -389,8 +398,7 @@ export function IndependentReviewPanel({
             />
           </label>
           <p className="text-xs text-muted-foreground">
-            The review plan covers {criteria.length} acceptance-relevant criteria. Fee handling is
-            arranged between the parties and reviewer.
+            {criteria.length} acceptance-relevant criteria will be included.
           </p>
           {selectedReviewer?.feeMode === "PAYPAL" ? (
             <p className="text-xs text-violet-800">
@@ -402,15 +410,28 @@ export function IndependentReviewPanel({
               This contract has no acceptance-relevant criteria to include in a review plan.
             </p>
           ) : null}
-          <Button
-            type="button"
-            disabled={
-              busy || !selectedReviewerId || criteria.length === 0 || reviewBrief.trim().length < 20
-            }
-            onClick={() => void propose()}
-          >
-            Propose this reviewer and review plan
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={
+                busy ||
+                !selectedReviewerId ||
+                criteria.length === 0 ||
+                reviewBrief.trim().length < 20
+              }
+              onClick={() => void propose()}
+            >
+              Propose reviewer
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setShowSetup(false)}
+            >
+              Cancel
+            </Button>
+          </div>
         </div>
       ) : null}
       {error ? (

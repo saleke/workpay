@@ -553,7 +553,7 @@ export function ConversationThread({
           {loadingOlder ? "Loading earlier messages…" : "Load earlier messages"}
         </Button>
       ) : null}
-      {!inboxMode && conversation.status === "CONTACT_PENDING" ? (
+      {!inboxMode && !hideMessages && conversation.status === "CONTACT_PENDING" ? (
         <p
           className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
           role="status"
@@ -561,7 +561,10 @@ export function ConversationThread({
           Contact request sent. Messaging opens after the professional accepts.
         </p>
       ) : null}
-      {!inboxMode && conversation.status === "OPEN" && conversation.hasWorkExecution ? (
+      {!inboxMode &&
+      !hideMessages &&
+      conversation.status === "OPEN" &&
+      conversation.hasWorkExecution ? (
         <p
           className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
           role="status"
@@ -570,7 +573,10 @@ export function ConversationThread({
           gates.
         </p>
       ) : null}
-      {!inboxMode && conversation.status === "OPEN" && !conversation.hasWorkExecution ? (
+      {!inboxMode &&
+      !hideMessages &&
+      conversation.status === "OPEN" &&
+      !conversation.hasWorkExecution ? (
         <p
           className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
           role="status"
@@ -579,19 +585,19 @@ export function ConversationThread({
           professional's acceptance, and let the client make the final selection before payment.
         </p>
       ) : null}
-      {!inboxMode && conversation.status === "DECLINED" ? (
+      {!inboxMode && !hideMessages && conversation.status === "DECLINED" ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           The professional declined this contact request. The approved scope remains unchanged; you
           can review other profiles below.
         </p>
       ) : null}
-      {!inboxMode && conversation.status === "WITHDRAWN" ? (
+      {!inboxMode && !hideMessages && conversation.status === "WITHDRAWN" ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           The professional withdrew before a work assignment was created. No work commitment was
           made; you can review other profiles below.
         </p>
       ) : null}
-      {!inboxMode && conversation.status === "CLOSED" ? (
+      {!inboxMode && !hideMessages && conversation.status === "CLOSED" ? (
         <p className="rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">
           This conversation is closed. Its messages remain available for your records.
         </p>
@@ -873,20 +879,11 @@ export function ConversationThread({
           ) : null}
         </form>
       ) : null}
-      {!inboxMode && conversation.status === "OPEN" ? (
+      {!inboxMode && conversation.status === "OPEN" && conversation.hasWorkExecution ? (
         <section className="space-y-3 border-t border-border pt-4" aria-label="Agreement changes">
           <div>
-            <h3 className="font-medium">Proposed agreement changes</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Chat is for discussion. A change becomes active only after both of you agree and Tenfo
-              records the contract change and completes the required payment-policy steps.
-            </p>
-            {!conversation.currentContractSnapshot.agreedPrice ? (
-              <p className="mt-2 text-sm text-amber-800" role="status">
-                No agreed price is recorded for this professional. Before authorizing payment, both
-                participants must agree to a proposed price and activate the updated terms.
-              </p>
-            ) : null}
+            <h3 className="font-medium">Change terms</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Update scope, price, or timing.</p>
           </div>
           {changeRequests.map((request) => (
             <article key={request.id} className="space-y-3 rounded-lg border border-border p-3">
@@ -962,8 +959,7 @@ export function ConversationThread({
               {request.status === "ACCEPTED_PENDING_ACTIVATION" ? (
                 <div className="space-y-2">
                   <p className="text-sm text-amber-800" role="status">
-                    Both participants agreed. The existing contract and payment remain unchanged
-                    until the new version and required simulated policy adjustment are completed.
+                    Both participants agreed. Activate the change to create the new version.
                   </p>
                   <Button
                     type="button"
@@ -989,20 +985,18 @@ export function ConversationThread({
               ) : null}
               {request.status === "ACTIVATING" ? (
                 <p className="text-sm text-amber-800" role="status">
-                  The payment simulation is reconciling the updated authorization state. The
-                  contract remains unchanged until that state is confirmed.
+                  Updating the agreement and payment authorization.
                 </p>
               ) : null}
               {request.status === "ACTIVATION_RECONCILIATION_REQUIRED" ? (
                 <p className="text-sm text-destructive" role="alert">
-                  The simulation did not provide a confirmed outcome. The change is not active and
-                  policy actions are paused until the state is reconciled.
+                  The payment result is unknown. This change remains inactive while it is
+                  reconciled.
                 </p>
               ) : null}
               {request.status === "ACTIVATION_FAILED" ? (
                 <p className="text-sm text-destructive" role="status">
-                  The simulated authorization was declined. The current contract remains in effect;
-                  propose a new change if you still want to proceed.
+                  The payment adjustment was declined. The current terms remain active.
                 </p>
               ) : null}
               {request.status === "CANCELLATION_PENDING" ? (
@@ -1063,9 +1057,7 @@ export function ConversationThread({
                 />
               </label>
               <p className="text-xs text-muted-foreground">
-                Keep existing keys to preserve their acceptance checks. If a changed requirement
-                makes an existing check inaccurate, explain the new acceptance approach in chat
-                before proposing it.
+                Keep existing keys for requirements that have not changed.
               </p>
               <label className="block space-y-1 text-sm">
                 <span>Included work (one item per line)</span>
@@ -1110,11 +1102,7 @@ export function ConversationThread({
                 />
               </label>
               <p className="text-xs text-muted-foreground">
-                These are proposed terms, not a charge. The buyer's ceiling is separate from the
-                price agreed with the professional. Existing simulated authorization or capture
-                state is not changed by sending or accepting this proposal. Leave the price blank if
-                none has been agreed; an existing agreed price stays in effect unless you enter a
-                new one.
+                Leave price blank to keep the current agreed price.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={sending || !changeReason.trim()}>
@@ -1133,7 +1121,10 @@ export function ConversationThread({
           ) : null}
         </section>
       ) : null}
-      {!inboxMode && conversation.status === "OPEN" ? (
+      {!inboxMode &&
+      conversation.status === "OPEN" &&
+      conversation.hasWorkExecution &&
+      !conversation.evaluationOnly ? (
         <IndependentReviewPanel conversation={conversation} currentUserId={currentUserId} />
       ) : null}
       {error && (hideMessages || conversation.status !== "OPEN") ? (

@@ -49,29 +49,20 @@ import {
 } from "@/lib/api/endpoints";
 import { cn } from "@/lib/utils";
 
-const POPULAR_SKILLS = [
-  "data-cleaning",
-  "data-enrichment",
-  "typescript",
-  "python",
-  "sql-audit",
-  "document-processing",
-  "translation",
-  "ast-verification",
-  "dataset-normalization",
-  "financial-audit",
-];
+function normalizeServiceTag(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+}
 
-const POPULAR_TOOLS = [
-  "Python",
-  "TypeScript",
-  "PostgreSQL",
-  "Docker",
-  "Pandas",
-  "Excel",
-  "Git",
-  "Ast-grep",
-];
+function displayServiceTag(value: string): string {
+  return value.replace(/[-_]+/g, " ").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
+}
 
 const TIMEZONES = [
   "UTC",
@@ -124,10 +115,7 @@ export function ProviderProfileManager() {
   // Commitment & acceptance rules
   const [requireExplicitApproval, setRequireExplicitApproval] = useState(true);
   const [aiRecommendationAllowed, setAiRecommendationAllowed] = useState(true);
-  const [acceptedCategories, setAcceptedCategories] = useState<string[]>([
-    "data-cleaning",
-    "data-enrichment",
-  ]);
+  const [acceptedCategories, setAcceptedCategories] = useState<string[]>([]);
   const [declinedCategories, setDeclinedCategories] = useState<string[]>([]);
   const [customDeclined, setCustomDeclined] = useState("");
 
@@ -135,20 +123,14 @@ export function ProviderProfileManager() {
   const [communicationPreference, setCommunicationPreference] = useState<
     "ASYNC" | "REALTIME" | "DIRECT"
   >("ASYNC");
-  const [deliveryFormat, setDeliveryFormat] = useState(
-    "Clean CSV with header row and summary diff",
-  );
+  const [deliveryFormat, setDeliveryFormat] = useState("");
   const [updateFrequency, setUpdateFrequency] = useState<
     "CHECKPOINTS_ONLY" | "DAILY" | "ON_MILESTONES"
   >("CHECKPOINTS_ONLY");
   const [reviewSpecBeforeAccept, setReviewSpecBeforeAccept] = useState(true);
   const [notifyOnVerificationFail, setNotifyOnVerificationFail] = useState(true);
   const [notifyOnRevisionRequest, setNotifyOnRevisionRequest] = useState(true);
-  const [toolsAndTechnologies, setToolsAndTechnologies] = useState<string[]>([
-    "Python",
-    "TypeScript",
-    "PostgreSQL",
-  ]);
+  const [toolsAndTechnologies, setToolsAndTechnologies] = useState<string[]>([]);
   const [customTool, setCustomTool] = useState("");
   const [languages, setLanguages] = useState<string[]>(["English"]);
 
@@ -196,9 +178,7 @@ export function ProviderProfileManager() {
         setProfileImage(p.image ?? "");
         setBio(p.bio ?? "");
         setStatus(p.status);
-        if (p.capabilities && p.capabilities.length > 0) {
-          setCapabilities(p.capabilities);
-        }
+        setCapabilities(p.capabilities ?? []);
         if (p.availability) {
           setCapacity(p.availability.capacity);
           setActiveAssignments(p.availability.activeAssignments);
@@ -226,20 +206,16 @@ export function ProviderProfileManager() {
           setWillingToNegotiate(wp.willingToNegotiate ?? true);
           setRequireExplicitApproval(wp.requireExplicitApproval ?? true);
           setAiRecommendationAllowed(wp.aiRecommendationAllowed ?? true);
-          if (wp.acceptedCategories) setAcceptedCategories(wp.acceptedCategories);
-          if (wp.declinedCategories) setDeclinedCategories(wp.declinedCategories);
+          setAcceptedCategories(wp.acceptedCategories ?? []);
+          setDeclinedCategories(wp.declinedCategories ?? []);
           setCommunicationPreference(wp.communicationPreference || "ASYNC");
-          setDeliveryFormat(wp.deliveryFormat || "Clean CSV with header row and summary diff");
+          setDeliveryFormat(wp.deliveryFormat ?? "");
           setUpdateFrequency(wp.updateFrequency || "CHECKPOINTS_ONLY");
           setReviewSpecBeforeAccept(wp.reviewSpecBeforeAccept ?? true);
           setNotifyOnVerificationFail(wp.notifyOnVerificationFail ?? true);
           setNotifyOnRevisionRequest(wp.notifyOnRevisionRequest ?? true);
-          if (wp.toolsAndTechnologies && wp.toolsAndTechnologies.length > 0) {
-            setToolsAndTechnologies(wp.toolsAndTechnologies);
-          }
-          if (wp.languages && wp.languages.length > 0) {
-            setLanguages(wp.languages);
-          }
+          setToolsAndTechnologies(wp.toolsAndTechnologies ?? []);
+          setLanguages(wp.languages?.length ? wp.languages : ["English"]);
           if (wp.reviewService) {
             const review = wp.reviewService;
             setReviewEnabled(review.enabled);
@@ -283,40 +259,29 @@ export function ProviderProfileManager() {
     if (!isDirty) setIsDirty(true);
   };
 
-  const handleToggleSkill = (tag: string) => {
+  const handleAddCustomSkill = () => {
+    const tag = normalizeServiceTag(customSkill);
+    if (!tag) return;
+    if (capabilities.length >= 12) {
+      toast.error("Add no more than 12 services.");
+      return;
+    }
     markDirty();
-    const existing = capabilities.find((c) => c.tag === tag);
-    if (existing) {
-      setCapabilities(capabilities.filter((c) => c.tag !== tag));
-    } else {
+    if (!capabilities.some((capability) => capability.tag === tag)) {
       setCapabilities([...capabilities, { tag, proficiency: 4 }]);
     }
-  };
-
-  const handleAddCustomSkill = () => {
-    const trimmed = customSkill.trim().toLowerCase();
-    if (!trimmed) return;
-    markDirty();
-    if (!capabilities.some((c) => c.tag === trimmed)) {
-      setCapabilities([...capabilities, { tag: trimmed, proficiency: 4 }]);
-    }
     setCustomSkill("");
-  };
-
-  const handleToggleTool = (tool: string) => {
-    markDirty();
-    if (toolsAndTechnologies.includes(tool)) {
-      setToolsAndTechnologies(toolsAndTechnologies.filter((t) => t !== tool));
-    } else {
-      setToolsAndTechnologies([...toolsAndTechnologies, tool]);
-    }
   };
 
   const handleAddCustomTool = () => {
     const trimmed = customTool.trim();
     if (!trimmed) return;
+    if (toolsAndTechnologies.length >= 20) {
+      toast.error("Add no more than 20 tools.");
+      return;
+    }
     markDirty();
-    if (!toolsAndTechnologies.includes(trimmed)) {
+    if (!toolsAndTechnologies.some((tool) => tool.toLowerCase() === trimmed.toLowerCase())) {
       setToolsAndTechnologies([...toolsAndTechnologies, trimmed]);
     }
     setCustomTool("");
@@ -344,6 +309,16 @@ export function ProviderProfileManager() {
       toast.error("Add a professional summary before listing your profile.");
       return;
     }
+    if (
+      status === "ACTIVE" &&
+      workAcceptanceStatus !== "UNAVAILABLE" &&
+      aiRecommendationAllowed &&
+      capabilities.length === 0
+    ) {
+      toast.error("Add at least one service before listing your project-work profile.");
+      setActiveSection("capabilities");
+      return;
+    }
     if (reviewEnabled && reviewSummary.trim().length < 20) {
       toast.error("Describe your paid review service in at least 20 characters.");
       setActiveSection("reviews");
@@ -364,7 +339,6 @@ export function ProviderProfileManager() {
     try {
       const payload = {
         displayName: displayName.trim(),
-        image: profileImage.trim() || null,
         bio: bio.trim() || null,
         hourlyRateMinor: Math.round(targetRate * 100),
         currency: "USD",
@@ -516,7 +490,7 @@ export function ProviderProfileManager() {
         aria-label="Work preference areas"
       >
         {[
-          { key: "capabilities", label: "Capabilities & Skills" },
+          { key: "capabilities", label: "Services & Tools" },
           { key: "availability", label: "Availability & Capacity" },
           { key: "pricing", label: "Pricing & Commercials" },
           { key: "reviews", label: "Paid Reviews" },
@@ -547,15 +521,14 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Tag className="h-4 w-4 text-[var(--wp-accent)]" />
-              Work Profile &amp; Demonstrated Capabilities
+              Services &amp; Experience
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Describe the work you can perform. Review domains are configured separately under Paid
-              Reviews.
+              Explain what clients can hire you for, then add any tools that help them assess fit.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="max-w-xl">
               <div>
                 <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
                   Public Display Name
@@ -570,26 +543,6 @@ export function ProviderProfileManager() {
                   className="text-xs bg-white"
                 />
               </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                  Primary Time Zone
-                </label>
-                <select
-                  value={timezone}
-                  onChange={(e) => {
-                    setTimezone(e.target.value);
-                    markDirty();
-                  }}
-                  className="w-full h-9 rounded-lg border border-[var(--wp-border)] bg-white px-3 text-xs text-[var(--wp-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]"
-                >
-                  {TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             <div className="flex flex-col gap-4 rounded-xl border border-[var(--wp-border)] bg-white p-4 sm:flex-row sm:items-center">
@@ -599,34 +552,22 @@ export function ProviderProfileManager() {
                 className="h-16 w-16"
               />
               <div className="min-w-0 flex-1">
-                <label
-                  htmlFor="professional-profile-photo"
-                  className="mb-1 block text-xs font-semibold text-[var(--wp-text-primary)]"
-                >
-                  Profile photo URL
-                </label>
-                <Input
-                  id="professional-profile-photo"
-                  type="url"
-                  value={profileImage}
-                  onChange={(event) => {
-                    setProfileImage(event.target.value);
-                    markDirty();
-                  }}
-                  placeholder="https://example.com/your-photo.jpg"
-                  maxLength={2048}
-                  className="bg-white text-xs"
-                />
+                <p className="text-xs font-semibold text-[var(--wp-text-primary)]">Profile photo</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-[var(--wp-text-secondary)]">
-                  Use a public HTTPS photo. It appears beside your name and summary when people
-                  browse professionals.
+                  Your account photo is used across client and professional views.
                 </p>
+                <Link
+                  href="/settings?tab=account"
+                  className="mt-2 inline-flex text-xs font-semibold text-[var(--wp-accent)] hover:underline"
+                >
+                  Change photo in Account settings
+                </Link>
               </div>
             </div>
 
             <div>
               <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                Professional Summary &amp; Domain Expertise
+                What do you help clients accomplish?
               </label>
               <textarea
                 value={bio}
@@ -635,55 +576,78 @@ export function ProviderProfileManager() {
                   markDirty();
                 }}
                 rows={3}
-                placeholder="Describe your technical background, verified experience, and specific deliverables you specialize in producing..."
+                maxLength={500}
+                placeholder="Describe the problems you solve, the work you deliver, and the clients you work best with."
                 className="w-full rounded-lg border border-[var(--wp-border)] bg-white p-3 text-xs text-[var(--wp-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]"
               />
             </div>
 
-            {/* Capability Tags */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                    Project-work capability tags
-                  </span>
-                  <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                    These tags help clients find relevant project-work profiles.
-                  </span>
-                </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--wp-border)] bg-white p-4">
+              <input
+                type="checkbox"
+                checked={aiRecommendationAllowed}
+                onChange={(event) => {
+                  setAiRecommendationAllowed(event.target.checked);
+                  markDirty();
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-[var(--wp-border)] accent-[var(--wp-accent)]"
+              />
+              <span>
+                <span className="block text-xs font-semibold text-[var(--wp-text-primary)]">
+                  Show this profile in client searches
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-[var(--wp-text-secondary)]">
+                  Turn this off to pause new discovery without affecting existing conversations or
+                  work.
+                </span>
+              </span>
+            </label>
+
+            <div className="rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/45 p-4">
+              <div>
+                <span className="block text-sm font-semibold text-[var(--wp-text-primary)]">
+                  Services you offer
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-[var(--wp-text-secondary)]">
+                  Use short phrases a client would search for, such as bookkeeping, video editing,
+                  translation, or data cleaning.
+                </span>
               </div>
-
-              <div className="flex flex-wrap gap-2 mb-3">
-                {POPULAR_SKILLS.map((tag) => {
-                  const cap = capabilities.find((c) => c.tag === tag);
-                  const isSelected = Boolean(cap);
-
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => handleToggleSkill(tag)}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer active:scale-[0.98]",
-                        isSelected
-                          ? "bg-[var(--wp-accent-subtle)] text-[var(--wp-accent)] border-[var(--wp-accent)]/40 font-semibold"
-                          : "bg-white text-[var(--wp-text-secondary)] border-[var(--wp-border)] hover:border-[var(--wp-border-strong)]",
-                      )}
+              {capabilities.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {capabilities.map((capability) => (
+                    <span
+                      key={capability.tag}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--wp-accent)]/25 bg-white px-3 py-1.5 text-xs font-medium text-[var(--wp-text-primary)]"
                     >
-                      <span>{tag}</span>
-                      {isSelected ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Plus className="h-3 w-3 opacity-50" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Add Custom Tag */}
-              <div className="flex items-center gap-2 max-w-sm">
+                      {displayServiceTag(capability.tag)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCapabilities((current) =>
+                            current.filter((item) => item.tag !== capability.tag),
+                          );
+                          markDirty();
+                        }}
+                        aria-label={`Remove ${displayServiceTag(capability.tag)}`}
+                        className="rounded-full text-[var(--wp-text-secondary)] hover:text-rose-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl border border-dashed border-[var(--wp-border-strong)] bg-white px-3 py-3 text-xs text-[var(--wp-text-secondary)]">
+                  Add at least one service to appear in project-work discovery.
+                </p>
+              )}
+              <div className="mt-3 flex max-w-lg items-center gap-2">
+                <label htmlFor="professional-service" className="sr-only">
+                  Service to add
+                </label>
                 <Input
+                  id="professional-service"
                   value={customSkill}
                   onChange={(e) => setCustomSkill(e.target.value)}
                   onKeyDown={(e) => {
@@ -692,45 +656,80 @@ export function ProviderProfileManager() {
                       handleAddCustomSkill();
                     }
                   }}
-                  placeholder="Add custom skill tag..."
-                  className="h-8 text-xs bg-white"
+                  placeholder="Add a service"
+                  maxLength={80}
+                  className="h-10 bg-white text-xs"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={handleAddCustomSkill}
-                  className="h-8 text-xs"
+                  className="h-10 text-xs"
                 >
-                  Add Tag
+                  Add service
                 </Button>
               </div>
             </div>
 
-            {/* Tools & Technologies */}
-            <div className="pt-3 border-t border-[var(--wp-border)]">
-              <span className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                Tools, Software &amp; Verified Systems
+            <div className="rounded-2xl border border-[var(--wp-border)] bg-white p-4">
+              <span className="block text-sm font-semibold text-[var(--wp-text-primary)]">
+                Tools you work with
               </span>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {POPULAR_TOOLS.map((tool) => {
-                  const isSelected = toolsAndTechnologies.includes(tool);
-                  return (
-                    <button
+              <span className="mt-1 block text-[11px] text-[var(--wp-text-secondary)]">
+                Optional details clients can use to assess fit.
+              </span>
+              {toolsAndTechnologies.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {toolsAndTechnologies.map((tool) => (
+                    <span
                       key={tool}
-                      type="button"
-                      onClick={() => handleToggleTool(tool)}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer active:scale-[0.98]",
-                        isSelected
-                          ? "bg-[var(--wp-surface-subtle)] text-[var(--wp-text-primary)] border-[var(--wp-border-strong)] font-semibold"
-                          : "bg-white text-[var(--wp-text-secondary)] border-[var(--wp-border)] hover:border-[var(--wp-border-strong)]",
-                      )}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1.5 text-xs font-medium"
                     >
                       {tool}
-                    </button>
-                  );
-                })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setToolsAndTechnologies((current) =>
+                            current.filter((item) => item !== tool),
+                          );
+                          markDirty();
+                        }}
+                        aria-label={`Remove ${tool}`}
+                        className="rounded-full text-[var(--wp-text-secondary)] hover:text-rose-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-3 flex max-w-lg items-center gap-2">
+                <label htmlFor="professional-tool" className="sr-only">
+                  Tool or platform to add
+                </label>
+                <Input
+                  id="professional-tool"
+                  value={customTool}
+                  onChange={(event) => setCustomTool(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleAddCustomTool();
+                    }
+                  }}
+                  placeholder="Add a tool or platform"
+                  maxLength={80}
+                  className="h-10 bg-white text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddCustomTool}
+                  className="h-10 text-xs"
+                >
+                  Add tool
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -872,19 +871,40 @@ export function ProviderProfileManager() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                Typical Working Schedule
-              </label>
-              <Input
-                value={availabilitySchedule}
-                onChange={(e) => {
-                  setAvailabilitySchedule(e.target.value);
-                  markDirty();
-                }}
-                placeholder="e.g. Monday to Friday, 9:00 AM - 5:00 PM UTC"
-                className="h-9 text-xs bg-white"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
+                  Primary Time Zone
+                </label>
+                <select
+                  value={timezone}
+                  onChange={(event) => {
+                    setTimezone(event.target.value);
+                    markDirty();
+                  }}
+                  className="h-9 w-full rounded-lg border border-[var(--wp-border)] bg-white px-3 text-xs text-[var(--wp-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--wp-accent)]"
+                >
+                  {TIMEZONES.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
+                  Typical Working Schedule
+                </label>
+                <Input
+                  value={availabilitySchedule}
+                  onChange={(e) => {
+                    setAvailabilitySchedule(e.target.value);
+                    markDirty();
+                  }}
+                  placeholder="e.g. Monday to Friday, 9:00 AM - 5:00 PM"
+                  className="h-9 text-xs bg-white"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1629,31 +1649,6 @@ export function ProviderProfileManager() {
                   Finding or recommending an opportunity will never automatically bind you to a
                   contract. You retain final sign-off on scope, delivery dates, and commercial terms
                   before work begins.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/40 flex items-start gap-3.5">
-              <input
-                type="checkbox"
-                id="aiRecommendationAllowed"
-                checked={aiRecommendationAllowed}
-                onChange={(e) => {
-                  setAiRecommendationAllowed(e.target.checked);
-                  markDirty();
-                }}
-                className="h-4 w-4 mt-0.5 rounded border-[var(--wp-border)] text-[var(--wp-accent)] focus:ring-[var(--wp-accent)] cursor-pointer"
-              />
-              <div>
-                <label
-                  htmlFor="aiRecommendationAllowed"
-                  className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer"
-                >
-                  Allow this profile to appear in relevant work discovery
-                </label>
-                <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 leading-relaxed">
-                  Allow the task planner to surface your profile to task owners whose specifications
-                  match your capability tags and commercial rules.
                 </p>
               </div>
             </div>

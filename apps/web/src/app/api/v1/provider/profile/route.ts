@@ -42,14 +42,6 @@ const workPreferencesSchema = z.object({
 const updateProfileSchema = z
   .object({
     displayName: z.string().trim().min(2).max(100),
-    image: z
-      .string()
-      .trim()
-      .url("Enter a valid profile photo URL.")
-      .max(2048)
-      .refine((value) => new URL(value).protocol === "https:", "Profile photo URLs must use HTTPS.")
-      .nullable()
-      .optional(),
     bio: z.string().trim().max(500).optional().nullable(),
     hourlyRateMinor: z.number().int().nonnegative().optional().nullable(),
     currency: z.literal("USD").default("USD"),
@@ -79,6 +71,18 @@ const updateProfileSchema = z
         message: "Add a professional summary before listing your profile.",
       });
     }
+    if (
+      profile.status === "ACTIVE" &&
+      profile.workPreferences?.workAcceptanceStatus !== "UNAVAILABLE" &&
+      profile.workPreferences?.aiRecommendationAllowed !== false &&
+      profile.capabilities.length === 0
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["capabilities"],
+        message: "Add at least one service before listing your project-work profile.",
+      });
+    }
   });
 
 const DEFAULT_WORK_PREFERENCES = {
@@ -95,7 +99,7 @@ const DEFAULT_WORK_PREFERENCES = {
   acceptedCategories: [],
   declinedCategories: [],
   requireExplicitApproval: true,
-  aiRecommendationAllowed: false,
+  aiRecommendationAllowed: true,
   communicationPreference: "ASYNC" as const,
   deliveryFormat: null,
   updateFrequency: "CHECKPOINTS_ONLY" as const,
@@ -240,13 +244,6 @@ export async function PUT(req: Request) {
         .from(providers)
         .where(eq(providers.userId, actor.id as string))
         .limit(1);
-
-      if (parsed.image !== undefined) {
-        await tx
-          .update(users)
-          .set({ image: parsed.image, updatedAt: new Date() })
-          .where(eq(users.id, actor.id as string));
-      }
 
       let providerId: string;
       const storedWorkPreferences = parsed.workPreferences

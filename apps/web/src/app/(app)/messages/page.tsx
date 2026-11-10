@@ -7,14 +7,12 @@ import {
   ArrowLeft,
   ArrowUpRight,
   BriefcaseBusiness,
-  Check,
   ChevronDown,
   Clock3,
   Inbox,
   MessageCircle,
   Search,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { ConversationThread } from "@/components/task-room/conversation-thread";
@@ -349,8 +347,7 @@ function MessagesPageContent() {
             Messages
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--wp-text-secondary)]">
-            Find people first. Messaging stays non-binding; explicit two-party work acceptance lives
-            in each thread's Work context.
+            Keep each task conversation, proposal, and decision together.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--wp-text-secondary)]">
@@ -734,8 +731,7 @@ function MessagesPageContent() {
                 <div>
                   <SheetTitle className="pr-8">Work context</SheetTitle>
                   <SheetDescription className="mt-1">
-                    Details for this conversation with{" "}
-                    {selectedSummary.otherParticipant.displayName}.
+                    Terms and actions for {selectedSummary.otherParticipant.displayName}.
                   </SheetDescription>
                   <h3 className="mt-4 text-base font-semibold leading-snug">
                     {selectedSummary.taskTitle}
@@ -749,73 +745,59 @@ function MessagesPageContent() {
                     {conversationState(selectedSummary).label}
                   </span>
                 </div>
-                <div className="rounded-xl border border-[var(--wp-border)] bg-[var(--wp-canvas)] p-3">
-                  <p className="text-xs font-semibold">What this discussion is about</p>
-                  <p className="mt-1.5 text-xs leading-5 text-[var(--wp-text-secondary)]">
+                <section className="space-y-3 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-canvas)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[var(--wp-text-secondary)]">
+                    Current terms
+                  </p>
+                  <p className="text-sm leading-6 text-[var(--wp-text-primary)]">
                     {selectedConversation.currentContractSnapshot.summary ||
                       selectedConversation.currentContractSnapshot.title}
                   </p>
-                  <div className="mt-3 space-y-2 border-t border-[var(--wp-border)] pt-3 text-xs">
-                    <p className="flex justify-between gap-2">
-                      <span className="text-[var(--wp-text-secondary)]">Buyer budget ceiling</span>
-                      <span className="font-medium">
-                        {formatMinorMoney(selectedConversation.currentContractSnapshot.budget)}
-                      </span>
-                    </p>
-                    {selectedConversation.currentContractSnapshot.agreedPrice ? (
-                      <p className="flex justify-between gap-2">
-                        <span className="text-[var(--wp-text-secondary)]">Agreed price</span>
-                        <span className="font-medium">
-                          {formatMinorMoney(
-                            selectedConversation.currentContractSnapshot.agreedPrice,
-                          )}
-                        </span>
-                      </p>
-                    ) : null}
-                    <p className="flex justify-between gap-2">
-                      <span className="text-[var(--wp-text-secondary)]">Terms reviewed</span>
-                      <span className="font-medium">
-                        Version {selectedConversation.contactApprovedContractVersion}
-                      </span>
-                    </p>
-                    {selectedConversation.currentContractSnapshot.deadline ? (
-                      <p className="flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1 text-[var(--wp-text-secondary)]">
-                          <Clock3 className="h-3.5 w-3.5" /> Target date
-                        </span>
-                        <time className="font-medium">
-                          {new Date(
-                            selectedConversation.currentContractSnapshot.deadline,
-                          ).toLocaleDateString()}
-                        </time>
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
+                  <dl className="grid grid-cols-2 gap-2 border-t border-[var(--wp-border)] pt-3 text-xs">
+                    <div className="rounded-xl bg-white p-3">
+                      <dt className="text-[var(--wp-text-secondary)]">
+                        {selectedConversation.currentContractSnapshot.agreedPrice
+                          ? "Agreed price"
+                          : "Budget limit"}
+                      </dt>
+                      <dd className="mt-1 font-semibold text-[var(--wp-text-primary)]">
+                        {formatMinorMoney(
+                          selectedConversation.currentContractSnapshot.agreedPrice ??
+                            selectedConversation.currentContractSnapshot.budget,
+                        )}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl bg-white p-3">
+                      <dt className="text-[var(--wp-text-secondary)]">Scope</dt>
+                      <dd className="mt-1 font-semibold text-[var(--wp-text-primary)]">
+                        {selectedConversation.currentContractSnapshot.requirements.length}{" "}
+                        requirement
+                        {selectedConversation.currentContractSnapshot.requirements.length === 1
+                          ? ""
+                          : "s"}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl bg-white p-3">
+                      <dt className="text-[var(--wp-text-secondary)]">Target date</dt>
+                      <dd className="mt-1 flex items-center gap-1 font-semibold text-[var(--wp-text-primary)]">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {selectedConversation.currentContractSnapshot.deadline
+                          ? new Date(
+                              selectedConversation.currentContractSnapshot.deadline,
+                            ).toLocaleDateString()
+                          : "Not set"}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl bg-white p-3">
+                      <dt className="text-[var(--wp-text-secondary)]">Scope version</dt>
+                      <dd className="mt-1 font-semibold text-[var(--wp-text-primary)]">
+                        {selectedConversation.currentContractVersion}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
 
-                {selectedSummary.status === "OPEN" && selectedSummary.hasWorkExecution ? (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                    <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900">
-                      <Check className="h-3.5 w-3.5" /> Assignment is active
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-blue-900">
-                      This same thread continues for delivery and follow-up. Use the exact
-                      assignment terms for work decisions.
-                    </p>
-                  </div>
-                ) : selectedSummary.status === "OPEN" ? (
-                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
-                    <p className="flex items-center gap-1.5 text-xs font-semibold text-sky-900">
-                      <Sparkles className="h-3.5 w-3.5" /> Discussion only
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-sky-900">
-                      Messages do not assign work. Open the commitment checkpoint below to send
-                      exact terms, accept them, and confirm the final professional.
-                    </p>
-                  </div>
-                ) : null}
-
-                {selectedSummary.status === "OPEN" ? (
+                {selectedSummary.status === "OPEN" && !selectedSummary.hasWorkExecution ? (
                   <WorkCommitmentPanel
                     conversation={selectedConversation}
                     currentUserId={currentUserId}
@@ -826,31 +808,6 @@ function MessagesPageContent() {
                   />
                 ) : null}
 
-                <div className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[var(--wp-text-secondary)]">
-                    Scope at a glance
-                  </p>
-                  <p className="text-xs text-[var(--wp-text-secondary)]">
-                    {selectedConversation.currentContractSnapshot.requirements.length} confirmed
-                    requirement
-                    {selectedConversation.currentContractSnapshot.requirements.length === 1
-                      ? ""
-                      : "s"}
-                  </p>
-                  {selectedConversation.currentContractSnapshot.included.length ? (
-                    <ul className="space-y-1 text-xs text-[var(--wp-text-secondary)]">
-                      {selectedConversation.currentContractSnapshot.included
-                        .slice(0, 3)
-                        .map((item) => (
-                          <li key={item} className="flex gap-1.5">
-                            <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-700" />
-                            <span className="line-clamp-2">{item}</span>
-                          </li>
-                        ))}
-                    </ul>
-                  ) : null}
-                </div>
-
                 <Link
                   href={
                     currentUserId === selectedConversation.buyerUserId
@@ -860,13 +817,18 @@ function MessagesPageContent() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] px-3 py-2.5 text-xs font-semibold text-[var(--wp-text-primary)] transition hover:bg-[var(--wp-surface-subtle)]"
                 >
                   {currentUserId === selectedConversation.buyerUserId
-                    ? "Open task workspace"
+                    ? "View full task"
                     : "Open Work Studio"}
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
 
-                {selectedSummary.status === "OPEN" && currentUserId ? (
+                {selectedSummary.status === "OPEN" &&
+                selectedSummary.hasWorkExecution &&
+                currentUserId ? (
                   <div className="border-t border-[var(--wp-border)] pt-5">
+                    <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.13em] text-[var(--wp-text-secondary)]">
+                      Work utilities
+                    </p>
                     <ConversationThread
                       key={`work-controls-${selectedConversation.id}`}
                       conversation={selectedConversation}

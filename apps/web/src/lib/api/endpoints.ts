@@ -734,7 +734,6 @@ export function getProviderProfile(): Promise<ApiResponse<ProviderProfileRespons
 
 export function updateProviderProfile(body: {
   displayName: string;
-  image?: string | null;
   bio?: string | null;
   hourlyRateMinor?: number | null;
   currency?: string;
