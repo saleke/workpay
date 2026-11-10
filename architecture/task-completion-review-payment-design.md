@@ -1,258 +1,131 @@
-# Task Completion, Review, and Payment Design
+# Task Progress, Review Packages, and Payment
 
-## 1. Purpose
+## Product Decision
 
-This document records the correct operating model for the WorkPay task lifecycle.
+Tenfo does not verify professional work or issue quality verdicts. It preserves the agreement,
+coordinates review, records attributable decisions, and enforces the payment gate selected by the
+parties.
 
-The platform is not a final reviewer, adjudicator, or authority on work quality. Its role is to preserve intent, collect evidence, guide review, and enforce payment policy. It must not silently convert provider submissions into accepted work or payment approval.
+The active lifecycle is:
 
----
+1. work is in progress,
+2. the client requests a checkpoint or final review,
+3. the professional prepares a review package,
+4. the client reviews the package or refers it to an agreed paid reviewer,
+5. the client records the checkpoint or final decision,
+6. final acceptance enables the separate payment-release policy.
 
-## 2. Core operating principles
+## Review Request
 
-### 2.1 Human decisions remain the authority
+The client chooses when review is useful. A request freezes:
 
-A task is accepted only when an explicit human decision is recorded.
+- the task and execution,
+- the current contract version and hash,
+- checkpoint or final-review intent,
+- the agreement constraints in scope,
+- a title and focused request for the professional.
 
-That decision may come from:
+A checkpoint covers selected constraints. A final review includes every acceptance-relevant
+constraint. Opening a request moves the work to `REVIEW_REQUESTED`; it does not imply completion.
 
-- the client/buyer, or
-- a reviewer the buyer and provider explicitly agreed to involve.
+## Provider Review Package
 
-AI output, system summaries, uploaded files, or provider claims do not count as acceptance.
+The professional responds from Work Studio. A package contains:
 
-### 2.2 Evidence is separate from acceptance
+- a required response summary,
+- zero or more live links,
+- zero or more notes,
+- zero or more files.
 
-Evidence is the proof package that supports a claim. Acceptance is the human decision based on that evidence. Payment is a separate policy gate.
+No resource type is mandatory. A website may be represented by a staging URL and access guidance;
+a consultation by notes and meeting records; a physical task by observations and photos; a data
+task by files and query links.
 
-This distinction is mandatory in the real world because the same submission can be:
+Provider-authored package resources are hashed when the package is sent. The package is then frozen
+for that review cycle. If work changes, the parties open another cycle rather than silently altering
+what was reviewed.
 
-- insufficient,
-- acceptable,
-- disputed,
-- partially complete,
-- or rejected for a scope mismatch.
+## Review Decisions
 
-### 2.3 Payment is a final policy gate
+Each selected agreement constraint can be recorded as:
 
-Payment is not the reward for submission. It is the last enforced step after a valid contract, valid evidence, valid human decision, and policy pass.
+- `MET`,
+- `PARTIAL`,
+- `NOT_MET`,
+- `UNCLEAR`,
+- `NOT_APPLICABLE`.
 
-If any of these are missing, payment does not release.
+These are attributable reviewer assessments, not system results. Partial, unmet, unclear, and waived
+constraints require rationale. A client may still accept with ambiguity, but must explicitly
+acknowledge it and explain the decision.
 
-### 2.4 Real-world ambiguity is explicit, not hidden
+Checkpoint acceptance records a completed milestone and returns the task to work in progress. Final
+acceptance moves the task to `REVIEW_ACCEPTED`. A change request moves the execution to
+`REVISION_REQUESTED` and preserves the review package that motivated it.
 
-Tasks are not always objectively reviewable. Some require buyer judgment, some require an independent reviewer, and some require revision or dispute handling.
+## Paid Reviewer
 
-The system must support that ambiguity without pretending the platform has authority it does not have.
+A paid reviewer is optional. The client and professional first agree:
 
----
+- reviewer identity,
+- review focus,
+- contract version,
+- fee and payer,
+- conflict disclosure.
 
-## 3. System boundaries
+The client can then refer a ready review package to that engagement. The reviewer receives the same
+package, can add notes, links, or files, and records assessments against the agreed constraints. The
+reviewer returns findings to the client; the client records the task acceptance decision.
 
-### The platform is responsible for
+## Progress and Milestones
 
-- preserving the original task intent and approved contract,
-- storing the exact contract version and hash,
-- collecting evidence and provenance,
-- recording client or reviewer decisions,
-- guiding the review workflow,
-- blocking payment when policy or a dispute requires it,
-- keeping an immutable audit trail.
+Milestones are accepted checkpoint review cycles, not inferred percentages or provider claims.
+Progress updates and deadline calculations are informational. They do not mark milestones complete.
 
-### The platform is not responsible for
+This permits real-world work to remain flexible:
 
-- declaring final work quality,
-- approving a task without a human decision,
-- converting AI output into acceptance,
-- adjudicating disputes as a final authority,
-- forcing payment after a buyer refusal or unresolved dispute.
+- checkpoints may be added when useful,
+- each checkpoint names its focus,
+- different checkpoints may cover different agreement constraints,
+- final review remains distinct from intermediate progress,
+- ambiguity remains visible rather than converted into a false pass/fail result.
 
----
+## Payment Gate
 
-## 4. Definition of evidence
+Capture requires all of the following:
 
-Evidence means the exact proof that a deliverable or milestone satisfies the approved requirement.
+- an authorized payment bound to the selected professional,
+- a current agreement and contract hash,
+- a final accepted review cycle,
+- a final decision recorded by the task owner,
+- assessments for every final-review constraint,
+- no blocking case, dispute, pending contract change, or payment pause,
+- no previous successful capture.
 
-Evidence must be:
+Files, provider claims, AI output, and automated observations cannot satisfy this gate.
 
-- tied to a specific requirement and milestone,
-- linked to the exact contract version,
-- attributable to a source and timestamp,
-- human-reviewable,
-- immutable once recorded,
-- designed to answer a specific acceptance question.
+## Retired Model
 
-Examples:
+New work does not use mandatory submissions, automated verification runs, or submission-bound review
+packages. Their database structures remain only while old implementation code and migrations are
+removed safely; no active route, worker, or workspace invokes them.
 
-- uploaded files,
-- screenshots,
-- code diffs,
-- API responses,
-- logs,
-- test results,
-- documents,
-- reviewer notes tied to a requirement.
+## Unified Reviewer Service
 
-Not evidence by itself:
+One Work Profile independently controls project-work and paid-review availability. A professional may
+offer either service or both. Review setup includes listing state, availability, domains and scope,
+methods, turnaround, fee mode and amount, supporting profile evidence, known conflicts, and a
+task-specific conflict confirmation.
 
-- a provider saying “done,”
-- a generic chat message,
-- an AI summary with no requirement link,
-- a task status change alone,
-- an unlinked screenshot,
-- a vague claim with no proof package.
+Reviewer discovery excludes the client and performing professional, then filters by account class,
+domain coverage, availability, conflicts, and PayPal seller readiness when required. Buyer,
+professional, and reviewer each accept the engagement terms.
 
----
+Direct review fees remain outside Tenfo. PayPal review fees are payer-approved and captured to the
+reviewer's onboarded merchant before the engagement starts. Buyer, professional, and shared-payer
+arrangements use explicit obligations; unknown captures are reconciled rather than retried blindly.
 
-## 5. Required review flow
-
-The review flow is intentionally separated from payment.
-
-### 5.1 Client review
-
-The buyer checks the work against the exact approved brief and the acceptance criteria.
-
-The buyer can choose:
-
-- accept,
-- reject,
-- request revision,
-- escalate to external review,
-- open a dispute.
-
-This must be a recorded decision with reason and timestamp.
-
-### 5.2 External review
-
-External review is optional and must be agreed by both parties.
-
-The platform can coordinate reviewer selection and scope, but it does not become the reviewer. The reviewer reports evidence and opinion, not final payment authority.
-
----
-
-## 6. Payment gate design
-
-Payment release only happens after all of the following are true:
-
-- the contract version matches the active approved version,
-- the work has an accepted review decision, or the agreed alternative path allows it,
-- no blocking case or dispute applies,
-- evidence is present and valid,
-- payment policy passes,
-- idempotency is preserved,
-- no global pause or failure condition exists.
-
-If any one of these fails, payment remains blocked.
-
-This is a fail-closed design.
-
----
-
-## 7. Milestone semantics
-
-A milestone should not be shown as complete merely because a provider uploaded files or claimed it was done.
-
-Milestone phases should be explicit:
-
-- submitted,
-- awaiting review,
-- revision requested,
-- accepted,
-- rejected,
-- disputed,
-- payment held,
-- payment released,
-- completed.
-
-The system should never collapse these stages into one vague “done” flag.
-
----
-
-## 8. Task state model
-
-The canonical task states are:
-
-- DRAFT
-- CREATED
-- PLANNING
-- AWAITING_CLARIFICATION
-- CONTRACT_REVIEW
-- APPROVED
-- PROVIDER_SEARCH
-- NEGOTIATION
-- AGREEMENT_READY
-- PAYMENT_AUTHORIZATION
-- WORK_IN_PROGRESS
-- SUBMITTED
-- VERIFYING
-- AWAITING_CLIENT_REVIEW
-- AWAITING_EXTERNAL_REVIEW
-- REVIEW_ACCEPTED
-- REJECTED
-- REVISION_REQUIRED
-- HUMAN_REVIEW
-- PAYMENT_RELEASE
-- COMPLETED
-- CANCELLED
-- EXPIRED
-- DISPUTED
-
-The key rule is that the human review states are the gateway before payment release. The platform is allowed to support operational verification but not to claim final acceptance.
-
----
-
-## 9. Edge cases the system must handle
-
-### Buyer refuses to authorize payment after delivery
-
-- payment is placed on hold,
-- buyer rationale is recorded,
-- the dispute or review path is opened,
-- auto-release is forbidden.
-
-### Provider submits work that does not match the brief
-
-- evidence is mapped to requirements,
-- the review rejects it,
-- revision is requested,
-- payment remains blocked.
-
-### Partial completion
-
-- payment must be tied to clear milestone rules,
-- partial release is only valid if the contract defines it,
-- otherwise the system holds funds.
-
-### Scope change
-
-- scope changes create a new versioned contract state,
-- prior evidence remains attached to the prior contract version,
-- payment binds to the active contract version.
-
-### Review disagreement
-
-- client and reviewer can disagree,
-- both decisions are recorded,
-- no silent override occurs,
-- payment stays blocked until the process resolves it.
-
-### Deadline breach
-
-- the task uses a distinct deadline or delay state,
-- review and payment remain gated by the contract.
-
----
-
-## 10. Final design summary
-
-The correct flow is:
-
-1. define task intent,
-2. agree the contract,
-3. submit evidence,
-4. await human review,
-5. accept or reject,
-6. apply payment policy,
-7. release funds only after the gate passes.
-
-This is the real-world-safe model because it separates evidence, acceptance, and payment. It does not pretend that a provider claim, AI suggestion, or system summary equals commercial completion.
+The reviewer receives only the referred package and can add notes, links, files, and per-constraint
+assessments. Reviewer findings return to the client, who records checkpoint or final task acceptance.
+Paying a reviewer does not accept the task work, and a favorable finding is not required for the
+reviewer to earn the agreed fee.

@@ -53,17 +53,17 @@ Intake, discovery, communication, independent review, and payment controls are a
 - Show all eligible professional profiles as self-described information, ordered for the buyer by deterministic capability-label overlap with the approved scope. Explain matching labels and retain unmatched eligible profiles. Do not select, endorse, contact, or claim a verified fit for anyone automatically.
 - Preview the chosen recipient, exact terms, and exact first message; record explicit per-recipient buyer consent before sending. Keep messaging closed until the professional accepts.
 - Evaluate intake across varied work domains, writing styles, and user contexts. Include human review of model quality and correction UX.
-- Support an optional reviewer-discovery directory with user-managed profiles, domain-specific expertise, clearly labeled self-supplied evidence, eligibility filters, explainable recommendations, and explicit limits on claims. Exclude the task owner and performing professional from recommendations.
+- Support optional paid-review discovery through the unified Work Profile. Project-work and review-service availability are independent, so a person may offer either or both. Exclude the task owner, performing professional, unavailable profiles, incompatible account classes, disclosed conflicts, and payment-ineligible PayPal review services.
 - Let buyer and professional exchange private task messages after the professional accepts contact. Preserve party control over requirements, commercial decisions, and changes; do not silently apply proposed terms.
-- Where independent review is chosen, require mutual agreement on reviewer, review scope, criteria, contract version, and any fee arrangement before work starts. Give the reviewer the exact agreed criteria and necessary submitted materials, with access limited to that engagement.
-- Treat reviewer reports as attributable evidence and the agreed process as an explicit contract term. Never let AI decide professional quality or override objective failures. Keep payment authorization, capture, release, revision, and disputes on explicit, independently enforced policy gates; a reviewer recommendation alone is not a payment command.
-- Make review-fee limitations clear: unless a separately approved payment feature is implemented, compensation is arranged directly by the parties and reviewer, not collected or guaranteed by WorkPay.
+- The client requests checkpoint or final review; the professional responds with a frozen package of summary, notes, links, and optional files. Tenfo organizes the agreement constraints and attributable findings but does not verify the work.
+- Where paid review is chosen, require mutual agreement on reviewer, review focus, criteria, contract version, conflict disclosure, and fee before engagement. Give the reviewer only the referred package and task-bound utilities.
+- Support direct review-fee arrangements and payer-approved PayPal fees. PayPal review fees are captured to the onboarded reviewer before the engagement becomes active; shared fees create explicit obligations for each payer.
 - Validate the integrated flow with separate buyer, professional, and reviewer identities against a migrated development/test database, including browser-level workflows and payment-gate outcomes.
 - Preserve deterministic authorization, money, privacy, audit, and persistence controls. No database transaction may span an AI network call.
 
 ### 2.2 Follow-on design decisions within the current completion scope
 
-- Any production payment of reviewer fees requires a separate explicit product and payment-policy decision; recording fee terms does not pay or secure the reviewer.
+- Refund, appeal, and reviewer-fee dispute workflows remain fail-closed and require explicit operator or mutually agreed resolution; no favorable review result is required for the reviewer to earn an already approved fee.
 - Disagreement, appeal, reviewer replacement, and task disputes must be clearly distinguished from WorkPay arbitration. Until an agreed self-sustaining process exists, fail closed for payment and communicate the limitation rather than presenting an AI or WorkPay decision as final.
 - Expanded profile verification must be designed as evidence disclosure and user choice; self-reported profiles are not certified credentials.
 
@@ -77,7 +77,7 @@ Intake, discovery, communication, independent review, and payment controls are a
 
 Current payment-policy validation remains USD-only. Intake must preserve the user's stated currency and must not silently convert it. Any unsupported currency or unresolved downstream commercial requirement must be made explicit before a task can enter payment-policy validation.
 
-Live money movement is disabled for the current completion scope. The fake gateway validates amounts, authorization/capture states, idempotency, evidence gates, and failure recovery without external side effects. The UI and documentation must label those states as simulated. PayPal OAuth identity data is not charging authority, payout authority, or independent identity verification. A production gateway requires a separately approved marketplace-payment model, explicit provider onboarding, explicit buyer approval at the provider, webhook/reconciliation validation, and an engineering and legal review before `PAYMENT_GATEWAY=paypal` can be enabled.
+Payment mode is participant- and account-class-bound. Evaluator fixtures persist `FAKE`; normal members use the configured PayPal Sandbox flow with buyer linking, PPCP seller onboarding, explicit per-order approval, direct seller capture, verified webhooks, and reconciliation. Live mode requires separate live credentials, partner approval, legal/operational review, and `PAYPAL_LIVE_ENABLED=true`. PayPal identity linking alone is never charging authority.
 
 The existing technical stack and safety invariants remain authoritative. This user-approved direction supersedes the earlier intake-only phase boundary and deferrals in this execution plan. The integrated lifecycle must be judged by the current scope above, not by those obsolete exclusions.
 
@@ -94,8 +94,8 @@ These are **testable laws** (derived from Component 19 §13/§34 and Components 
 - **M2.** `amount_minor >= 0`. Amounts come **only** from the contract/agreement — never from the LLM, never from the browser.
 
 ### Payment
-- **P1.** Capture allowed **iff all** hold: payment authorized ∧ agreement valid ∧ contract version+hash match ∧ verification = `PASS` ∧ no blocking case ∧ amount/currency match ∧ authorization still valid ∧ policy `ALLOW`. Otherwise: **DO NOT CAPTURE**.
-- **P2.** `verification != PASS → automatic capture forbidden`. `UNCERTAIN` never releases money. No-decision = no-capture (fail closed, never "error → allow").
+- **P1.** Capture allowed **iff all** hold: payment authorized ∧ agreement valid ∧ contract version+hash match ∧ current final review accepted by the task owner ∧ every selected constraint assessed ∧ no blocking case ∧ amount/currency match ∧ authorization still valid ∧ policy `ALLOW`. Otherwise: **DO NOT CAPTURE**.
+- **P2.** No final client acceptance means no capture. Notes, links, files, provider claims, AI output, and automated observations cannot independently release money.
 - **P3.** The AI **recommends**; deterministic policy **decides**. No code path may take an LLM output as a capture/authorize/refund instruction.
 - **P4.** Every money-moving command is idempotent (idempotency key + `payment_operations` append-only). Duplicate capture is impossible. Unknown PayPal state → **reconcile**, never guess.
 - **P5.** Authorization ≠ capture in data **and** in UI copy ("authorized" vs "paid").

@@ -9,10 +9,10 @@ into a reviewable brief. People who already know the domain can state precise
 requirements directly; the requester decides what to confirm and who to contact.
 
 Tenfo is a user-led platform for making professional work clearer and more
-accountable. This version is being prepared for the PayPal Hackathon as a
-demonstration of that broader product vision. **It does not currently move
-money**; the beta is a working prototype, not a claim that every marketplace,
-identity, or payment capability is production-ready.
+accountable. This version is being prepared for the PayPal Hackathon with
+PayPal Sandbox account linking, seller onboarding, buyer-approved orders,
+capture, webhooks, and reconciliation. Evaluator fixtures remain simulated;
+live payments stay separately gated.
 
 **[Explore the Tenfo beta](https://workpay-beta.56.228.111.53.sslip.io/)**
 
@@ -45,9 +45,12 @@ Describe the work
   → review proposed terms and approve them
   → consider professional profiles ordered by self-described scope overlap
   → choose a professional and approve the exact contact message
-  → professional responds; parties agree before commercial commitment
-  → collaborate, submit work, and review it against agreed criteria
-  → optionally involve an independent reviewer by mutual agreement
+  → professional accepts exact proposed work; requester confirms the final professional
+  → authorize payment and collaborate
+  → requester asks for a checkpoint or final review package
+  → professional responds with notes, links, and optional files
+  → requester records review findings or optionally uses an agreed paid reviewer
+  → final acceptance and a separate payment-release approval
 ```
 
 ### 1. Describe and clarify
@@ -87,14 +90,19 @@ The professional can respond to the initial request. Work messaging becomes
 available after the professional accepts contact. The parties remain in control
 of any commercial commitment and any proposed changes to scope or terms.
 
-### 4. Deliver and review
+### 4. Progress, review, and payment
 
-The work lifecycle is designed to connect submissions and evidence to the
-agreed requirements and applicable agreement version. A submission is not
-automatically accepted. Where independent review is used, it is optional and
-requires agreement on the reviewer, scope, criteria, and version being reviewed.
-The reviewer provides an attributable opinion—not Tenfo certification,
-arbitration, or a command to release payment.
+The requester can open a progress checkpoint or final review while work is in
+progress. The professional responds with a review package containing a summary
+and any useful mix of live links, notes, and files. Accepted checkpoints record
+milestones and return work to progress. Final acceptance remains distinct from
+payment approval.
+
+Paid review is optional. Reviewer discovery, domains, fee, conflicts, and
+availability live in the same Work Profile used for project work. All parties
+accept the review engagement before it begins. PayPal review fees are approved
+before the reviewer receives the package; direct fee arrangements can also be
+recorded.
 
 Requester, performing professional, and reviewer describe task-specific
 relationships. A Tenfo member can participate in different capacities on
@@ -111,17 +119,16 @@ different work, subject to ownership, consent, and conflict checks.
   contact, changed terms, work acceptance, or payment at a later stage.
 - **Keep work and communication connected.** Messages and decisions should be
   associated with the relevant person and task without confusing separate work.
-- **Represent uncertainty honestly.** A self-described profile is not a
-  verified credential; an uncertain result is not success; a simulated payment
-  is not a transaction.
+- **Represent uncertainty honestly.** Reviews can record met, partial, unmet,
+  unclear, and not-applicable findings without converting ambiguity into an
+  automated verdict.
 
 ## PayPal Hackathon and payment scope
 
-Payment workflows are enabled, including agreement-linked payment states,
-server-side policy checks, idempotency, and recovery handling. The current
-environment uses a simulated payment gateway: **no PayPal charge, authorization,
-hold, capture, payout, or transfer occurs**. Payment states shown in the demo
-represent policy validation, not funds moving.
+Normal member accounts use the configured PayPal Sandbox flow. Evaluator fixture
+accounts use durable simulated payment mode so demonstrations remain
+reproducible. A payment's mode is persisted and immutable. Live mode requires
+separate credentials, partner approval, and an explicit enablement gate.
 
 Tenfo is not a wallet, escrow service, merchant of record, or
 dispute-resolution provider. Current payment-policy validation is USD-only; the
@@ -133,8 +140,8 @@ made explicit rather than silently converted.
 Tenfo is actively being validated as an integrated user-led lifecycle. The
 repository includes server-owned, versioned intake; AI-assisted interpretation
 and brief composition; task and agreement flows; professional discovery and
-contact consent; task-linked messaging; work submission/review surfaces; and
-payment-policy infrastructure with simulated operations.
+  contact consent; mutual work commitment; task-linked messaging; review
+  requests and packages; optional paid reviewers; and PayPal payment controls.
 
 Important limitations for evaluators and contributors:
 
@@ -166,8 +173,8 @@ Decision notes are in [`OPEN-DECISIONS.md`](./OPEN-DECISIONS.md).
   configured and intake AI is off by default
 - **Files:** local S3-compatible MinIO for development; hosted object storage is
   configurable
-- **Payments:** provider abstraction with simulated gateway for the current
-  validation scope
+- **Payments:** evaluator simulation plus PayPal Sandbox Orders, seller
+  onboarding, direct capture, webhooks, and reconciliation for member accounts
 - **Quality:** Vitest for unit and shared-domain tests; Playwright for web
   end-to-end tests
 
@@ -234,9 +241,9 @@ Start the worker in a second terminal when exercising background jobs:
 pnpm worker
 ```
 
-The local example uses simulated payments and disables external intake AI.
-Configure optional providers in your local `.env` only when you intend to test
-those integrations. Keep credentials server-side and out of source control.
+The local evaluator flow uses simulated payments. Configure the scoped PayPal
+Sandbox variables in `.env` to exercise member payment and reviewer-fee flows.
+Keep credentials server-side and out of source control.
 
 ## Try the product
 
@@ -256,8 +263,12 @@ perspective:
    review the exact message before approving it.
 7. Switch to a professional perspective to inspect the request and respond.
    Continue in the task conversation only after contact is accepted.
-8. Explore work submission, review, and payment-policy states while remembering
-   that money movement is simulated.
+8. Send a work proposal, record professional acceptance, and confirm the final
+   professional.
+9. Open a checkpoint or final review request; respond with a package from Work
+   Studio using a live link, note, or optional file.
+10. Record review findings, optionally involve a paid reviewer, and approve the
+    separate payment release.
 
 The beta sign-in page provides demo/evaluator entry points when enabled. Use
 those perspectives to inspect the same workflow from different sides; avoid
