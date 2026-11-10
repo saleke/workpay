@@ -12,9 +12,11 @@ import { users } from "../../db/schema/identity.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound } from "../../platform/errors.js";
+import { getEnv } from "../../platform/env.js";
 import { newId } from "../../platform/ids.js";
 import { toEventActor } from "../context.js";
 import type { Actor } from "../identity/authorize.js";
+import { canUseProfessionalProfile } from "../identity/account-class.js";
 import { transitionTask } from "../tasks/service.js";
 
 function numericToNumber(value: string | null): number | undefined {
@@ -89,19 +91,27 @@ export async function discoverProviders(
     : [];
   const profileImages = new Map(profileRows.map((user) => [user.id, user.image]));
   const profileClasses = new Map(profileRows.map((user) => [user.id, user.accountClass]));
+  const evaluationMode = getEnv().EVALUATION_MODE;
   const latestReputation = new Map<string, (typeof reputationRows)[number]>();
   for (const row of reputationRows) {
     const current = latestReputation.get(row.providerId);
     if (!current || row.capturedAt > current.capturedAt) latestReputation.set(row.providerId, row);
   }
 
-  const candidateSnapshots = providerRows
+  const allCandidateSnapshots = providerRows
     .filter(
       (provider) =>
         provider.userId &&
         provider.userId !== task.userId &&
-        profileClasses.get(provider.userId) === buyer.accountClass &&
+        canUseProfessionalProfile({
+          buyerClass: buyer.accountClass,
+          providerClass: profileClasses.get(provider.userId) ?? "UNCLASSIFIED",
+          evaluationMode,
+        }) &&
         Boolean(provider.bio?.trim()) &&
+        capabilityRows.some((capability) => capability.providerId === provider.id) &&
+        (provider.workPreferences as { aiRecommendationAllowed?: boolean } | null)
+          ?.aiRecommendationAllowed !== false &&
         (provider.workPreferences as { workAcceptanceStatus?: string } | null)
           ?.workAcceptanceStatus !== "UNAVAILABLE",
     )
@@ -118,6 +128,7 @@ export async function discoverProviders(
         .filter((capability) => capability.providerId === provider.id)
         .map(({ tag, proficiency }) => ({ tag, proficiency }));
       const rep = latestReputation.get(provider.id);
+      const evaluationProfile = profileClasses.get(provider.userId!) === "DEMO_FIXTURE";
       return [
         {
           providerId: provider.id,
@@ -136,12 +147,30 @@ export async function discoverProviders(
             ? { priceMinor: provider.hourlyRateMinor, currency: provider.currency }
             : {}),
           eligible: true,
+          evaluationProfile,
           reason:
-            "Available to receive a contact request; review the profile and decide whether to reach out.",
+            evaluationProfile && buyer.accountClass === "MEMBER"
+              ? "Available for evaluation with simulated payment. Review the profile and decide whether to reach out."
+              : "Available to receive a contact request; review the profile and decide whether to reach out.",
         },
       ];
     })
-    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+    .sort(
+      (left, right) =>
+        Number(left.evaluationProfile) - Number(right.evaluationProfile) ||
+        left.displayName.localeCompare(right.displayName),
+    );
+  const memberCandidates = allCandidateSnapshots.filter(
+    (candidate) => !candidate.evaluationProfile,
+  );
+  const usingEvaluationFallback =
+    buyer.accountClass === "MEMBER" &&
+    memberCandidates.length === 0 &&
+    allCandidateSnapshots.some((candidate) => candidate.evaluationProfile);
+  const candidateSnapshots =
+    buyer.accountClass === "MEMBER" && memberCandidates.length > 0
+      ? memberCandidates
+      : allCandidateSnapshots;
 
   const selectionId = newId("sel");
   const [selection] = await tx
@@ -155,7 +184,9 @@ export async function discoverProviders(
       candidates: candidateSnapshots,
       reason:
         candidateSnapshots.length > 0
-          ? "All available profiles are retained; the buyer view may order them by deterministic overlap with the approved scope."
+          ? usingEvaluationFallback
+            ? "No member profiles are listed yet. Evaluation profiles are available with simulated payment."
+            : "Available profiles are ordered by deterministic overlap with the approved scope."
           : "No professionals are currently available to contact. You can try again later.",
     })
     .returning();

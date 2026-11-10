@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
@@ -41,6 +42,7 @@ export function TaskConversationsPanel({
   onSelectionChanged?: () => void;
   onLifecycleChange?: (summary: ConversationLifecycleSummary) => void;
 }) {
+  const router = useRouter();
   const [conversations, setConversations] = useState<TaskConversationDto[]>([]);
   const [providerId, setProviderId] = useState("");
   const [draftsByProvider, setDraftsByProvider] = useState<Record<string, FirstContactDraft>>({});
@@ -50,6 +52,7 @@ export function TaskConversationsPanel({
     message: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lifecycleReady, setLifecycleReady] = useState(false);
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
@@ -126,6 +129,7 @@ export function TaskConversationsPanel({
     }
     setError(null);
     setConversations(result.data ?? []);
+    setLifecycleReady(true);
   };
 
   useEffect(() => {
@@ -139,15 +143,18 @@ export function TaskConversationsPanel({
     setDraftsByProvider({});
     setContactApproval(null);
     setDraftError(null);
+    setLifecycleReady(false);
   }, [taskId]);
 
   useEffect(() => {
+    if (!lifecycleReady) return;
     onLifecycleChange?.(lifecycleSummary);
   }, [
     lifecycleSummary.pending,
     lifecycleSummary.open,
     lifecycleSummary.declined,
     lifecycleSummary.withdrawn,
+    lifecycleReady,
     onLifecycleChange,
   ]);
 
@@ -271,6 +278,11 @@ export function TaskConversationsPanel({
                 {candidates.length} profiles
               </span>
             </div>
+            {candidates.some((candidate) => candidate.evaluationProfile) ? (
+              <p className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
+                Evaluation profiles use simulated payment.
+              </p>
+            ) : null}
             <div className="space-y-2" role="group" aria-label="Available professionals">
               {candidates.map((candidate) => {
                 const isSelected = providerId === candidate.providerId;
@@ -306,6 +318,12 @@ export function TaskConversationsPanel({
                     key={candidate.providerId}
                     type="button"
                     onClick={() => {
+                      if (candidateConversation) {
+                        router.push(
+                          `/messages?conversation=${encodeURIComponent(candidateConversation.id)}`,
+                        );
+                        return;
+                      }
                       setProviderId(candidate.providerId);
                       setContactApproval(null);
                       setDraftError(null);
@@ -333,6 +351,11 @@ export function TaskConversationsPanel({
                         <span className="min-w-0 flex-1 break-words text-base font-semibold leading-snug text-[var(--wp-text-primary)]">
                           {candidate.displayName}
                         </span>
+                        {candidate.evaluationProfile ? (
+                          <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800">
+                            Evaluation profile
+                          </span>
+                        ) : null}
                         <span
                           className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                             requestState === "CONTACT_PENDING"
@@ -664,7 +687,7 @@ export function TaskConversationsPanel({
                 {discovering
                   ? "Finding available professionals…"
                   : selection?.status === "FAILED"
-                    ? "Professional search didn’t complete"
+                    ? "No professionals are available yet"
                     : selection?.status === "EXPIRED"
                       ? "This professional search has expired"
                       : "No professional profiles to show yet"}
@@ -672,7 +695,8 @@ export function TaskConversationsPanel({
               <p className="mt-1 max-w-xl text-sm leading-relaxed text-[var(--text-muted)]">
                 {discovering
                   ? "You can keep working while we look for eligible profiles."
-                  : "Tenfo won’t select or contact anyone for you. When profiles are available, you can review each one and choose whether to reach out."}
+                  : selection?.reason ||
+                    "When profiles are available, you can review each one and choose whether to reach out."}
               </p>
             </div>
           </div>

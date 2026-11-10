@@ -9,6 +9,8 @@ import {
   type PaymentMode,
 } from "../../integrations/payments/config.js";
 import { conflict, notFound } from "../../platform/errors.js";
+import { getEnv } from "../../platform/env.js";
+import { requiresSimulatedPayment } from "../identity/account-class.js";
 
 export interface PaymentParticipants {
   task: typeof tasks.$inferSelect;
@@ -51,7 +53,13 @@ export async function resolvePaymentParticipants(
   const buyerClass = buyer.accountClass;
   const providerClass = providerUser.accountClass;
   let mode: PaymentMode;
-  if (buyerClass === "DEMO_FIXTURE" && providerClass === "DEMO_FIXTURE") {
+  if (
+    requiresSimulatedPayment({
+      buyerClass,
+      providerClass,
+      evaluationMode: getEnv().EVALUATION_MODE,
+    })
+  ) {
     mode = "FAKE";
   } else if (buyerClass === "MEMBER" && providerClass === "MEMBER") {
     mode = getConfiguredNewPaymentMode();

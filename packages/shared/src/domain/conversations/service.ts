@@ -21,8 +21,10 @@ import { users } from "../../db/schema/identity.js";
 import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound } from "../../platform/errors.js";
+import { getEnv } from "../../platform/env.js";
 import { newId } from "../../platform/ids.js";
 import type { Actor } from "../identity/authorize.js";
+import { canUseProfessionalProfile } from "../identity/account-class.js";
 import { toEventActor } from "../context.js";
 
 export interface ConversationContractSnapshot {
@@ -47,6 +49,7 @@ export interface ConversationContractSnapshot {
 
 export type ConversationWithMessages = typeof taskConversations.$inferSelect & {
   hasWorkExecution: boolean;
+  evaluationOnly: boolean;
   messages: Array<typeof taskConversationMessages.$inferSelect>;
 };
 
@@ -116,10 +119,18 @@ function taskProviderKey(taskId: string, providerId: string): string {
 async function hydrateConversationRows<T extends typeof taskConversations.$inferSelect>(
   db: Database,
   conversations: T[],
-): Promise<Array<T & { hasWorkExecution: boolean }>> {
+): Promise<Array<T & { hasWorkExecution: boolean; evaluationOnly: boolean }>> {
   if (conversations.length === 0) return [];
   const taskIds = [...new Set(conversations.map((conversation) => conversation.taskId))];
-  const [executions, agreements] = await Promise.all([
+  const participantIds = [
+    ...new Set(
+      conversations.flatMap((conversation) => [
+        conversation.buyerUserId,
+        conversation.providerUserId,
+      ]),
+    ),
+  ];
+  const [executions, agreements, participantAccounts] = await Promise.all([
     db
       .select({ taskId: workExecutions.taskId, providerId: workExecutions.providerId })
       .from(workExecutions)
@@ -131,6 +142,10 @@ async function hydrateConversationRows<T extends typeof taskConversations.$infer
       })
       .from(commercialAgreements)
       .where(inArray(commercialAgreements.taskId, taskIds)),
+    db
+      .select({ id: users.id, accountClass: users.accountClass })
+      .from(users)
+      .where(inArray(users.id, participantIds)),
   ]);
   const taskProvidersWithExecutions = new Set(
     executions.map((execution) => taskProviderKey(execution.taskId, execution.providerId)),
@@ -138,13 +153,19 @@ async function hydrateConversationRows<T extends typeof taskConversations.$infer
   const agreementProviderByTask = new Map(
     agreements.map((agreement) => [agreement.taskId, agreement.providerId]),
   );
+  const accountClassByUser = new Map(
+    participantAccounts.map((account) => [account.id, account.accountClass]),
+  );
   return conversations.map((conversation) => {
     const agreementProviderId = agreementProviderByTask.get(conversation.taskId);
     const hasWorkExecution = taskProvidersWithExecutions.has(
       taskProviderKey(conversation.taskId, conversation.providerId),
     );
+    const evaluationOnly =
+      accountClassByUser.get(conversation.buyerUserId) !==
+      accountClassByUser.get(conversation.providerUserId);
     if (agreementProviderId === conversation.providerId) {
-      return { ...conversation, hasWorkExecution };
+      return { ...conversation, hasWorkExecution, evaluationOnly };
     }
     const contractSnapshot = conversation.contractSnapshot as ConversationContractSnapshot;
     const currentContractSnapshot =
@@ -154,6 +175,7 @@ async function hydrateConversationRows<T extends typeof taskConversations.$infer
       contractSnapshot: { ...contractSnapshot, agreedPrice: null },
       currentContractSnapshot: { ...currentContractSnapshot, agreedPrice: null },
       hasWorkExecution,
+      evaluationOnly,
     };
   });
 }
@@ -285,7 +307,10 @@ export async function getFirstContactContext(
     .limit(1);
   const [[buyerAccount], [providerAccount]] = provider?.userId
     ? await Promise.all([
-        db.select({ accountClass: users.accountClass }).from(users).where(eq(users.id, task.userId)),
+        db
+          .select({ accountClass: users.accountClass })
+          .from(users)
+          .where(eq(users.id, task.userId)),
         db
           .select({ accountClass: users.accountClass })
           .from(users)
@@ -299,7 +324,11 @@ export async function getFirstContactContext(
     !buyerAccount ||
     !providerAccount ||
     buyerAccount.accountClass === "UNCLASSIFIED" ||
-    buyerAccount.accountClass !== providerAccount.accountClass ||
+    !canUseProfessionalProfile({
+      buyerClass: buyerAccount.accountClass,
+      providerClass: providerAccount.accountClass,
+      evaluationMode: getEnv().EVALUATION_MODE,
+    }) ||
     !providerAvailability?.available ||
     providerAvailability.activeAssignments >= providerAvailability.capacity
   ) {

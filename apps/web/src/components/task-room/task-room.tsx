@@ -57,17 +57,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     open: 0,
     declined: 0,
     withdrawn: 0,
+    loaded: false,
   });
   const updateConversationLifecycle = useCallback(
     (summary: { pending: number; open: number; declined: number; withdrawn: number }) => {
-      setConversationLifecycle({ taskId, ...summary });
+      setConversationLifecycle({ taskId, ...summary, loaded: true });
     },
     [taskId],
   );
   const lifecycle =
     conversationLifecycle.taskId === taskId
       ? conversationLifecycle
-      : { taskId, pending: 0, open: 0, declined: 0, withdrawn: 0 };
+      : { taskId, pending: 0, open: 0, declined: 0, withdrawn: 0, loaded: false };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -166,7 +167,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const beginPaymentAuthorization = async () => {
     setSimulatingPayment(true);
     setActionError(null);
-    const isEvaluator = paypal.data?.accountClass === "DEMO_FIXTURE";
+    const isEvaluator =
+      paypal.data?.accountClass === "DEMO_FIXTURE" ||
+      room.data?.providerSelection?.provider?.evaluationProfile === true;
     if (!isEvaluator) {
       if (!paypal.data?.configured) {
         setSimulatingPayment(false);
@@ -308,6 +311,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       .filter((profile) => profile.eligible !== false)
       .map((profile) => profile.providerId),
   ).size;
+  const usesSimulatedAuthorization =
+    paypal.data?.accountClass === "DEMO_FIXTURE" ||
+    providerSelection?.provider?.evaluationProfile === true;
 
   // Derive status presentation
   let statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
@@ -351,7 +357,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     statusText = "Discussion open · not committed";
   } else if (task.status === "AGREEMENT_READY") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
-    statusText = "Ready for simulated authorization";
+    statusText = usesSimulatedAuthorization
+      ? "Ready for simulated authorization"
+      : "Ready for PayPal authorization";
   } else if (task.status === "PROVIDER_SEARCH") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
     statusText = "Finding professionals";
@@ -360,13 +368,15 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     statusText = "Contact in progress";
   } else if (task.status === "PAYMENT_AUTHORIZATION") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
-    statusText = "Simulated authorization in progress";
+    statusText = usesSimulatedAuthorization
+      ? "Simulated authorization in progress"
+      : "PayPal authorization in progress";
   } else if (task.status === "COMPLETED") {
     statusBadgeClass = "bg-[var(--wp-success-subtle)] text-[var(--wp-success)]";
     statusText = "Task complete";
   } else if (task.status === "PAYMENT_RELEASE") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
-    statusText = "Simulated release policy";
+    statusText = usesSimulatedAuthorization ? "Simulated release policy" : "Payment release";
   } else if (task.status === "CANCELLED" || task.status === "EXPIRED") {
     statusBadgeClass = "bg-[var(--wp-surface-subtle)] text-[var(--wp-text-muted)]";
     statusText = task.status === "CANCELLED" ? "Task cancelled" : "Task expired";
@@ -385,7 +395,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           : task.status === "AWAITING_EXTERNAL_REVIEW"
             ? "Await the agreed independent report, then record the buyer decision"
             : task.status === "REVIEW_ACCEPTED"
-              ? "The delivery has been accepted; run the separate simulated release policy"
+              ? usesSimulatedAuthorization
+                ? "The delivery has been accepted; approve the simulated release"
+                : "The delivery has been accepted; approve payment release"
               : task.status === "HUMAN_REVIEW"
                 ? "Open a review or involve an agreed paid reviewer"
                 : task.status === "REVISION_REQUIRED" || task.status === "REJECTED"
@@ -393,31 +405,31 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   : task.status === "SUBMITTED" || task.status === "VERIFYING"
                     ? "Open a review for the current work"
                     : task.status === "PAYMENT_RELEASE"
-                      ? "Review simulated release status"
+                      ? usesSimulatedAuthorization
+                        ? "Review simulated release status"
+                        : "Review payment release status"
                       : task.status === "COMPLETED"
                         ? "Task is complete"
                         : task.status === "CANCELLED"
                           ? "Task cancelled"
                           : task.status === "EXPIRED"
                             ? "Task expired"
-                            : !execution && lifecycle.pending > 0
-                              ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
-                              : !execution && lifecycle.open > 0
-                                ? "Continue the discussion; work is not committed"
-                                : execution?.status === "ASSIGNED"
-                                  ? "Review the assignment and accept to begin"
-                                  : execution?.status === "ACCEPTED" ||
-                                      execution?.status === "IN_PROGRESS"
-                                    ? "Work is in progress"
-                                    : task.status === "AGREEMENT_READY"
-                                      ? "Run simulated authorization and assign work"
-                                      : task.status === "PROVIDER_SEARCH"
-                                        ? profileCount > 0
-                                          ? "Choose a professional to contact"
-                                          : "Finding available professionals"
-                                        : task.status === "NEGOTIATION"
-                                          ? "Continue your contact discussion"
-                                          : "Review task details";
+                            : execution?.status === "ASSIGNED"
+                              ? "Review the assignment and accept to begin"
+                              : execution?.status === "ACCEPTED" ||
+                                  execution?.status === "IN_PROGRESS"
+                                ? "Work is in progress"
+                                : task.status === "AGREEMENT_READY"
+                                  ? usesSimulatedAuthorization
+                                    ? "Authorize the simulated payment and assign work"
+                                    : "Approve payment with PayPal and assign work"
+                                  : task.status === "PROVIDER_SEARCH"
+                                    ? profileCount > 0
+                                      ? "Choose a professional to contact"
+                                      : "Finding available professionals"
+                                    : task.status === "NEGOTIATION"
+                                      ? "Continue your contact discussion"
+                                      : "Review task details";
 
   const workspaceSections = [
     {
@@ -543,159 +555,138 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             </div>
           </div>
 
-          <aside className="w-full rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              Next step
-            </p>
-            <p className="mt-1 text-base font-semibold leading-snug text-[var(--charcoal)]">
-              {nextStepLabel}
-            </p>
-            {isDraftOrAwaiting && activeContract ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Confirm the agreed scope and budget. This does not authorize or capture a payment.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onSignContract(activeContract)}
-                  disabled={signing}
-                  className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {signing ? "Approving…" : "Approve scope and budget"}
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </>
-            ) : task.status === "HUMAN_REVIEW" ? (
-              <Link
-                href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
-                className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--wp-warning)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:brightness-95"
-              >
-                <AlertTriangle className="h-4 w-4" />
-                Browse reviewers
-              </Link>
-            ) : !execution && (lifecycle.pending > 0 || lifecycle.open > 0) ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  {lifecycle.pending > 0
-                    ? "Your contact request is waiting for a response. Keep watching the conversation for the next step."
-                    : "A professional accepted the discussion. Work starts only after the exact terms and assignment are accepted by both parties."}
-                </p>
-                <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-xl border border-[var(--wp-border)] bg-white p-3 text-xs leading-5 text-[var(--wp-text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={paymentReleaseConfirmed}
-                    onChange={(event) => setPaymentReleaseConfirmed(event.target.checked)}
-                    className="mt-1 h-4 w-4 accent-emerald-700"
-                  />
-                  <span>
-                    I approve release of {payment.data ? formatMinorMoney(payment.data) : "the authorized amount"}
-                    {payment.data?.mode === "FAKE" ? " in evaluator simulation" : " through PayPal"}.
-                  </span>
-                </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setActiveTab("execution")}
-                  className="mt-4 w-full max-w-md"
-                >
-                  {lifecycle.pending > 0 ? "View contact requests" : "Open discussion"}
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </>
-            ) : !execution &&
-              profileCount > 0 &&
-              (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Compare profiles and choose a professional to contact. The approved scope remains
-                  unchanged.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setActiveTab("execution")}
-                  className="mt-4 w-full max-w-md"
-                >
-                  Review profiles
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </>
-            ) : task.status === "AGREEMENT_READY" ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  {paypal.data?.accountClass === "DEMO_FIXTURE"
-                    ? "This evaluator task uses deterministic simulated authorization; no funds move."
-                    : "Approve this PayPal order to authorize the agreed amount directly for the onboarded professional."}
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => void beginPaymentAuthorization()}
-                  disabled={simulatingPayment}
-                  className="mt-4 w-full max-w-md"
-                >
-                  {simulatingPayment
-                    ? "Preparing authorization…"
-                    : paypal.data?.accountClass === "DEMO_FIXTURE"
-                      ? "Simulate authorization and assign work"
-                      : "Continue to PayPal approval"}
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </>
-            ) : task.status === "WORK_IN_PROGRESS" ||
-              task.status === "REVIEW_REQUESTED" ||
-              task.status === "SUBMITTED" ||
-              task.status === "VERIFYING" ||
-              task.status === "AWAITING_CLIENT_REVIEW" ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Open a progress checkpoint or final review at any useful moment. Add notes, live
-                  links, or files that help explain the work.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => setActiveTab("verification")}
-                  className="mt-4 w-full max-w-md"
-                >
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                  Open review workspace
-                </Button>
-              </>
-            ) : task.status === "REVIEW_ACCEPTED" || task.status === "PAYMENT_RELEASE" ? (
-              <>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  {payment.data?.mode === "FAKE"
-                    ? "The buyer accepted this delivery. Run the simulated release policy; no funds will be charged or paid."
-                    : "The buyer accepted this delivery. Recheck policy and capture the authorized PayPal amount directly to the onboarded professional."}
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => void releasePayment()}
-                  disabled={releasingPayment || !paymentReleaseConfirmed}
-                  className="mt-4 w-full max-w-md"
-                >
-                  {releasingPayment
-                    ? "Running release policy…"
-                    : payment.data?.mode === "FAKE"
-                      ? "Approve simulated release"
-                      : "Approve and release PayPal payment"}
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                Your task status and the latest updates are shown below.
+          {!execution &&
+          (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") &&
+          (!lifecycle.loaded || lifecycle.pending > 0 || lifecycle.open > 0) ? null : (
+            <aside className="w-full rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-4 sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                Next step
               </p>
-            )}
-            <button
-              type="button"
-              onClick={refresh}
-              className="mt-3 inline-flex min-h-10 w-full max-w-md items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--wp-text-secondary)] transition-colors hover:text-[var(--charcoal)]"
-              title="Refresh task status"
-            >
-              <RotateCw className="h-4 w-4" />
-              Refresh status
-            </button>
-          </aside>
+              <p className="mt-1 text-base font-semibold leading-snug text-[var(--charcoal)]">
+                {nextStepLabel}
+              </p>
+              {isDraftOrAwaiting && activeContract ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                    Confirm the agreed scope and budget. This does not authorize or capture a
+                    payment.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onSignContract(activeContract)}
+                    disabled={signing}
+                    className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {signing ? "Approving…" : "Approve scope and budget"}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </>
+              ) : task.status === "HUMAN_REVIEW" ? (
+                <Link
+                  href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
+                  className="mt-4 inline-flex min-h-11 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--wp-warning)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:brightness-95"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Browse reviewers
+                </Link>
+              ) : !execution &&
+                profileCount > 0 &&
+                (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                    Compare profiles and choose a professional to contact. The approved scope
+                    remains unchanged.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setActiveTab("execution")}
+                    className="mt-4 w-full max-w-md"
+                  >
+                    Review profiles
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </>
+              ) : task.status === "AGREEMENT_READY" ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                    {usesSimulatedAuthorization
+                      ? "This evaluator task uses deterministic simulated authorization; no funds move."
+                      : "Approve this PayPal order to authorize the agreed amount directly for the onboarded professional."}
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => void beginPaymentAuthorization()}
+                    disabled={simulatingPayment}
+                    className="mt-4 w-full max-w-md"
+                  >
+                    {simulatingPayment
+                      ? "Preparing authorization…"
+                      : usesSimulatedAuthorization
+                        ? "Simulate authorization and assign work"
+                        : "Continue to PayPal approval"}
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </>
+              ) : task.status === "WORK_IN_PROGRESS" ||
+                task.status === "REVIEW_REQUESTED" ||
+                task.status === "SUBMITTED" ||
+                task.status === "VERIFYING" ||
+                task.status === "AWAITING_CLIENT_REVIEW" ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                    Open a progress checkpoint or final review at any useful moment. Add notes, live
+                    links, or files that help explain the work.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => setActiveTab("verification")}
+                    className="mt-4 w-full max-w-md"
+                  >
+                    <ClipboardCheck className="mr-2 h-4 w-4" />
+                    Open review workspace
+                  </Button>
+                </>
+              ) : task.status === "REVIEW_ACCEPTED" || task.status === "PAYMENT_RELEASE" ? (
+                <>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                    {payment.data?.mode === "FAKE"
+                      ? "The buyer accepted this delivery. Run the simulated release policy; no funds will be charged or paid."
+                      : "The buyer accepted this delivery. Recheck policy and capture the authorized PayPal amount directly to the onboarded professional."}
+                  </p>
+                  <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-xl border border-[var(--wp-border)] bg-white p-3 text-xs leading-5 text-[var(--wp-text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={paymentReleaseConfirmed}
+                      onChange={(event) => setPaymentReleaseConfirmed(event.target.checked)}
+                      className="mt-1 h-4 w-4 accent-emerald-700"
+                    />
+                    <span>
+                      I approve release of{" "}
+                      {payment.data ? formatMinorMoney(payment.data) : "the authorized amount"}.
+                    </span>
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={() => void releasePayment()}
+                    disabled={releasingPayment || !paymentReleaseConfirmed}
+                    className="mt-4 w-full max-w-md"
+                  >
+                    {releasingPayment
+                      ? "Running release policy…"
+                      : payment.data?.mode === "FAKE"
+                        ? "Approve simulated release"
+                        : "Approve and release PayPal payment"}
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Your task status and the latest updates are shown below.
+                </p>
+              )}
+            </aside>
+          )}
         </div>
       </header>
 

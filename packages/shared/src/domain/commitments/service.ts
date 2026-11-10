@@ -10,9 +10,11 @@ import { tasks } from "../../db/schema/tasks.js";
 import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { authorizationError, conflict, notFound } from "../../platform/errors.js";
+import { getEnv } from "../../platform/env.js";
 import { hashObject } from "../../platform/hashing.js";
 import { newId } from "../../platform/ids.js";
 import type { Actor } from "../identity/authorize.js";
+import { canUseProfessionalProfile } from "../identity/account-class.js";
 import { toEventActor } from "../context.js";
 import { transitionTask } from "../tasks/service.js";
 import type { ConversationContractSnapshot } from "../conversations/service.js";
@@ -39,6 +41,27 @@ function readSnapshot(value: unknown): ConversationContractSnapshot {
     throw conflict("The work terms snapshot is incomplete.");
   }
   return snapshot;
+}
+
+async function assertCompatibleParticipants(
+  tx: Database,
+  commitment: typeof workCommitments.$inferSelect,
+): Promise<void> {
+  const participantRows = await tx
+    .select({ id: users.id, accountClass: users.accountClass })
+    .from(users)
+    .where(inArray(users.id, [commitment.buyerUserId, commitment.providerUserId]));
+  const classes = new Map(participantRows.map((user) => [user.id, user.accountClass]));
+  if (
+    participantRows.length !== 2 ||
+    !canUseProfessionalProfile({
+      buyerClass: classes.get(commitment.buyerUserId) ?? "UNCLASSIFIED",
+      providerClass: classes.get(commitment.providerUserId) ?? "UNCLASSIFIED",
+      evaluationMode: getEnv().EVALUATION_MODE,
+    })
+  ) {
+    throw conflict("This professional is no longer eligible for this account environment.");
+  }
 }
 
 async function appendCommitmentMessage(
@@ -223,8 +246,11 @@ export async function proposeWorkCommitment(
     !providerUser ||
     !buyer ||
     provider.userId !== providerUser.id ||
-    providerUser.accountClass !== buyer.accountClass ||
-    buyer.accountClass === "UNCLASSIFIED" ||
+    !canUseProfessionalProfile({
+      buyerClass: buyer.accountClass,
+      providerClass: providerUser.accountClass,
+      evaluationMode: getEnv().EVALUATION_MODE,
+    }) ||
     !providerAvailability?.available ||
     providerAvailability.activeAssignments >= providerAvailability.capacity
   ) {
@@ -335,6 +361,7 @@ export async function respondToWorkCommitment(
     throw conflict("This work proposal is no longer awaiting your response.");
   }
   await requireCurrentTerms(tx, commitment);
+  if (input.response === "ACCEPT") await assertCompatibleParticipants(tx, commitment);
   const [providerAvailability] = await tx
     .select()
     .from(availability)
@@ -474,6 +501,7 @@ export async function confirmWorkCommitment(
     throw conflict("The professional must accept the current proposal before you confirm them.");
   }
   const contract = await requireCurrentTerms(tx, commitment);
+  await assertCompatibleParticipants(tx, commitment);
   if (!["PROVIDER_SEARCH", "NEGOTIATION"].includes(task.status)) {
     throw conflict("This task can no longer confirm a professional.");
   }

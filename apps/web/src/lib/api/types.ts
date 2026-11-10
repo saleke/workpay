@@ -210,6 +210,7 @@ export interface ProviderSnapshotDto {
   priceMinor?: number;
   currency?: string;
   eligible?: boolean;
+  evaluationProfile?: boolean;
   reason?: string;
   score?: number;
 }
@@ -729,6 +730,7 @@ export interface TaskConversationDto {
   providerDisplayName?: string;
   status: "CONTACT_PENDING" | "OPEN" | "DECLINED" | "WITHDRAWN" | "CLOSED";
   hasWorkExecution?: boolean;
+  evaluationOnly?: boolean;
   contactApprovedAt: string | null;
   contactApprovedContractVersion: number;
   contactApprovedContractHash: string;
