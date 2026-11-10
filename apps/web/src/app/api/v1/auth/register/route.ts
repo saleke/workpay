@@ -87,8 +87,8 @@ export async function POST(req: Request) {
       email: parsed.email,
       passwordHash,
       role: parsed.role,
+      accountClass: "MEMBER",
       idVerificationStatus: "UNVERIFIED",
-      paypalVerified: false,
     });
 
     // Automatically provision specialist capabilities so every account
@@ -158,10 +158,11 @@ export async function POST(req: Request) {
           username: normalizedUsername,
           displayName: parsed.name,
           email: parsed.email,
+          image: null,
           role: parsed.role,
           idVerificationStatus: "UNVERIFIED",
-          paypalVerified: false,
         },
+        sessionToken,
         requiresEmailVerification,
       },
     });

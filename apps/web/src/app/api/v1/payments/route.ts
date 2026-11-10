@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       amountMinor: p.amountMinor,
       currency: p.currency,
       status: p.status,
-      mode: "FAKE",
+      mode: p.mode,
       paypalAuthorizationId: p.providerAuthorizationId,
       paypalCaptureId: p.providerCaptureId,
       authorizedAt: p.authorizedAt?.toISOString() ?? null,

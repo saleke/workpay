@@ -1,5 +1,5 @@
 import { jsonError, jsonOk, resolveActorAsync } from "@/lib/server/api";
-import { destroyAllOtherSessionsForUser, SESSION_COOKIE_NAME } from "@/lib/server/session";
+import { destroyAllOtherSessionsForUser, getRequestSessionToken } from "@/lib/server/session";
 
 export async function POST(req: Request) {
   try {
@@ -8,10 +8,7 @@ export async function POST(req: Request) {
       return jsonError({ code: "AUTHORIZATION_ERROR", message: "Unauthorized actor" }, 401);
     }
 
-    const cookieHeader = req.headers.get("cookie") ?? "";
-    const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-    const keepSessionToken =
-      sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
+    const keepSessionToken = getRequestSessionToken(req);
 
     await destroyAllOtherSessionsForUser(actor.id, keepSessionToken);
 

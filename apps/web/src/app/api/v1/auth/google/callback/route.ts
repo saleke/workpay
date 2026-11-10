@@ -4,7 +4,8 @@ import { getDb } from "@/lib/server/api";
 import { getEnv, logger, newId } from "@workpay/shared/platform";
 import { users } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
-import { createSession, setSessionCookie } from "@/lib/server/session";
+import { createSessionHandoff } from "@/lib/server/session";
+import { consumeBrowserOAuthAttempt } from "@/lib/server/oauth-attempt";
 
 interface GoogleTokenResponse {
   access_token?: string;
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = req.nextUrl;
+    const state = searchParams.get("state");
+    const attempt = await consumeBrowserOAuthAttempt("GOOGLE", state);
     const errorParam = searchParams.get("error");
     if (errorParam) {
       logger.warn({ errorParam }, "google oauth returned error");
@@ -36,16 +39,8 @@ export async function GET(req: NextRequest) {
     }
 
     const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    const cookieState = req.cookies.get("workpay_google_oauth_state")?.value;
-
     if (!code) {
       return NextResponse.redirect(`${appUrl}/login?error=missing_code`);
-    }
-
-    if (cookieState && state && cookieState !== state) {
-      logger.warn({ state, cookieState }, "google oauth state mismatch");
-      return NextResponse.redirect(`${appUrl}/login?error=state_mismatch`);
     }
 
     const clientId = env.GOOGLE_CLIENT_ID;
@@ -140,8 +135,8 @@ export async function GET(req: NextRequest) {
         emailVerified: new Date(),
         image: gUser.picture || null,
         role: "buyer",
+        accountClass: "MEMBER",
         idVerificationStatus: "UNVERIFIED",
-        paypalVerified: false,
       });
 
       // Automatically provision provider profile for universal access
@@ -159,16 +154,16 @@ export async function GET(req: NextRequest) {
         })
         .onConflictDoNothing();
 
-      logger.info({ userId: activeUserId, email: normalizedEmail }, "registered new user via google oauth");
+      logger.info(
+        { userId: activeUserId, email: normalizedEmail },
+        "registered new user via google oauth",
+      );
     }
 
-    // 4. Create session and set cookie
-    const sessionToken = await createSession(activeUserId);
-    const res = NextResponse.redirect(`${appUrl}/tasks`);
-    res.cookies.delete("workpay_google_oauth_state");
-    setSessionCookie(res, sessionToken);
-
-    return res;
+    const handoff = await createSessionHandoff(activeUserId, attempt.tabNonceHash);
+    return NextResponse.redirect(
+      `${appUrl}/oauth-complete?handoff=${encodeURIComponent(handoff)}&returnTo=${encodeURIComponent(attempt.returnTo)}`,
+    );
   } catch (error) {
     logger.error({ err: String(error) }, "google oauth callback exception");
     return NextResponse.redirect(`${appUrl}/login?error=google_callback_failed`);

@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { getEnv, logger } from "@workpay/shared/platform";
 import { jsonError } from "@/lib/server/api";
+import { createBrowserOAuthAttempt } from "@/lib/server/oauth-attempt";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,8 +23,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${appUrl}/login?error=google_oauth_not_configured`);
     }
 
-    const state = randomBytes(16).toString("hex");
     const appUrl = env.APP_URL.replace(/\/$/, "");
+    const requestedReturnTo = req.nextUrl.searchParams.get("returnTo");
+    const returnTo =
+      requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : "/tasks";
+    const state = await createBrowserOAuthAttempt({
+      req,
+      provider: "GOOGLE",
+      returnTo,
+    });
     const redirectUri = `${appUrl}/api/v1/auth/google/callback`;
 
     const authorizeUrl =
@@ -36,31 +45,14 @@ export async function GET(req: NextRequest) {
       `&prompt=select_account`;
 
     if (wantsJson) {
-      const res = NextResponse.json({
+      return NextResponse.json({
         configured: true,
         authorizeUrl,
         redirectUri,
-        state,
       });
-      res.cookies.set("workpay_google_oauth_state", state, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 600,
-      });
-      return res;
     }
 
-    const res = NextResponse.redirect(authorizeUrl);
-    res.cookies.set("workpay_google_oauth_state", state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 600,
-    });
-    return res;
+    return NextResponse.redirect(authorizeUrl);
   } catch (error) {
     logger.error({ err: String(error) }, "failed to initiate google oauth");
     return jsonError({ code: "INTERNAL_ERROR", message: "Failed to initiate Google sign-in" }, 500);

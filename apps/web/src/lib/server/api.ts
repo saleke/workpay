@@ -15,7 +15,7 @@ import { newCorrelationId, newId, type IdPrefix } from "@workpay/shared/platform
 import { hashObject } from "@workpay/shared/platform";
 import { AppError, authorizationError, type ErrorCode } from "@workpay/shared/platform";
 import type { Actor } from "@workpay/shared/domain";
-import { getSessionUser, SESSION_COOKIE_NAME } from "./session";
+import { getRequestSessionToken, getSessionUser, SESSION_HEADER_NAME } from "./session";
 
 const HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   VALIDATION_ERROR: 422,
@@ -79,9 +79,7 @@ export async function resolveActorAsync(
   defaultRole: "buyer" | "provider" | "admin_reviewer" = "buyer",
 ): Promise<Actor> {
   // 1. Database session is highest priority: authentic logged-in user
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-  const sessionToken = sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
+  const sessionToken = getRequestSessionToken(req);
 
   if (sessionToken) {
     const authUser = await getSessionUser(sessionToken);
@@ -91,6 +89,8 @@ export async function resolveActorAsync(
       return { kind: "USER", id: authUser.id, role: authUser.role };
     }
   }
+
+  if (req.headers.get(SESSION_HEADER_NAME) === "signed-out") throw authorizationError();
 
   if (requiresAuthenticatedSession()) throw authorizationError();
 
@@ -186,27 +186,53 @@ export async function withIdempotency<T>(
     const res = await handler();
     return jsonOk(res.data, res.status);
   }
+  if (idempotencyKey.length > 255) {
+    return jsonError(new AppError("VALIDATION_ERROR", "Idempotency key is too long."), 422);
+  }
 
   const db = getDb();
   const requestHash = hashObject(payload);
+  const reservationId = newId("idem");
+  const [reservation] = await db
+    .insert(idempotencyRecords)
+    .values({
+      id: reservationId,
+      scope,
+      idempotencyKey,
+      requestHash,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    .onConflictDoNothing()
+    .returning({ id: idempotencyRecords.id });
 
-  const [existing] = await db
-    .select()
-    .from(idempotencyRecords)
-    .where(
-      and(
-        eq(idempotencyRecords.scope, scope),
-        eq(idempotencyRecords.idempotencyKey, idempotencyKey),
-      ),
-    )
-    .limit(1);
-
-  if (existing) {
+  if (!reservation) {
+    const [existing] = await db
+      .select()
+      .from(idempotencyRecords)
+      .where(
+        and(
+          eq(idempotencyRecords.scope, scope),
+          eq(idempotencyRecords.idempotencyKey, idempotencyKey),
+        ),
+      )
+      .limit(1);
+    if (!existing) {
+      return jsonError(new AppError("EXTERNAL_UNKNOWN", "Idempotency reservation is pending."));
+    }
     if (existing.requestHash !== requestHash) {
       return jsonError(
         new AppError(
           "IDEMPOTENCY_CONFLICT",
           "Idempotency key reused with a different request payload",
+        ),
+        409,
+      );
+    }
+    if (existing.responseStatus === null || existing.responseBody === null) {
+      return jsonError(
+        new AppError(
+          "IDEMPOTENCY_CONFLICT",
+          "A request with this idempotency key is already in progress or requires reconciliation.",
         ),
         409,
       );
@@ -219,16 +245,12 @@ export async function withIdempotency<T>(
   const result = await handler();
 
   await db
-    .insert(idempotencyRecords)
-    .values({
-      id: newId("idem"),
-      scope,
-      idempotencyKey,
-      requestHash,
+    .update(idempotencyRecords)
+    .set({
       responseStatus: result.status,
       responseBody: result.data as Record<string, unknown>,
     })
-    .onConflictDoNothing();
+    .where(eq(idempotencyRecords.id, reservationId));
 
   return jsonOk(result.data, result.status);
 }

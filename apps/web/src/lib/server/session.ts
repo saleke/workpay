@@ -4,8 +4,14 @@ import { NextResponse } from "next/server";
 import { getDb } from "@workpay/shared/db";
 import { isPersonaIdentityVerified } from "@workpay/shared/domain";
 import { sessions, users } from "@workpay/shared/db/schema/identity";
+import { sha256Hex } from "@workpay/shared/platform";
+import { SESSION_COOKIE_NAME } from "./request-session";
 
-export const SESSION_COOKIE_NAME = "workpay_session";
+export {
+  getRequestSessionToken,
+  SESSION_COOKIE_NAME,
+  SESSION_HEADER_NAME,
+} from "./request-session";
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 export interface AuthenticatedUser {
@@ -16,17 +22,13 @@ export interface AuthenticatedUser {
   legalName: string | null;
   email: string;
   role: "buyer" | "provider" | "admin_reviewer";
+  accountClass: "UNCLASSIFIED" | "DEMO_FIXTURE" | "MEMBER";
   image: string | null;
   githubUsername: string | null;
   githubVerifiedAt: Date | string | null;
   idVerificationStatus: string;
   idVerifiedAt: Date | string | null;
   idDocumentType: string | null;
-  paypalPayerId: string | null;
-  paypalPayoutEmail: string | null;
-  paypalLinkedAt: Date | string | null;
-  paypalVerified: boolean;
-  paypalAutoHoldEnabled: boolean;
 }
 
 /**
@@ -44,6 +46,45 @@ export async function createSession(userId: string): Promise<string> {
   });
 
   return sessionToken;
+}
+
+export async function createSessionHandoff(userId: string, tabNonceHash: string): Promise<string> {
+  const sessionToken = await createSession(userId);
+  const handoffCode = randomBytes(32).toString("hex");
+  try {
+    await getDb()
+      .update(sessions)
+      .set({
+        handoffCodeHash: sha256Hex(handoffCode),
+        handoffTabNonceHash: tabNonceHash,
+        handoffExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      })
+      .where(eq(sessions.sessionToken, sessionToken));
+    return handoffCode;
+  } catch (error) {
+    await destroySession(sessionToken).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function consumeSessionHandoff(
+  handoffCode: string,
+  tabNonce: string,
+): Promise<{ sessionToken: string; user: AuthenticatedUser } | null> {
+  const [session] = await getDb()
+    .update(sessions)
+    .set({ handoffCodeHash: null, handoffTabNonceHash: null, handoffExpiresAt: null })
+    .where(
+      and(
+        eq(sessions.handoffCodeHash, sha256Hex(handoffCode)),
+        eq(sessions.handoffTabNonceHash, sha256Hex(tabNonce)),
+        gt(sessions.handoffExpiresAt, new Date()),
+      ),
+    )
+    .returning({ sessionToken: sessions.sessionToken });
+  if (!session) return null;
+  const user = await getSessionUser(session.sessionToken);
+  return user ? { sessionToken: session.sessionToken, user } : null;
 }
 
 /**
@@ -64,6 +105,7 @@ export async function getSessionUser(
       legalName: users.legalName,
       email: users.email,
       role: users.role,
+      accountClass: users.accountClass,
       image: users.image,
       githubUsername: users.githubUsername,
       githubVerifiedAt: users.githubVerifiedAt,
@@ -71,11 +113,6 @@ export async function getSessionUser(
       idVerificationProvider: users.idVerificationProvider,
       idVerifiedAt: users.idVerifiedAt,
       idDocumentType: users.idDocumentType,
-      paypalPayerId: users.paypalPayerId,
-      paypalPayoutEmail: users.paypalPayoutEmail,
-      paypalLinkedAt: users.paypalLinkedAt,
-      paypalVerified: users.paypalVerified,
-      paypalAutoHoldEnabled: users.paypalAutoHoldEnabled,
       expires: sessions.expires,
     })
     .from(sessions)
@@ -98,17 +135,13 @@ export async function getSessionUser(
     legalName: row.legalName,
     email: row.email,
     role: row.role as AuthenticatedUser["role"],
+    accountClass: row.accountClass,
     image: row.image,
     githubUsername: row.githubUsername,
     githubVerifiedAt: row.githubVerifiedAt,
     idVerificationStatus: isIdentityVerified ? "VERIFIED" : "UNVERIFIED",
     idVerifiedAt: isIdentityVerified ? row.idVerifiedAt : null,
     idDocumentType: isIdentityVerified ? row.idDocumentType : null,
-    paypalPayerId: row.paypalPayerId,
-    paypalPayoutEmail: row.paypalPayoutEmail,
-    paypalLinkedAt: row.paypalLinkedAt,
-    paypalVerified: Boolean(row.paypalVerified),
-    paypalAutoHoldEnabled: row.paypalAutoHoldEnabled ?? true,
   };
 }
 

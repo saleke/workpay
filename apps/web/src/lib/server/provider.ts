@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@workpay/shared/db";
 import {
   workExecutions,
@@ -10,6 +10,7 @@ import { tasks, taskFiles } from "@workpay/shared/db/schema/tasks";
 import { contractRequirements, workContracts } from "@workpay/shared/db/schema/contracts";
 import { commercialAgreements } from "@workpay/shared/db/schema/negotiation";
 import { notFound } from "@workpay/shared/platform";
+import { workReviews } from "@workpay/shared/db/schema/work-reviews";
 import type { ProviderWorkDto, SubmissionDto } from "@/lib/api/types";
 
 export async function buildProviderWorkDto(
@@ -51,6 +52,35 @@ export async function buildProviderWorkDto(
     .from(providerAcceptances)
     .where(eq(providerAcceptances.executionId, execution.id))
     .limit(1);
+  const [[activeReview], [checkpointCount]] = await Promise.all([
+    db
+      .select({ id: workReviews.id })
+      .from(workReviews)
+      .where(
+        and(
+          eq(workReviews.executionId, execution.id),
+          inArray(workReviews.status, [
+            "REQUESTED",
+            "PREPARING",
+            "CLARIFICATION_REQUESTED",
+            "READY_FOR_REVIEW",
+            "REFERRED",
+            "DISSATISFIED",
+            "CLIENT_RESPONSE_OVERDUE",
+          ]),
+        ),
+      )
+      .limit(1),
+    db
+      .select({ count: count() })
+      .from(workReviews)
+      .where(
+        and(
+          eq(workReviews.executionId, execution.id),
+          eq(workReviews.status, "CHECKPOINT_ACCEPTED"),
+        ),
+      ),
+  ]);
 
   // Latest submission
   let latestSubmissionDto: SubmissionDto | null = null;
@@ -123,5 +153,7 @@ export async function buildProviderWorkDto(
     revisionReason: execution.status === "REVISION_REQUESTED" ? execution.revisionReason : null,
     acceptedAt: acceptance?.createdAt?.toISOString() ?? null,
     startedAt: execution.startedAt?.toISOString() ?? null,
+    activeReviewId: activeReview?.id ?? null,
+    acceptedCheckpointCount: checkpointCount?.count ?? 0,
   };
 }

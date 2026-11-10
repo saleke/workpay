@@ -1,5 +1,6 @@
 import { getEnv } from "@workpay/shared/platform";
 import { isEmailDeliveryConfigured } from "@workpay/shared/integrations";
+import { paypalModeConfigured } from "@workpay/shared/integrations";
 import { CONTRACT_CURRENCY } from "@workpay/shared/domain/intake";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +16,14 @@ export async function GET() {
       googleOAuth: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
       personaVerification: Boolean(
         env.PERSONA_API_KEY &&
-          env.PERSONA_TEMPLATE_ID &&
-          env.PERSONA_ENVIRONMENT_ID &&
-          env.PERSONA_WEBHOOK_SECRET,
+        env.PERSONA_TEMPLATE_ID &&
+        env.PERSONA_ENVIRONMENT_ID &&
+        env.PERSONA_WEBHOOK_SECRET,
       ),
-      livePayments: false,
-      paymentMode: "SIMULATED",
+      livePayments: env.PAYPAL_LIVE_ENABLED && paypalModeConfigured("PAYPAL_LIVE"),
+      paymentMode: env.PAYPAL_NEW_PAYMENT_MODE,
+      paypalSandboxConfigured: paypalModeConfigured("PAYPAL_SANDBOX"),
+      paypalLiveConfigured: paypalModeConfigured("PAYPAL_LIVE"),
       contractCurrencies: [CONTRACT_CURRENCY],
       automaticCurrencyConversion: false,
     },

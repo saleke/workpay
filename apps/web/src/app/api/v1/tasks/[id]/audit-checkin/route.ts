@@ -163,14 +163,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         parsed.status === "ON_TRACK"
           ? "on track"
           : parsed.status === "MILESTONE_DRAFT"
-            ? "working on a draft milestone"
+            ? "ready for a client checkpoint"
             : "blocked and needs guidance";
 
       const statusLabel =
         parsed.status === "ON_TRACK"
           ? "On track"
           : parsed.status === "MILESTONE_DRAFT"
-            ? "Draft milestone ready"
+            ? "Ready for client checkpoint"
             : "Assistance needed";
 
       await tx.insert(notifications).values({

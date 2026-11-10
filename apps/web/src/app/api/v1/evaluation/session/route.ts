@@ -47,10 +47,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     if (!getEnv().EVALUATION_MODE) {
-      return jsonError(
-        { code: "NOT_FOUND", message: "Evaluator access is not enabled." },
-        404,
-      );
+      return jsonError({ code: "NOT_FOUND", message: "Evaluator access is not enabled." }, 404);
     }
     const fingerprint = requestFingerprint(req);
     assertRateLimit(fingerprint);
@@ -64,12 +61,14 @@ export async function POST(req: Request) {
         username: users.username,
         displayName: users.displayName,
         email: users.email,
+        image: users.image,
         role: users.role,
+        accountClass: users.accountClass,
       })
       .from(users)
       .where(eq(users.id, selection.userId))
       .limit(1);
-    if (!user) {
+    if (!user || user.accountClass !== "DEMO_FIXTURE") {
       return jsonError(
         { code: "PRECONDITION_FAILED", message: "Evaluation fixtures are not available." },
         503,
@@ -95,8 +94,11 @@ export async function POST(req: Request) {
           username: user.username,
           displayName: user.displayName || user.name,
           email: user.email,
+          image: user.image,
           role: user.role,
+          accountClass: user.accountClass,
         },
+        sessionToken,
         perspective,
         redirect: selection.redirect,
       },
@@ -104,6 +106,9 @@ export async function POST(req: Request) {
     setSessionCookie(response, sessionToken);
     return response;
   } catch (error) {
-    return jsonError(error, error instanceof Error && error.message.startsWith("Too many") ? 429 : 500);
+    return jsonError(
+      error,
+      error instanceof Error && error.message.startsWith("Too many") ? 429 : 500,
+    );
   }
 }

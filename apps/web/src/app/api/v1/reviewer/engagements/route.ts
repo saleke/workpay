@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   try {
     const actor = await resolveConversationActor(req);
     if (!actor.id) {
-      throw new AppError("AUTHORIZATION_ERROR", "Sign in with your reviewer profile.");
+      throw new AppError("AUTHORIZATION_ERROR", "Sign in to access review engagements.");
     }
     return jsonOk(await listReviewerEngagements(getDb(), actor.id));
   } catch (error) {

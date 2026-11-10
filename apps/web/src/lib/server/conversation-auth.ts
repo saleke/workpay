@@ -4,28 +4,10 @@ import { tasks } from "@workpay/shared/db/schema/tasks";
 import { providers } from "@workpay/shared/db/schema/providers";
 import type { Actor } from "@workpay/shared/domain";
 import { AppError } from "@workpay/shared/platform";
-import { getEnv } from "@workpay/shared/platform";
-import { getSessionUser, SESSION_COOKIE_NAME } from "./session";
+import { getRequestSessionToken, getSessionUser, type AuthenticatedUser } from "./session";
 
 export async function resolveConversationActor(req: Request): Promise<Actor> {
-  const env = getEnv();
-  if (env.NODE_ENV !== "production" && env.WORKPAY_MODE !== "production") {
-    return resolveActorAsync(req);
-  }
-
-  const cookie = req.headers.get("cookie") ?? "";
-  const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]+)`));
-  let token: string | null = null;
-  try {
-    token = match?.[1] ? decodeURIComponent(match[1]) : null;
-  } catch {
-    token = null;
-  }
-  const user = await getSessionUser(token);
-  if (!user) {
-    throw new AppError("AUTHORIZATION_ERROR", "Sign in to access task conversations.");
-  }
-  return { kind: "USER", id: user.id, role: user.role };
+  return resolveActorAsync(req);
 }
 
 export async function requireTaskOwner(
@@ -51,6 +33,21 @@ export async function requireBuyerActor(
     throw new AppError("AUTHORIZATION_ERROR", "Sign in to access your workspace.");
   }
   return actor as Actor & { kind: "USER"; id: string };
+}
+
+export async function requireAuthenticatedSession(req: Request): Promise<{
+  actor: Actor & { kind: "USER"; id: string };
+  user: AuthenticatedUser;
+  sessionToken: string;
+}> {
+  const sessionToken = getRequestSessionToken(req) ?? "";
+  const user = await getSessionUser(sessionToken);
+  if (!user) throw new AppError("AUTHORIZATION_ERROR", "Sign in to continue.");
+  return {
+    actor: { kind: "USER", id: user.id, role: user.role },
+    user,
+    sessionToken,
+  };
 }
 
 export interface ProviderPrincipal {

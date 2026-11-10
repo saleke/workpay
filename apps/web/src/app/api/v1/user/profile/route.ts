@@ -37,11 +37,6 @@ export async function GET(req: Request) {
         idVerificationProvider: users.idVerificationProvider,
         idVerifiedAt: users.idVerifiedAt,
         idDocumentType: users.idDocumentType,
-        paypalPayerId: users.paypalPayerId,
-        paypalPayoutEmail: users.paypalPayoutEmail,
-        paypalLinkedAt: users.paypalLinkedAt,
-        paypalVerified: users.paypalVerified,
-        paypalAutoHoldEnabled: users.paypalAutoHoldEnabled,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -63,8 +58,6 @@ export async function GET(req: Request) {
       idVerifiedAt: isIdentityVerified ? user.idVerifiedAt : null,
       idDocumentType: isIdentityVerified ? user.idDocumentType : null,
       idVerificationProvider: undefined,
-      paypalVerified: Boolean(user.paypalVerified),
-      paypalAutoHoldEnabled: user.paypalAutoHoldEnabled ?? true,
     };
 
     return jsonOk({
@@ -160,11 +153,6 @@ export async function PUT(req: Request) {
         idVerificationProvider: users.idVerificationProvider,
         idVerifiedAt: users.idVerifiedAt,
         idDocumentType: users.idDocumentType,
-        paypalPayerId: users.paypalPayerId,
-        paypalPayoutEmail: users.paypalPayoutEmail,
-        paypalLinkedAt: users.paypalLinkedAt,
-        paypalVerified: users.paypalVerified,
-        paypalAutoHoldEnabled: users.paypalAutoHoldEnabled,
       })
       .from(users)
       .where(eq(users.id, actorId))

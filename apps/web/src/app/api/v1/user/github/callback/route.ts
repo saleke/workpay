@@ -4,7 +4,8 @@ import { getDb } from "@/lib/server/api";
 import { getEnv, logger, newId } from "@workpay/shared/platform";
 import { users } from "@workpay/shared/db/schema/identity";
 import { providers } from "@workpay/shared/db/schema/providers";
-import { createSession, getSessionUser, SESSION_COOKIE_NAME, setSessionCookie } from "@/lib/server/session";
+import { createSessionHandoff } from "@/lib/server/session";
+import { consumeBrowserOAuthAttempt } from "@/lib/server/oauth-attempt";
 
 interface GitHubTokenResponse {
   access_token?: string;
@@ -40,41 +41,32 @@ export async function GET(req: NextRequest) {
   const settingsAccountUrl = `${origin}/settings?tab=account`;
 
   try {
-    const cookieHeader = req.headers.get("cookie") ?? "";
-    const sessionMatch = cookieHeader.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`));
-    const existingSessionToken = sessionMatch && sessionMatch[1] ? decodeURIComponent(sessionMatch[1]) : null;
-    const sessionUser = existingSessionToken ? await getSessionUser(existingSessionToken) : null;
-
     const { searchParams } = req.nextUrl;
+    const state = searchParams.get("state");
+    const attempt = await consumeBrowserOAuthAttempt("GITHUB", state);
+    const linkUserId = attempt.intent === "LINK" ? attempt.userId : null;
     const errorParam = searchParams.get("error");
     const errorDesc = searchParams.get("error_description");
     if (errorParam) {
       logger.warn({ errorParam, errorDesc }, "github oauth returned error");
-      const target = sessionUser ? `${settingsAccountUrl}&error=github_denied` : `${origin}/login?error=github_denied`;
+      const target = linkUserId
+        ? `${settingsAccountUrl}&error=github_denied`
+        : `${origin}/login?error=github_denied`;
       return NextResponse.redirect(
         `${target}&reason=${encodeURIComponent(errorDesc || errorParam)}`,
       );
     }
 
     const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    const cookieState = req.cookies.get("workpay_github_oauth_state")?.value;
-
     if (!code) {
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
+      const target = linkUserId ? settingsAccountUrl : `${origin}/login`;
       return NextResponse.redirect(`${target}?error=missing_code`);
-    }
-
-    if (cookieState && state && cookieState !== state) {
-      logger.warn({ state, cookieState }, "github oauth state mismatch");
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
-      return NextResponse.redirect(`${target}?error=state_mismatch`);
     }
 
     const clientId = env.GITHUB_CLIENT_ID;
     const clientSecret = env.GITHUB_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
+      const target = linkUserId ? settingsAccountUrl : `${origin}/login`;
       return NextResponse.redirect(`${target}?error=github_oauth_not_configured`);
     }
 
@@ -98,14 +90,14 @@ export async function GET(req: NextRequest) {
 
     if (!tokenRes.ok) {
       logger.error({ status: tokenRes.status }, "github token exchange request failed");
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
+      const target = linkUserId ? settingsAccountUrl : `${origin}/login`;
       return NextResponse.redirect(`${target}?error=token_exchange_failed`);
     }
 
     const tokenData = (await tokenRes.json()) as GitHubTokenResponse;
     if (tokenData.error || !tokenData.access_token) {
       logger.error({ tokenData }, "github oauth returned token error");
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
+      const target = linkUserId ? settingsAccountUrl : `${origin}/login`;
       return NextResponse.redirect(
         `${target}?error=exchange_error&reason=${encodeURIComponent(tokenData.error_description || tokenData.error || "Token acquisition failed")}`,
       );
@@ -121,8 +113,11 @@ export async function GET(req: NextRequest) {
     });
 
     if (!userRes.ok) {
-      logger.error({ status: userRes.status }, "failed to fetch github user profile with access token");
-      const target = sessionUser ? settingsAccountUrl : `${origin}/login`;
+      logger.error(
+        { status: userRes.status },
+        "failed to fetch github user profile with access token",
+      );
+      const target = linkUserId ? settingsAccountUrl : `${origin}/login`;
       return NextResponse.redirect(`${target}?error=profile_fetch_failed`);
     }
 
@@ -141,7 +136,10 @@ export async function GET(req: NextRequest) {
         });
         if (emailsRes.ok) {
           const emails = (await emailsRes.json()) as GitHubEmailResponse[];
-          const primary = emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified) || emails[0];
+          const primary =
+            emails.find((e) => e.primary && e.verified) ||
+            emails.find((e) => e.verified) ||
+            emails[0];
           if (primary) {
             primaryEmail = primary.email;
           }
@@ -154,7 +152,7 @@ export async function GET(req: NextRequest) {
     const db = getDb();
 
     // 4. Case A: User is already logged in: Bind GitHub to their existing account
-    if (sessionUser) {
+    if (linkUserId) {
       // Verify account maturity (must be at least 30 days old for developer verification)
       if (ghUser.created_at) {
         const createdDate = new Date(ghUser.created_at);
@@ -173,15 +171,14 @@ export async function GET(req: NextRequest) {
           githubVerifiedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(users.id, sessionUser.id));
+        .where(eq(users.id, linkUserId));
 
       logger.info(
-        { userId: sessionUser.id, githubUsername: ghUser.login, publicRepos: ghUser.public_repos },
+        { userId: linkUserId, githubUsername: ghUser.login, publicRepos: ghUser.public_repos },
         "successfully bound github profile via authentic oauth",
       );
 
       const res = NextResponse.redirect(`${settingsAccountUrl}&success=github_linked`);
-      res.cookies.delete("workpay_github_oauth_state");
       return res;
     }
 
@@ -191,7 +188,9 @@ export async function GET(req: NextRequest) {
     const [existingUser] = await db
       .select()
       .from(users)
-      .where(or(eq(users.githubUsername, ghUser.login), eq(users.email, fallbackEmail.toLowerCase())))
+      .where(
+        or(eq(users.githubUsername, ghUser.login), eq(users.email, fallbackEmail.toLowerCase())),
+      )
       .limit(1);
 
     let activeUserId: string;
@@ -210,7 +209,10 @@ export async function GET(req: NextRequest) {
         .where(eq(users.id, activeUserId));
     } else {
       activeUserId = newId("user");
-      const baseHandle = ghUser.login.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 24);
+      const baseHandle = ghUser.login
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "_")
+        .slice(0, 24);
 
       await db.insert(users).values({
         id: activeUserId,
@@ -223,8 +225,8 @@ export async function GET(req: NextRequest) {
         githubVerifiedAt: new Date(),
         image: ghUser.avatar_url || null,
         role: "buyer",
+        accountClass: "MEMBER",
         idVerificationStatus: "UNVERIFIED",
-        paypalVerified: false,
       });
 
       await db
@@ -241,14 +243,16 @@ export async function GET(req: NextRequest) {
         })
         .onConflictDoNothing();
 
-      logger.info({ userId: activeUserId, githubUsername: ghUser.login }, "registered new user via github oauth");
+      logger.info(
+        { userId: activeUserId, githubUsername: ghUser.login },
+        "registered new user via github oauth",
+      );
     }
 
-    const newSessionToken = await createSession(activeUserId);
-    const res = NextResponse.redirect(`${origin}/tasks`);
-    res.cookies.delete("workpay_github_oauth_state");
-    setSessionCookie(res, newSessionToken);
-    return res;
+    const handoff = await createSessionHandoff(activeUserId, attempt.tabNonceHash);
+    return NextResponse.redirect(
+      `${origin}/oauth-complete?handoff=${encodeURIComponent(handoff)}&returnTo=${encodeURIComponent(attempt.returnTo)}`,
+    );
   } catch (error) {
     logger.error({ err: String(error) }, "github oauth callback exception");
     return NextResponse.redirect(

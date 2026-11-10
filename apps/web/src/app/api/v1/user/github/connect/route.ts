@@ -1,11 +1,12 @@
-import { randomBytes } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { getEnv, logger } from "@workpay/shared/platform";
-import { jsonError, resolveActorAsync } from "@/lib/server/api";
+import { jsonError } from "@/lib/server/api";
+import { getRequestSessionToken, getSessionUser } from "@/lib/server/session";
+import { createBrowserOAuthAttempt } from "@/lib/server/oauth-attempt";
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await resolveActorAsync(req);
+    const sessionUser = await getSessionUser(getRequestSessionToken(req));
     const env = getEnv();
     const clientId = env.GITHUB_CLIENT_ID;
 
@@ -17,18 +18,33 @@ export async function GET(req: NextRequest) {
       if (wantsJson) {
         return NextResponse.json({
           configured: false,
-          message: "GITHUB_CLIENT_ID is not configured in environment. You can use the public Gist verification option.",
+          message:
+            "GITHUB_CLIENT_ID is not configured in environment. You can use the public Gist verification option.",
         });
       }
       const rawAppUrl = env.APP_URL.replace(/\/$/, "");
       const origin = req.headers.get("x-forwarded-host")
         ? `${req.headers.get("x-forwarded-proto") || "https"}://${req.headers.get("x-forwarded-host")}`
         : req.nextUrl.origin || rawAppUrl;
-      return NextResponse.redirect(`${origin}/settings?tab=account&error=github_oauth_not_configured`);
+      return NextResponse.redirect(
+        `${origin}/settings?tab=account&error=github_oauth_not_configured`,
+      );
     }
 
-    const state = randomBytes(16).toString("hex");
     const rawAppUrl = env.APP_URL.replace(/\/$/, "");
+    const requestedReturnTo = req.nextUrl.searchParams.get("returnTo");
+    const returnTo =
+      requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : sessionUser
+          ? "/settings?tab=identity"
+          : "/tasks";
+    const state = await createBrowserOAuthAttempt({
+      req,
+      provider: "GITHUB",
+      userId: sessionUser?.id,
+      returnTo,
+    });
     const redirectUri = `${rawAppUrl}/api/v1/user/github/callback`;
 
     const authorizeUrl =
@@ -38,33 +54,19 @@ export async function GET(req: NextRequest) {
       `&state=${encodeURIComponent(state)}`;
 
     if (wantsJson) {
-      const res = NextResponse.json({
+      return NextResponse.json({
         configured: true,
         authorizeUrl,
         redirectUri,
-        state,
       });
-      res.cookies.set("workpay_github_oauth_state", state, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 600,
-      });
-      return res;
     }
 
-    const res = NextResponse.redirect(authorizeUrl);
-    res.cookies.set("workpay_github_oauth_state", state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 600,
-    });
-    return res;
+    return NextResponse.redirect(authorizeUrl);
   } catch (error) {
     logger.error({ err: String(error) }, "failed to initiate github oauth connection");
-    return jsonError({ code: "INTERNAL_ERROR", message: "Failed to initiate GitHub authorization" }, 500);
+    return jsonError(
+      { code: "INTERNAL_ERROR", message: "Failed to initiate GitHub authorization" },
+      500,
+    );
   }
 }

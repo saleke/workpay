@@ -1,10 +1,15 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, jsonError, jsonOk, withTransaction } from "@/lib/server/api";
 import { requireProviderUser } from "@/lib/server/conversation-auth";
 import { providers, capabilities, availability } from "@workpay/shared/db/schema/providers";
 import { users } from "@workpay/shared/db/schema/identity";
-import { newId } from "@workpay/shared/platform";
+import { newId, validationError } from "@workpay/shared/platform";
+import {
+  readStoredReviewService,
+  reviewServiceInputSchema,
+  storeReviewService,
+} from "@workpay/shared/domain";
 
 const workPreferencesSchema = z.object({
   workAcceptanceStatus: z.enum(["ACCEPTING", "LIMITED", "UNAVAILABLE"]).default("ACCEPTING"),
@@ -31,6 +36,7 @@ const workPreferencesSchema = z.object({
   reviewSpecBeforeAccept: z.boolean().default(true),
   toolsAndTechnologies: z.array(z.string()).default([]),
   languages: z.array(z.string()).default(["English"]),
+  reviewService: reviewServiceInputSchema.optional(),
 });
 
 const updateProfileSchema = z
@@ -98,6 +104,22 @@ const DEFAULT_WORK_PREFERENCES = {
   reviewSpecBeforeAccept: true,
   toolsAndTechnologies: [],
   languages: ["English"],
+  reviewService: {
+    enabled: false,
+    listed: false,
+    availability: "AVAILABLE" as const,
+    notice: null,
+    summary: "",
+    publicContactUrl: null,
+    feeMinor: null,
+    typicalTurnaroundDays: null,
+    conflictDisclosureConfirmed: false,
+    conflictNotes: null,
+    conflictUsernames: [],
+    domains: [],
+    evidence: [],
+    feeMode: "PAYPAL" as const,
+  },
 };
 
 export async function GET(req: Request) {
@@ -140,6 +162,20 @@ export async function GET(req: Request) {
     ]);
 
     const savedPrefs = (provider.workPreferences as Record<string, unknown> | null) ?? null;
+    const reviewService = readStoredReviewService(savedPrefs);
+    const conflictRows = reviewService?.conflictUserIds.length
+      ? await db
+          .select({ username: users.username })
+          .from(users)
+          .where(inArray(users.id, reviewService.conflictUserIds))
+      : [];
+    const publicReviewService = reviewService
+      ? {
+          ...reviewService,
+          conflictUsernames: conflictRows.flatMap((row) => (row.username ? [row.username] : [])),
+          conflictUserIds: undefined,
+        }
+      : DEFAULT_WORK_PREFERENCES.reviewService;
 
     return jsonOk({
       isListed: true,
@@ -159,7 +195,11 @@ export async function GET(req: Request) {
           capacity: avail?.capacity ?? 2,
           activeAssignments: avail?.activeAssignments ?? 0,
         },
-        workPreferences: savedPrefs ?? DEFAULT_WORK_PREFERENCES,
+        workPreferences: {
+          ...DEFAULT_WORK_PREFERENCES,
+          ...(savedPrefs ?? {}),
+          reviewService: publicReviewService,
+        },
       },
     });
   } catch (err) {
@@ -172,6 +212,27 @@ export async function PUT(req: Request) {
     const actor = await requireProviderUser(req);
     const body = await req.json();
     const parsed = updateProfileSchema.parse(body);
+    const reviewServiceInput = parsed.workPreferences?.reviewService;
+    const conflictUsernames = [
+      ...new Set(
+        (reviewServiceInput?.conflictUsernames ?? []).map((username) => username.toLowerCase()),
+      ),
+    ];
+    const conflictedUsers = conflictUsernames.length
+      ? await getDb()
+          .select({ id: users.id, username: users.username })
+          .from(users)
+          .where(inArray(users.username, conflictUsernames))
+      : [];
+    const foundUsernames = new Set(
+      conflictedUsers.flatMap((user) => (user.username ? [user.username.toLowerCase()] : [])),
+    );
+    const missingConflicts = conflictUsernames.filter((username) => !foundUsernames.has(username));
+    if (missingConflicts.length > 0) {
+      throw validationError("One or more conflict usernames could not be found.", {
+        usernames: missingConflicts,
+      });
+    }
 
     const result = await withTransaction(async (tx) => {
       const [existing] = await tx
@@ -188,6 +249,19 @@ export async function PUT(req: Request) {
       }
 
       let providerId: string;
+      const storedWorkPreferences = parsed.workPreferences
+        ? {
+            ...parsed.workPreferences,
+            ...(reviewServiceInput
+              ? {
+                  reviewService: storeReviewService(
+                    reviewServiceInput,
+                    conflictedUsers.map((user) => user.id).filter((userId) => userId !== actor.id),
+                  ),
+                }
+              : {}),
+          }
+        : undefined;
 
       if (existing) {
         providerId = existing.id;
@@ -200,7 +274,7 @@ export async function PUT(req: Request) {
             currency: parsed.currency,
             payoutEmail: parsed.payoutEmail ?? null,
             status: parsed.status,
-            workPreferences: parsed.workPreferences ?? existing.workPreferences,
+            workPreferences: storedWorkPreferences ?? existing.workPreferences,
             updatedAt: new Date(),
           })
           .where(eq(providers.id, providerId));
@@ -216,7 +290,7 @@ export async function PUT(req: Request) {
           hourlyRateMinor: parsed.hourlyRateMinor ?? null,
           currency: parsed.currency,
           payoutEmail: parsed.payoutEmail ?? null,
-          workPreferences: parsed.workPreferences ?? DEFAULT_WORK_PREFERENCES,
+          workPreferences: storedWorkPreferences ?? DEFAULT_WORK_PREFERENCES,
         });
       }
 

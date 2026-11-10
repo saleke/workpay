@@ -59,7 +59,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       amountMinor: payment.amountMinor,
       currency: payment.currency,
       status: payment.status,
-      mode: "FAKE",
+      mode: payment.mode,
       paypalAuthorizationId: payment.providerAuthorizationId,
       paypalCaptureId: payment.providerCaptureId,
       authorizedAt: payment.authorizedAt?.toISOString() ?? null,
