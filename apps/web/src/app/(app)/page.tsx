@@ -16,19 +16,19 @@ import { listTasks, listActivity, listPayments } from "@/lib/api/endpoints";
 import type { TaskDto, ActivityEntryDto, PaymentDto } from "@/lib/api/types";
 import { PageHeader } from "@/components/layout/page-header";
 import { ErrorState } from "@/components/states";
+import { getTabAuthUser } from "@/lib/tab-session";
 
 export default function HomeDashboardPage() {
   const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      const storedAuth = window.localStorage.getItem("workpay_auth_user");
-      if (storedAuth) {
-        const parsed = JSON.parse(storedAuth) as {
-          name?: unknown;
-          displayName?: unknown;
-          username?: unknown;
-        };
+      const parsed = getTabAuthUser<{
+        name?: unknown;
+        displayName?: unknown;
+        username?: unknown;
+      }>();
+      if (parsed) {
         const name = parsed.displayName ?? parsed.name ?? parsed.username;
         if (typeof name === "string" && name.trim()) setUserName(name.trim());
       }
@@ -172,7 +172,7 @@ export default function HomeDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Simulated authorizations</span>
+            <span>Authorized amounts</span>
             <ShieldCheck className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
@@ -181,13 +181,13 @@ export default function HomeDashboardPage() {
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             {paymentsError
               ? "Payment records could not be loaded."
-              : "Policy-authorized amounts; no funds are held or moved."}
+              : "PayPal authorizations and evaluator simulations awaiting the review gate."}
           </p>
         </div>
 
         <div className="workpay-card p-4">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Simulated captures</span>
+            <span>Captured amounts</span>
             <CheckCircle2 className="h-4 w-4 text-[var(--green)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
@@ -196,7 +196,7 @@ export default function HomeDashboardPage() {
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             {paymentsError
               ? "Payment records could not be loaded."
-              : "Completed policy simulations; no funds were charged or paid."}
+              : "PayPal captures and evaluator simulations completed after buyer approval."}
           </p>
         </div>
 

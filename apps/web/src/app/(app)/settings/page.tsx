@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ import {
   ScanFace,
   Shield,
   ShieldCheck,
+  Trash2,
   Unlink,
   User,
   Wallet,
@@ -49,6 +50,19 @@ import { toast } from "sonner";
 import { useSystemMode } from "@/lib/mode";
 import { ProviderProfileManager } from "@/components/provider/provider-profile-manager";
 import { cn } from "@/lib/utils";
+import {
+  getPayPalAccountStatus,
+  refreshPayPalSellerStatus,
+  startPayPalSellerOnboarding,
+} from "@/lib/api/endpoints";
+import type { PayPalAccountStatusDto } from "@/lib/api/types";
+import {
+  clearTabSession,
+  getTabAuthUser,
+  setTabDemoPersona,
+  tabSessionFetch,
+  updateTabAuthUser,
+} from "@/lib/tab-session";
 
 type SettingsTabKey =
   "account" | "security" | "identity" | "work-preferences" | "paypal" | "notifications";
@@ -85,16 +99,16 @@ const SETTINGS_TABS: SettingsTabConfig[] = [
   },
   {
     key: "work-preferences",
-    title: "Work Preferences",
-    shortTitle: "Work Preferences",
-    description: "Skills, availability, and operating rules",
+    title: "Work Profile",
+    shortTitle: "Work Profile",
+    description: "Project work, paid reviews, pricing, and availability",
     icon: Briefcase,
   },
   {
     key: "paypal",
     title: "Payments",
     shortTitle: "Payments",
-    description: "Validation-only payment policy and simulated states",
+    description: "PayPal linking, seller onboarding, and payment status",
     icon: Wallet,
   },
   {
@@ -113,6 +127,7 @@ interface AuthUser {
   displayName?: string | null;
   email: string;
   role: "buyer" | "provider" | "admin_reviewer";
+  image?: string | null;
 }
 
 interface UserProfileData {
@@ -130,11 +145,6 @@ interface UserProfileData {
   idVerificationStatus: string;
   idVerifiedAt: string | null;
   idDocumentType: string | null;
-  paypalPayerId: string | null;
-  paypalPayoutEmail: string | null;
-  paypalLinkedAt: string | null;
-  paypalVerified: boolean;
-  paypalAutoHoldEnabled: boolean;
 }
 
 function SettingsContent() {
@@ -150,6 +160,11 @@ function SettingsContent() {
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [profileName, setProfileName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
+  const [photoDragActive, setPhotoDragActive] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState("");
@@ -168,21 +183,10 @@ function SettingsContent() {
     message?: string;
   } | null>(null);
 
-  // PayPal binding & Payout Challenge
-  const [payoutEmail, setPayoutEmail] = useState("");
-  const [savingPayout, setSavingPayout] = useState(false);
-  const [paypalModalOpen, setPaypalModalOpen] = useState(false);
-  const [inputPaypalEmail, setInputPaypalEmail] = useState("");
-  const [inputAutoHold, setInputAutoHold] = useState(true);
-  const [bindingPaypal, setBindingPaypal] = useState(false);
+  // PayPal account linking and seller onboarding
   const [unbindModalOpen, setUnbindModalOpen] = useState(false);
   const [unbindingPaypal, setUnbindingPaypal] = useState(false);
   const [connectingPayPalOAuth, setConnectingPayPalOAuth] = useState(false);
-  const [payoutVerifyStep, setPayoutVerifyStep] = useState<"input" | "code">("input");
-  const [payoutVerifyCode, setPayoutVerifyCode] = useState("");
-  const [sendingPayoutCode, setSendingPayoutCode] = useState(false);
-  const [confirmingPayoutCode, setConfirmingPayoutCode] = useState(false);
-  const [issuedPayoutCode, setIssuedPayoutCode] = useState<string | null>(null);
 
   // Developer Verification (Step 2 - GitHub Challenge)
   const [githubModalOpen, setGithubModalOpen] = useState(false);
@@ -215,6 +219,10 @@ function SettingsContent() {
   const [resetting, setResetting] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [signOutAllDialogOpen, setSignOutAllDialogOpen] = useState(false);
+  const [paypalStatus, setPaypalStatus] = useState<PayPalAccountStatusDto | null>(null);
+  const [loadingPayPalStatus, setLoadingPayPalStatus] = useState(true);
+  const [startingSellerOnboarding, setStartingSellerOnboarding] = useState(false);
+  const [refreshingSellerStatus, setRefreshingSellerStatus] = useState(false);
 
   // Notification toggles
   const [notifyTaskOffers, setNotifyTaskOffers] = useState(true);
@@ -239,34 +247,29 @@ function SettingsContent() {
 
   const loadProfile = async () => {
     try {
-      const res = await fetch("/api/v1/user/profile", { cache: "no-store" });
+      const res = await tabSessionFetch("/api/v1/user/profile", { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
         const u = (json?.data?.user || json?.user) as UserProfileData;
         if (u) {
           setUserProfile(u);
           setProfileName(u.displayName || u.name || "");
-          setPayoutEmail(u.paypalPayoutEmail || u.email || "");
-          setInputPaypalEmail(u.paypalPayoutEmail || u.email || "");
-          setInputAutoHold(u.paypalAutoHoldEnabled ?? true);
-
-          const stored = window.localStorage.getItem("workpay_auth_user");
-          if (stored) {
-            try {
-              const currentStored = JSON.parse(stored);
-              window.localStorage.setItem(
-                "workpay_auth_user",
-                JSON.stringify({ ...currentStored, ...u }),
-              );
-            } catch {
-              // Ignore parse error
-            }
-          }
+          const currentStored = getTabAuthUser<AuthUser>();
+          const updated = { ...currentStored, ...u };
+          updateTabAuthUser(updated);
+          setAuthUser(updated);
         }
       }
     } catch {
       // Ignore background fetch error
     }
+  };
+
+  const loadPayPalStatus = async () => {
+    setLoadingPayPalStatus(true);
+    const result = await getPayPalAccountStatus();
+    setLoadingPayPalStatus(false);
+    if (result.data) setPaypalStatus(result.data);
   };
 
   useEffect(() => {
@@ -293,25 +296,37 @@ function SettingsContent() {
         setPersonaAvailability("unavailable");
       });
 
-    const stored = window.localStorage.getItem("workpay_auth_user");
-    if (stored) {
-      try {
-        const u = JSON.parse(stored);
-        if (u?.id) {
-          setAuthUser(u);
-          setProfileName(u.displayName || u.name || "");
-          setPayoutEmail(u.email || "");
-        }
-      } catch {
-        // Ignore error
-      }
+    const stored = getTabAuthUser<AuthUser>();
+    if (stored?.id) {
+      setAuthUser(stored);
+      setProfileName(stored.displayName || stored.name || "");
     }
     loadProfile();
+    void loadPayPalStatus();
 
     const params = new URLSearchParams(window.location.search);
     const success = params.get("success");
     const error = params.get("error");
     const reason = params.get("reason");
+    const paypalResult = params.get("paypal");
+    const sellerResult = params.get("seller");
+
+    if (paypalResult === "linked") {
+      toast.success("PayPal account linked successfully.");
+      params.delete("paypal");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+      void loadPayPalStatus();
+    } else if (paypalResult) {
+      toast.error(`PayPal linking failed: ${paypalResult.replaceAll("_", " ")}`);
+    }
+    if (sellerResult === "active") {
+      toast.success("PayPal seller onboarding is active.");
+      params.delete("seller");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+      void loadPayPalStatus();
+    } else if (sellerResult) {
+      toast.error(`Seller onboarding status: ${sellerResult.replaceAll("_", " ")}`);
+    }
 
     if (success === "paypal_bound") {
       toast.success("PayPal account linked and verified via authentic PayPal OAuth!");
@@ -336,28 +351,6 @@ function SettingsContent() {
     }
   }, []);
 
-  // Fetch provider profile to sync current payout email if available
-  useEffect(() => {
-    let cancelled = false;
-    async function loadProvider() {
-      try {
-        const res = await fetch("/api/v1/provider/profile");
-        if (res.ok) {
-          const json = await res.json();
-          if (!cancelled && json?.provider?.payoutEmail) {
-            setPayoutEmail(json.provider.payoutEmail);
-          }
-        }
-      } catch {
-        // Ignore background fetch error
-      }
-    }
-    loadProvider();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleSelectTab = (tabKey: SettingsTabKey) => {
     setActiveTab(tabKey);
     const params = new URLSearchParams(window.location.search);
@@ -373,7 +366,7 @@ function SettingsContent() {
     }
     setSavingProfile(true);
     try {
-      const res = await fetch("/api/v1/user/profile", {
+      const res = await tabSessionFetch("/api/v1/user/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ displayName: profileName.trim() }),
@@ -385,17 +378,11 @@ function SettingsContent() {
       }
       if (json?.data?.user) {
         setUserProfile(json.data.user);
-        const stored = window.localStorage.getItem("workpay_auth_user");
-        if (stored) {
-          try {
-            const u = JSON.parse(stored);
-            const updated = { ...u, name: profileName.trim(), displayName: profileName.trim() };
-            window.localStorage.setItem("workpay_auth_user", JSON.stringify(updated));
-            setAuthUser(updated);
-            window.dispatchEvent(new Event("workpay_auth_change"));
-          } catch {
-            // ignore
-          }
+        const current = getTabAuthUser<AuthUser>();
+        if (current) {
+          const updated = { ...current, name: profileName.trim(), displayName: profileName.trim() };
+          updateTabAuthUser(updated);
+          setAuthUser(updated);
         }
       }
       toast.success("Display name updated successfully");
@@ -403,6 +390,88 @@ function SettingsContent() {
       toast.error("Network error while updating profile");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleProfilePhoto = async (file: File) => {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
+      toast.error("Choose a JPEG, PNG, or WebP image no larger than 5 MB.");
+      return;
+    }
+    setUploadingPhoto(true);
+    const localPreview = URL.createObjectURL(file);
+    setPhotoPreview(localPreview);
+    try {
+      const bitmap = await createImageBitmap(file);
+      if (bitmap.width < 32 || bitmap.height < 32) {
+        bitmap.close();
+        throw new Error("Choose an image at least 32 pixels wide and tall.");
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        bitmap.close();
+        throw new Error("This browser could not prepare the image.");
+      }
+      const sourceSize = Math.min(bitmap.width, bitmap.height);
+      const sourceX = (bitmap.width - sourceSize) / 2;
+      const sourceY = (bitmap.height - sourceSize) / 2;
+      context.drawImage(bitmap, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 512, 512);
+      bitmap.close();
+      const prepared = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/webp", 0.88),
+      );
+      if (!prepared) throw new Error("This browser could not prepare the image.");
+
+      const form = new FormData();
+      form.set("photo", prepared, "profile.webp");
+      const response = await tabSessionFetch("/api/v1/user/profile/photo", {
+        method: "POST",
+        body: form,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message || "Profile photo upload failed.");
+      const image = payload.data?.image as string | undefined;
+      if (!image) throw new Error("Profile photo upload returned no image.");
+      setUserProfile((current) => (current ? { ...current, image } : current));
+      const currentUser = getTabAuthUser<AuthUser>();
+      if (currentUser) {
+        const updated = { ...currentUser, image };
+        updateTabAuthUser(updated);
+        setAuthUser(updated);
+      }
+      toast.success("Profile photo updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Profile photo upload failed.");
+    } finally {
+      URL.revokeObjectURL(localPreview);
+      setPhotoPreview(null);
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveProfilePhoto = async () => {
+    setRemovingPhoto(true);
+    try {
+      const response = await tabSessionFetch("/api/v1/user/profile/photo", { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok)
+        throw new Error(payload.error?.message || "Could not remove profile photo.");
+      setUserProfile((current) => (current ? { ...current, image: null } : current));
+      const currentUser = getTabAuthUser<AuthUser>();
+      if (currentUser) {
+        const updated = { ...currentUser, image: null };
+        updateTabAuthUser(updated);
+        setAuthUser(updated);
+      }
+      toast.success("Profile photo removed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove profile photo.");
+    } finally {
+      setRemovingPhoto(false);
     }
   };
 
@@ -429,7 +498,7 @@ function SettingsContent() {
   const handleSendEmailVerification = async () => {
     setSendingVerifyEmail(true);
     try {
-      const res = await fetch("/api/v1/auth/verify-email/send", { method: "POST" });
+      const res = await tabSessionFetch("/api/v1/auth/verify-email/send", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error?.message || "Failed to issue verification link");
@@ -453,7 +522,7 @@ function SettingsContent() {
     }
     setVerifyingEmailOtp(true);
     try {
-      const res = await fetch("/api/v1/auth/verify-email", {
+      const res = await tabSessionFetch("/api/v1/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: emailOtpInput.trim() }),
@@ -478,7 +547,7 @@ function SettingsContent() {
   const handleConnectGithubOAuth = async () => {
     setConnectingGithubOAuth(true);
     try {
-      const res = await fetch("/api/v1/user/github/connect", {
+      const res = await tabSessionFetch("/api/v1/user/github/connect", {
         headers: { Accept: "application/json" },
       });
       const json = await res.json();
@@ -494,78 +563,53 @@ function SettingsContent() {
         window.location.href = json.authorizeUrl;
         return;
       }
-      window.location.href = "/api/v1/user/github/connect";
+      throw new Error("GitHub authorization returned no destination.");
     } catch {
-      window.location.href = "/api/v1/user/github/connect";
+      toast.error("GitHub authorization could not be started.");
     } finally {
       setConnectingGithubOAuth(false);
     }
   };
 
-  const handleConnectPayPalOAuth = () => {
+  const handleConnectPayPalOAuth = async () => {
     setConnectingPayPalOAuth(true);
-    window.location.href = "/api/v1/user/paypal/connect";
-  };
-
-  const handleRequestPayoutCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputPaypalEmail.includes("@")) {
-      toast.error("Please enter a valid PayPal account email address");
-      return;
-    }
-    setSendingPayoutCode(true);
     try {
-      const res = await fetch("/api/v1/user/paypal/bind-payout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payoutEmail: inputPaypalEmail.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error?.message || "Failed to dispatch verification code");
-        return;
+      const response = await tabSessionFetch(
+        "/api/v1/user/paypal/connect?format=json&returnTo=%2Fsettings%3Ftab%3Dpaypal",
+        { headers: { Accept: "application/json" } },
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.authorizeUrl) {
+        throw new Error(payload.error?.message || "PayPal authorization is unavailable.");
       }
-      setPayoutVerifyStep("code");
-      setIssuedPayoutCode(json.code || null);
-      toast.success("Confirmation code dispatched to payout address");
-    } catch {
-      toast.error("Network error while requesting confirmation code");
-    } finally {
-      setSendingPayoutCode(false);
+      window.location.assign(payload.authorizeUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "PayPal authorization could not start.");
+      setConnectingPayPalOAuth(false);
     }
   };
 
-  const handleConfirmPayoutCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!payoutVerifyCode.trim()) {
-      toast.error("Please enter the 6-digit confirmation code");
+  const handleStartSellerOnboarding = async () => {
+    setStartingSellerOnboarding(true);
+    const result = await startPayPalSellerOnboarding();
+    setStartingSellerOnboarding(false);
+    if (result.error) {
+      toast.error(result.error.message);
       return;
     }
-    setConfirmingPayoutCode(true);
-    try {
-      const res = await fetch("/api/v1/user/paypal/confirm-payout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payoutEmail: inputPaypalEmail.trim(),
-          code: payoutVerifyCode.trim(),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error?.message || "Invalid or expired confirmation code");
-        return;
-      }
-      toast.success("PayPal payout destination confirmed and bound successfully");
-      setPaypalModalOpen(false);
-      setPayoutVerifyStep("input");
-      setPayoutVerifyCode("");
-      await loadProfile();
-    } catch {
-      toast.error("Network error while confirming payout address");
-    } finally {
-      setConfirmingPayoutCode(false);
+    if (result.data?.actionUrl) {
+      window.location.href = result.data.actionUrl;
+      return;
     }
+    await loadPayPalStatus();
+  };
+
+  const handleRefreshSellerStatus = async () => {
+    setRefreshingSellerStatus(true);
+    const result = await refreshPayPalSellerStatus();
+    setRefreshingSellerStatus(false);
+    if (result.error) toast.error(result.error.message);
+    else await loadPayPalStatus();
   };
 
   const handleRequestGithubChallenge = async (e: React.FormEvent) => {
@@ -576,7 +620,7 @@ function SettingsContent() {
     }
     setRequestingChallenge(true);
     try {
-      const res = await fetch("/api/v1/user/verify-github", {
+      const res = await tabSessionFetch("/api/v1/user/verify-github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -603,7 +647,7 @@ function SettingsContent() {
     if (!githubChallengeData) return;
     setVerifyingGithub(true);
     try {
-      const res = await fetch("/api/v1/user/verify-github", {
+      const res = await tabSessionFetch("/api/v1/user/verify-github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -631,7 +675,7 @@ function SettingsContent() {
 
   const handleUnlinkGithub = async () => {
     try {
-      const res = await fetch("/api/v1/user/verify-github", { method: "DELETE" });
+      const res = await tabSessionFetch("/api/v1/user/verify-github", { method: "DELETE" });
       if (res.ok) {
         toast.success("GitHub profile disconnected");
         await loadProfile();
@@ -653,7 +697,7 @@ function SettingsContent() {
     setCreatingInquiry(true);
     setPersonaStatusError(null);
     try {
-      const res = await fetch("/api/v1/user/persona/inquiry", {
+      const res = await tabSessionFetch("/api/v1/user/persona/inquiry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -685,7 +729,7 @@ function SettingsContent() {
     setPersonaStep("checking");
     setPersonaStatusError(null);
     try {
-      const res = await fetch("/api/v1/user/persona/verify", {
+      const res = await tabSessionFetch("/api/v1/user/persona/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inquiryId: personaInquiryId }),
@@ -719,11 +763,12 @@ function SettingsContent() {
   const handleUnbindPaypal = async () => {
     setUnbindingPaypal(true);
     try {
-      const res = await fetch("/api/v1/user/paypal/unbind", { method: "POST" });
+      const res = await tabSessionFetch("/api/v1/user/paypal/unbind", { method: "POST" });
       if (res.ok) {
         toast.success("PayPal account unlinked successfully");
         setUnbindModalOpen(false);
         await loadProfile();
+        await loadPayPalStatus();
       } else {
         toast.error("Failed to unlink PayPal account");
       }
@@ -738,12 +783,10 @@ function SettingsContent() {
     if (resetting) return;
     setResetting(true);
     try {
-      const res = await fetch("/api/v1/demo/reset", { method: "POST" });
+      const res = await tabSessionFetch("/api/v1/demo/reset", { method: "POST" });
       if (res.ok) {
-        window.localStorage.removeItem("workpay_auth_user");
         setAuthUser(null);
-        window.localStorage.setItem("workpay_persona", "buyer");
-        document.cookie = "workpay_persona=buyer; path=/; max-age=31536000";
+        setTabDemoPersona("buyer");
         setConfirmResetOpen(false);
         toast.success("Sandbox restored to clean baseline");
         router.refresh();
@@ -759,11 +802,11 @@ function SettingsContent() {
 
   const handleSignOut = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await tabSessionFetch("/api/v1/auth/logout", { method: "POST" });
     } catch {
       // Ignore error
     }
-    window.localStorage.removeItem("workpay_auth_user");
+    clearTabSession();
     setAuthUser(null);
     toast.success("Signed out successfully");
     window.location.reload();
@@ -771,7 +814,7 @@ function SettingsContent() {
 
   const handleSignOutAllSessions = async () => {
     try {
-      const res = await fetch("/api/v1/auth/logout-all", { method: "POST" });
+      const res = await tabSessionFetch("/api/v1/auth/logout-all", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error?.message || "Failed to sign out other sessions.");
@@ -879,6 +922,115 @@ function SettingsContent() {
                   </CardHeader>
                   <CardContent className="p-5 sm:p-6">
                     <form onSubmit={handleSaveProfile} className="space-y-4 max-w-lg">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Profile Photo</Label>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => !uploadingPhoto && photoInputRef.current?.click()}
+                          onKeyDown={(event) => {
+                            if ((event.key === "Enter" || event.key === " ") && !uploadingPhoto) {
+                              event.preventDefault();
+                              photoInputRef.current?.click();
+                            }
+                          }}
+                          onDragEnter={(event) => {
+                            event.preventDefault();
+                            setPhotoDragActive(true);
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDragLeave={(event) => {
+                            event.preventDefault();
+                            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                              setPhotoDragActive(false);
+                            }
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            setPhotoDragActive(false);
+                            const file = event.dataTransfer.files[0];
+                            if (file) void handleProfilePhoto(file);
+                          }}
+                          className={cn(
+                            "group flex cursor-pointer flex-col gap-4 rounded-2xl border border-dashed p-4 transition-colors sm:flex-row sm:items-center",
+                            photoDragActive
+                              ? "border-[var(--wp-accent)] bg-[var(--wp-accent)]/5"
+                              : "border-[var(--wp-border-strong)] bg-[var(--wp-surface-subtle)]/45 hover:border-[var(--wp-accent)]/60",
+                          )}
+                        >
+                          <div className="relative mx-auto h-24 w-24 shrink-0 overflow-hidden rounded-full border-4 border-background bg-[var(--wp-surface)] shadow-sm sm:mx-0">
+                            {photoPreview || userProfile?.image ? (
+                              <img
+                                src={photoPreview || userProfile?.image || ""}
+                                alt="Profile preview"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-[var(--wp-accent)]/10 text-2xl font-bold text-[var(--wp-accent)]">
+                                {(profileName || authUser.email).trim().charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 flex h-7 items-center justify-center bg-black/55 text-white">
+                              {uploadingPhoto ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Camera className="h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1 text-center sm:text-left">
+                            <p className="text-sm font-semibold text-[var(--wp-text-primary)]">
+                              {uploadingPhoto ? "Preparing your photo..." : "Drop a photo here"}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-[var(--wp-text-secondary)]">
+                              Or choose a file. We center-crop it to a square and remove embedded
+                              metadata. JPEG, PNG, or WebP up to 5 MB.
+                            </p>
+                            <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={uploadingPhoto}
+                              >
+                                <Camera className="mr-1.5 h-3.5 w-3.5" />
+                                {userProfile?.image ? "Replace photo" : "Choose photo"}
+                              </Button>
+                              {userProfile?.image ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={uploadingPhoto || removingPhoto}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleRemoveProfilePhoto();
+                                  }}
+                                  className="text-rose-600 hover:bg-rose-500/10 hover:text-rose-700"
+                                >
+                                  {removingPhoto ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                  )}
+                                  Remove
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <input
+                            ref={photoInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="sr-only"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) void handleProfilePhoto(file);
+                            }}
+                          />
+                        </div>
+                      </div>
+
                       {/* Platform Handle: Locked & Immutable */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
@@ -1535,22 +1687,117 @@ function SettingsContent() {
               <CardHeader className="border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-                  Simulated payment policy
+                  PayPal payments
                 </CardTitle>
                 <CardDescription>
-                  Tenfo currently validates authorization, approval, idempotency, and release policy
-                  without moving money.
+                  Buyer identity linking and professional seller onboarding are separate, explicit
+                  PayPal consent steps.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 p-5 text-sm text-[var(--wp-text-secondary)] sm:p-6">
-                <p>
-                  No PayPal account is linked, no funds are held, and no provider payout occurs in
-                  this environment. Payment states shown on tasks are simulation records only.
-                </p>
-                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                  Live marketplace payments require a separately approved onboarding, consent,
-                  webhook, reconciliation, and payout design.
-                </p>
+              <CardContent className="space-y-5 p-5 text-sm text-[var(--wp-text-secondary)] sm:p-6">
+                {loadingPayPalStatus ? (
+                  <p role="status">Loading PayPal account status…</p>
+                ) : paypalStatus?.accountClass === "DEMO_FIXTURE" ? (
+                  <p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950">
+                    This evaluator account is permanently isolated on deterministic simulated
+                    payments. No PayPal account can be linked to evaluator fixtures.
+                  </p>
+                ) : (
+                  <>
+                    {!paypalStatus?.configured ? (
+                      <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                        {paypalStatus?.environment ?? "PayPal"} credentials and partner settings are
+                        not fully configured on the server.
+                      </p>
+                    ) : null}
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="rounded-xl border border-[var(--wp-border)] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="font-semibold text-[var(--wp-text-primary)]">
+                            Buyer PayPal account
+                          </h3>
+                          <Badge variant="outline">
+                            {paypalStatus?.identity?.status === "LINKED" ? "Linked" : "Not linked"}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs leading-5">
+                          Linking confirms control of the PayPal account. Every order still requires
+                          separate approval on PayPal.
+                        </p>
+                        {paypalStatus?.identity ? (
+                          <p className="mt-3 break-all text-xs font-medium text-[var(--wp-text-primary)]">
+                            {paypalStatus.identity.email}
+                          </p>
+                        ) : null}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {paypalStatus?.identity?.status === "LINKED" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setUnbindModalOpen(true)}
+                            >
+                              Unlink account
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!paypalStatus?.configured || connectingPayPalOAuth}
+                              onClick={handleConnectPayPalOAuth}
+                            >
+                              {connectingPayPalOAuth ? "Opening PayPal…" : "Link PayPal account"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-[var(--wp-border)] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="font-semibold text-[var(--wp-text-primary)]">
+                            Professional seller account
+                          </h3>
+                          <Badge variant="outline">
+                            {paypalStatus?.seller?.status ?? "Not started"}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs leading-5">
+                          PayPal seller onboarding authorizes direct capture to your merchant
+                          account after buyer acceptance.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {paypalStatus?.seller?.status === "ACTIVE" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={refreshingSellerStatus}
+                              onClick={() => void handleRefreshSellerStatus()}
+                            >
+                              {refreshingSellerStatus ? "Refreshing…" : "Refresh seller status"}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!paypalStatus?.configured || startingSellerOnboarding}
+                              onClick={() => void handleStartSellerOnboarding()}
+                            >
+                              {startingSellerOnboarding
+                                ? "Opening PayPal…"
+                                : "Start seller onboarding"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] p-3 text-xs">
+                      Current environment: {paypalStatus?.environment ?? "Unavailable"}. Live mode
+                      remains unavailable until PayPal approves the production partner integration
+                      and independent live credentials are configured.
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

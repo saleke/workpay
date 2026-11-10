@@ -1,4 +1,5 @@
 import { ApiError } from "./errors";
+import { tabSessionHeaders } from "../tab-session";
 
 export interface ApiRequestOptions {
   method?: string;
@@ -16,15 +17,7 @@ export interface ApiResponse<T> {
 function getActivePersonaHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
-    const authUserStr = window.localStorage.getItem("workpay_auth_user");
-    if (authUserStr) {
-      const u = JSON.parse(authUserStr);
-      if (u && u.id && u.role) {
-        return { "x-user-id": u.id, "x-role": u.role };
-      }
-    }
-
-    return {};
+    return tabSessionHeaders();
   } catch {
     return {};
   }

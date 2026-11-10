@@ -35,6 +35,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  getTabAuthUser,
+  getTabDemoPersona,
+  setTabDemoPersona,
+  tabSessionFetch,
+} from "@/lib/tab-session";
 
 export type DemoPersonaKey = "buyer" | "provider" | "admin_reviewer";
 
@@ -103,39 +109,27 @@ export function PersonaSwitcher() {
     setMounted(true);
 
     // 1. Check for real logged in account
-    const storedAuth = window.localStorage.getItem("workpay_auth_user");
-    if (storedAuth) {
-      try {
-        const u = JSON.parse(storedAuth) as AuthUser;
-        if (u && u.id) {
-          setAuthUser(u);
-          setActivePersona(u.role);
-          document.cookie = `workpay_persona=${u.role}; path=/; max-age=31536000`;
-          return;
-        }
-      } catch {
-        // Fall through
-      }
+    const storedAuth = getTabAuthUser<AuthUser>();
+    if (storedAuth?.id) {
+      setAuthUser(storedAuth);
+      setActivePersona(storedAuth.role);
+      return;
     }
 
-    // 2. Demo Persona check
-    const stored = window.localStorage.getItem("workpay_persona") as DemoPersonaKey | null;
+    const stored = getTabDemoPersona() as DemoPersonaKey | null;
     if (stored && PERSONAS.some((p) => p.key === stored)) {
       setActivePersona(stored);
-      document.cookie = `workpay_persona=${stored}; path=/; max-age=31536000`;
     } else {
-      document.cookie = `workpay_persona=buyer; path=/; max-age=31536000`;
+      setTabDemoPersona("buyer");
     }
   }, []);
 
   const switchPersona = (persona: PersonaConfig, navigate = false) => {
     // If switching persona, clear custom auth user so demo persona takes effect
-    window.localStorage.removeItem("workpay_auth_user");
     setAuthUser(null);
 
     setActivePersona(persona.key);
-    window.localStorage.setItem("workpay_persona", persona.key);
-    document.cookie = `workpay_persona=${persona.key}; path=/; max-age=31536000`;
+    setTabDemoPersona(persona.key);
 
     if (navigate) {
       router.push(persona.homeUrl);
@@ -146,15 +140,13 @@ export function PersonaSwitcher() {
 
   const handleSignOut = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await tabSessionFetch("/api/v1/auth/logout", { method: "POST" });
     } catch {
       // Ignore
     }
-    window.localStorage.removeItem("workpay_auth_user");
     setAuthUser(null);
     setActivePersona("buyer");
-    window.localStorage.setItem("workpay_persona", "buyer");
-    document.cookie = `workpay_persona=buyer; path=/; max-age=31536000`;
+    setTabDemoPersona("buyer");
     router.push("/tasks");
     router.refresh();
   };
@@ -163,13 +155,11 @@ export function PersonaSwitcher() {
     if (resetting) return;
     setResetting(true);
     try {
-      const res = await fetch("/api/v1/demo/reset", { method: "POST" });
+      const res = await tabSessionFetch("/api/v1/demo/reset", { method: "POST" });
       if (res.ok) {
-        window.localStorage.removeItem("workpay_auth_user");
         setAuthUser(null);
         setActivePersona("buyer");
-        window.localStorage.setItem("workpay_persona", "buyer");
-        document.cookie = `workpay_persona=buyer; path=/; max-age=31536000`;
+        setTabDemoPersona("buyer");
         router.push("/tasks");
         router.refresh();
       }

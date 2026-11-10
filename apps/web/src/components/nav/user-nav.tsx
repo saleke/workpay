@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Briefcase,
-  ChevronDown,
-  LogIn,
-  LogOut,
-  Settings,
-  User,
-} from "lucide-react";
+import { Briefcase, ChevronDown, LogIn, LogOut, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  clearTabSession,
+  getTabAuthUser,
+  getTabSessionToken,
+  tabSessionFetch,
+  updateTabAuthUser,
+} from "@/lib/tab-session";
 
 export interface AuthUser {
   id: string;
@@ -28,6 +28,7 @@ export interface AuthUser {
   displayName?: string | null;
   email: string;
   role: "buyer" | "provider" | "admin_reviewer";
+  image?: string | null;
 }
 
 export function UserNav() {
@@ -39,64 +40,42 @@ export function UserNav() {
     setMounted(true);
 
     const syncUser = async () => {
-      // 1. Check server session first
+      const tabUser = getTabAuthUser<AuthUser>();
+      if (tabUser?.id) setUser(tabUser);
+
       try {
-        const res = await fetch("/api/v1/auth/me", { cache: "no-store" });
+        const res = await tabSessionFetch("/api/v1/auth/me", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
           if (json.data?.user) {
             setUser(json.data.user);
-            window.localStorage.setItem("workpay_auth_user", JSON.stringify(json.data.user));
-            window.localStorage.removeItem("workpay_signed_out");
+            updateTabAuthUser(json.data.user);
             return;
           }
+          if (getTabSessionToken()) clearTabSession();
         }
       } catch {
-        // Fall back to local check if network error
-      }
-
-      // 2. Check localStorage if offline
-      const storedAuth = window.localStorage.getItem("workpay_auth_user");
-      const explicitlySignedOut = window.localStorage.getItem("workpay_signed_out") === "true";
-
-      if (storedAuth && !explicitlySignedOut) {
-        try {
-          const parsed = JSON.parse(storedAuth) as AuthUser;
-          if (parsed?.id) {
-            setUser(parsed);
-            return;
-          }
-        } catch {
-          // Ignore parse error
-        }
+        if (tabUser?.id) return;
       }
 
       setUser(null);
     };
 
     syncUser();
-    window.addEventListener("storage", syncUser);
     window.addEventListener("workpay_auth_change", syncUser);
     return () => {
-      window.removeEventListener("storage", syncUser);
       window.removeEventListener("workpay_auth_change", syncUser);
     };
   }, []);
 
   const handleSignOut = async () => {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST" });
+      await tabSessionFetch("/api/v1/auth/logout", { method: "POST" });
     } catch {
       // Ignore
     }
 
-    window.localStorage.removeItem("workpay_auth_user");
-    window.localStorage.removeItem("workpay_persona");
-    window.localStorage.setItem("workpay_signed_out", "true");
-    document.cookie = "workpay_persona=; path=/; max-age=0";
-    document.cookie = "workpay_session=; path=/; max-age=0";
-    document.cookie = "workpay_signed_out=true; path=/; max-age=31536000";
-    window.dispatchEvent(new Event("workpay_auth_change"));
+    clearTabSession();
     setUser(null);
     router.push("/login");
     router.refresh();
@@ -128,9 +107,7 @@ export function UserNav() {
 
   const roleLabel = "Member";
 
-  const initials = (user.name || user.username || user.email || "U")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = (user.name || user.username || user.email || "U").slice(0, 2).toUpperCase();
 
   return (
     <DropdownMenu>
@@ -139,8 +116,12 @@ export function UserNav() {
           type="button"
           className="flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-2.5 shadow-2xs transition-all duration-150 select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
         >
-          <div className="h-5 w-5 rounded-md bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] flex items-center justify-center text-[10px] font-bold text-[var(--wp-text-primary)] shrink-0">
-            {initials}
+          <div className="h-5 w-5 overflow-hidden rounded-md bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] flex items-center justify-center text-[10px] font-bold text-[var(--wp-text-primary)] shrink-0">
+            {user.image ? (
+              <img src={user.image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           <span className="text-xs font-semibold text-[var(--wp-text-primary)] max-w-[120px] truncate">
             {user.displayName || user.name || user.username || user.email.split("@")[0]}

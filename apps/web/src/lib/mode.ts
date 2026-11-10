@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getTabAuthUser, getTabSessionToken } from "./tab-session";
 
 export type SystemMode = "demo" | "production";
 
@@ -12,8 +13,8 @@ const MODE_OVERRIDE_KEY = "workpay_mode_override";
  */
 export function isDemoMode(): boolean {
   if (typeof window !== "undefined") {
-    const authUser = window.localStorage.getItem("workpay_auth_user");
-    const hasSessionCookie = document.cookie.includes("workpay_session=");
+    const authUser = getTabAuthUser();
+    const hasTabSession = Boolean(getTabSessionToken());
     const pathname = window.location.pathname;
     const isAuthenticatedSection =
       pathname.startsWith("/tasks") ||
@@ -24,13 +25,13 @@ export function isDemoMode(): boolean {
       pathname.startsWith("/settings");
 
     // Authenticated sections and users must always default to production
-    if (authUser || hasSessionCookie || isAuthenticatedSection) {
-      const override = window.localStorage.getItem(MODE_OVERRIDE_KEY);
+    if (authUser || hasTabSession || isAuthenticatedSection) {
+      const override = window.sessionStorage.getItem(MODE_OVERRIDE_KEY);
       if (override === "demo") return true;
       return false;
     }
 
-    const override = window.localStorage.getItem(MODE_OVERRIDE_KEY);
+    const override = window.sessionStorage.getItem(MODE_OVERRIDE_KEY);
     if (override === "production") return false;
     if (override === "demo") return true;
   }
@@ -44,11 +45,9 @@ export function getSystemMode(): SystemMode {
 export function setSystemModeOverride(mode: SystemMode | null): void {
   if (typeof window === "undefined") return;
   if (!mode) {
-    window.localStorage.removeItem(MODE_OVERRIDE_KEY);
-    document.cookie = `${MODE_OVERRIDE_KEY}=; path=/; max-age=0`;
+    window.sessionStorage.removeItem(MODE_OVERRIDE_KEY);
   } else {
-    window.localStorage.setItem(MODE_OVERRIDE_KEY, mode);
-    document.cookie = `${MODE_OVERRIDE_KEY}=${mode}; path=/; max-age=31536000`;
+    window.sessionStorage.setItem(MODE_OVERRIDE_KEY, mode);
   }
   // Dispatch custom event so listeners update immediately
   window.dispatchEvent(new Event("workpay_mode_change"));

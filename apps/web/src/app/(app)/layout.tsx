@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   BriefcaseBusiness,
   ClipboardList,
   Home,
+  Loader2,
   Menu,
   MessageSquareText,
   Plus,
@@ -24,6 +25,12 @@ import { TenfoLogo } from "@/components/brand/logo";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getMessageInbox } from "@/lib/api/endpoints";
+import {
+  clearTabSession,
+  getTabDemoPersona,
+  getTabSessionToken,
+  tabSessionFetch,
+} from "@/lib/tab-session";
 
 interface NavLinkItem {
   href: string;
@@ -188,11 +195,36 @@ function NavigationLinks({
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [tabAccessReady, setTabAccessReady] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pendingContactCount, setPendingContactCount] = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
+    if (getTabDemoPersona()) {
+      setTabAccessReady(true);
+      return;
+    }
+    if (!getTabSessionToken()) {
+      router.replace(`/login?from=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    void tabSessionFetch("/api/v1/auth/me", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (response.ok && payload.data?.user) {
+          setTabAccessReady(true);
+          return;
+        }
+        clearTabSession();
+        router.replace(`/login?from=${encodeURIComponent(pathname)}`);
+      })
+      .catch(() => setTabAccessReady(true));
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (!tabAccessReady) return;
     let active = true;
     const refresh = async () => {
       const inbox = await getMessageInbox();
@@ -222,7 +254,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener("workpay_messages_inbox_change", refresh);
       window.clearInterval(timer);
     };
-  }, []);
+  }, [tabAccessReady]);
+
+  if (!tabAccessReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--wp-canvas)]">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--wp-accent)]" aria-label="Loading" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--wp-canvas)] text-[var(--wp-text-primary)]">
