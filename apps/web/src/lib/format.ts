@@ -1,4 +1,4 @@
-import { formatMoney, type Currency, type Money } from "@workpay/shared";
+import { formatMoney, type Currency, type Money } from "@workpay/shared/money";
 
 export function formatMinorMoney(m: { amountMinor: number; currency: string }) {
   return formatMoney({ amountMinor: m.amountMinor, currency: m.currency as Currency });

@@ -13,7 +13,7 @@ import {
   sendTaskConversationMessage,
 } from "@/lib/api/endpoints";
 import type { ContractChangeRequestDto, TaskConversationDto } from "@/lib/api/types";
-import { parseMoneyInput } from "@workpay/shared";
+import { parseMoneyInput } from "@workpay/shared/money";
 import { formatMinorMoney } from "@/lib/format";
 import {
   conversationAttachmentKind,
@@ -566,10 +566,8 @@ export function ConversationThread({
           className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
           role="status"
         >
-          A work assignment exists.{" "}
-          {currentUserId === conversation.providerUserId
-            ? "You become committed only after accepting the exact assigned contract."
-            : "The professional must still explicitly accept the exact assigned contract before work starts."}
+          A work assignment exists. Open Work Studio for its current start, delivery, and review
+          gates.
         </p>
       ) : null}
       {!inboxMode && conversation.status === "OPEN" && !conversation.hasWorkExecution ? (
@@ -577,8 +575,8 @@ export function ConversationThread({
           className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
           role="status"
         >
-          This is a non-binding discussion, not a work commitment. Work starts only after the buyer
-          authorizes the agreed amount and the professional accepts the exact assignment.
+          Messages alone are non-binding. Use Work context to send exact terms, record the
+          professional's acceptance, and let the client make the final selection before payment.
         </p>
       ) : null}
       {!inboxMode && conversation.status === "DECLINED" ? (

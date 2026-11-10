@@ -154,7 +154,9 @@ export function ContractReview({
             <div className="rounded-lg border p-3">
               <div className="text-xs uppercase text-muted-foreground">Deadline</div>
               <div className="mt-1 text-sm font-medium">
-                {currentContract.deadline ? formatDateTime(currentContract.deadline) : "No fixed deadline"}
+                {currentContract.deadline
+                  ? formatDateTime(currentContract.deadline)
+                  : "No fixed deadline"}
               </div>
             </div>
             <div className="rounded-lg border p-3">
@@ -162,7 +164,9 @@ export function ContractReview({
               <div className="mt-1 truncate font-mono text-xs" title={currentContract.contractHash}>
                 {currentContract.contractHash.slice(0, 16)}...
               </div>
-              <div className="text-xs text-muted-foreground">Approval binds strictly to this hash.</div>
+              <div className="text-xs text-muted-foreground">
+                Approval binds strictly to this hash.
+              </div>
             </div>
           </div>
 
@@ -177,12 +181,14 @@ export function ContractReview({
                   <span>Definition of Done (Criteria for Completion)</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Explicit criteria that must be satisfied for task verification and PayPal funds release.
+                  Explicit constraints for the client or an agreed paid reviewer to use during
+                  review.
                   {canEdit ? " You can add, edit, or remove criteria before approval." : ""}
                 </p>
               </div>
               <Badge variant="secondary" className="text-xs">
-                {currentContract.requirements.length} {currentContract.requirements.length === 1 ? "Criterion" : "Criteria"}
+                {currentContract.requirements.length}{" "}
+                {currentContract.requirements.length === 1 ? "Criterion" : "Criteria"}
               </Badge>
             </div>
 
@@ -306,8 +312,11 @@ export function ContractReview({
                         >
                           <span className="font-medium">{r.statement}</span>
                           <span className="text-xs text-muted-foreground">
-                            Evaluated via {rule?.method.toLowerCase().replace("_", " ") ?? "a check"}
-                            {rule?.method === "SEMANTIC" ? " (AI assessment, advisory guidance)" : ""}
+                            Evaluated via{" "}
+                            {rule?.method.toLowerCase().replace("_", " ") ?? "a check"}
+                            {rule?.method === "SEMANTIC"
+                              ? " (AI assessment, advisory guidance)"
+                              : ""}
                           </span>
                         </li>
                       );
@@ -338,7 +347,8 @@ export function ContractReview({
                       <span className="font-mono text-xs">
                         {currentContract.contractHash.slice(0, 12)}...
                       </span>
-                      ). Payout amounts are strictly derived from this agreement and cannot be altered by browsers or third parties.
+                      ). Payout amounts are strictly derived from this agreement and cannot be
+                      altered by browsers or third parties.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -366,4 +376,3 @@ export function ContractReview({
     </div>
   );
 }
-

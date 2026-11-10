@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * "The agent can / cannot" panel (plan M1). This is explanatory copy that
  * mirrors the server-side authority policy (agent/authority.ts): the agent's
  * typed actions never include capture, refund, budget change, approval, or
- * verification override. The server remains the enforcement point; the UI only
+ * human review. The server remains the enforcement point; the UI only
  * explains it.
  */
 const AGENT_CAN = [
@@ -15,8 +15,8 @@ const AGENT_CAN = [
   "Find and recommend an eligible provider",
   "Negotiate an offer within your budget",
   "Request simulated payment authorization",
-  "Request verification and a single revision",
-  "Open a case for human review",
+  "Organize agreement constraints for review",
+  "Preserve notes, links, files, and attributable decisions",
 ];
 
 const AGENT_CANNOT = [
@@ -24,7 +24,8 @@ const AGENT_CANNOT = [
   "Refund or void a payment",
   "Change your budget or deadline",
   "Approve the contract on your behalf",
-  "Override a verification result",
+  "Verify, review, or accept professional work",
+  "Treat AI or automated output as a quality verdict",
   "Act outside the contract you approved",
 ];
 

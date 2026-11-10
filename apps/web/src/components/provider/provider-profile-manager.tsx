@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowRight,
   Briefcase,
@@ -20,7 +20,6 @@ import {
   HelpCircle,
   Languages,
   Lock,
-  Mail,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -40,7 +39,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { toast } from "sonner";
 import {
@@ -87,19 +85,19 @@ const TIMEZONES = [
 ];
 
 export function ProviderProfileManager() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [activeSection, setActiveSection] = useState<
-    "capabilities" | "availability" | "pricing" | "commitments" | "execution" | "payout"
-  >("capabilities");
+    "capabilities" | "availability" | "pricing" | "reviews" | "commitments" | "execution" | "payout"
+  >(searchParams.get("section") === "reviews" ? "reviews" : "capabilities");
 
   // Core profile fields
   const [displayName, setDisplayName] = useState("");
   const [profileImage, setProfileImage] = useState("");
   const [bio, setBio] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
-  const [payoutEmail, setPayoutEmail] = useState("");
   const [capabilities, setCapabilities] = useState<Array<{ tag: string; proficiency: number }>>([]);
   const [customSkill, setCustomSkill] = useState("");
 
@@ -154,6 +152,40 @@ export function ProviderProfileManager() {
   const [customTool, setCustomTool] = useState("");
   const [languages, setLanguages] = useState<string[]>(["English"]);
 
+  // Paid review service uses this same professional identity.
+  const [reviewEnabled, setReviewEnabled] = useState(false);
+  const [reviewListed, setReviewListed] = useState(false);
+  const [reviewAvailability, setReviewAvailability] = useState<"AVAILABLE" | "BUSY" | "OFFLINE">(
+    "AVAILABLE",
+  );
+  const [reviewNotice, setReviewNotice] = useState("");
+  const [reviewSummary, setReviewSummary] = useState("");
+  const [reviewContactUrl, setReviewContactUrl] = useState("");
+  const [reviewFee, setReviewFee] = useState(75);
+  const [reviewTurnaroundDays, setReviewTurnaroundDays] = useState(3);
+  const [reviewFeeMode, setReviewFeeMode] = useState<"PAYPAL" | "DIRECT">("PAYPAL");
+  const [reviewDisclosureConfirmed, setReviewDisclosureConfirmed] = useState(false);
+  const [reviewConflictNotes, setReviewConflictNotes] = useState("");
+  const [reviewConflictUsernames, setReviewConflictUsernames] = useState("");
+  const [reviewDomains, setReviewDomains] = useState<
+    Array<{
+      domainTag: string;
+      scope: string;
+      selfAssessedLevel: number;
+      yearsExperience: number | null;
+      methods: string[];
+    }>
+  >([]);
+  const [reviewEvidence, setReviewEvidence] = useState<
+    Array<{
+      kind: "PORTFOLIO" | "CREDENTIAL" | "EXPERIENCE" | "REFERENCE";
+      title: string;
+      description: string;
+      url: string | null;
+      issuer: string | null;
+    }>
+  >([]);
+
   const loadProfile = async () => {
     setLoading(true);
     try {
@@ -164,7 +196,6 @@ export function ProviderProfileManager() {
         setProfileImage(p.image ?? "");
         setBio(p.bio ?? "");
         setStatus(p.status);
-        setPayoutEmail(p.payoutEmail ?? "");
         if (p.capabilities && p.capabilities.length > 0) {
           setCapabilities(p.capabilities);
         }
@@ -209,13 +240,29 @@ export function ProviderProfileManager() {
           if (wp.languages && wp.languages.length > 0) {
             setLanguages(wp.languages);
           }
+          if (wp.reviewService) {
+            const review = wp.reviewService;
+            setReviewEnabled(review.enabled);
+            setReviewListed(review.listed);
+            setReviewAvailability(review.availability);
+            setReviewNotice(review.notice ?? "");
+            setReviewSummary(review.summary);
+            setReviewContactUrl(review.publicContactUrl ?? "");
+            setReviewFee(review.feeMinor === null ? 75 : review.feeMinor / 100);
+            setReviewTurnaroundDays(review.typicalTurnaroundDays ?? 3);
+            setReviewFeeMode(review.feeMode);
+            setReviewDisclosureConfirmed(review.conflictDisclosureConfirmed);
+            setReviewConflictNotes(review.conflictNotes ?? "");
+            setReviewConflictUsernames(review.conflictUsernames.join(", "));
+            setReviewDomains(review.domains);
+            setReviewEvidence(review.evidence);
+          }
         }
       } else if (res.data) {
         setDisplayName(res.data.profile?.displayName ?? "");
         setProfileImage(res.data.profile?.image ?? "");
         setBio("");
         setStatus("ACTIVE");
-        setPayoutEmail("");
         setCapabilities([]);
       } else {
         toast.error("Your professional profile could not be loaded.");
@@ -297,6 +344,21 @@ export function ProviderProfileManager() {
       toast.error("Add a professional summary before listing your profile.");
       return;
     }
+    if (reviewEnabled && reviewSummary.trim().length < 20) {
+      toast.error("Describe your paid review service in at least 20 characters.");
+      setActiveSection("reviews");
+      return;
+    }
+    if (reviewEnabled && reviewDomains.length === 0) {
+      toast.error("Add at least one domain you can review.");
+      setActiveSection("reviews");
+      return;
+    }
+    if (reviewListed && !reviewDisclosureConfirmed) {
+      toast.error("Confirm the conflict-disclosure commitment before listing your review service.");
+      setActiveSection("reviews");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -306,7 +368,7 @@ export function ProviderProfileManager() {
         bio: bio.trim() || null,
         hourlyRateMinor: Math.round(targetRate * 100),
         currency: "USD",
-        payoutEmail: payoutEmail.trim() || null,
+        payoutEmail: null,
         status,
         capabilities,
         availability: {
@@ -336,6 +398,29 @@ export function ProviderProfileManager() {
           reviewSpecBeforeAccept,
           toolsAndTechnologies,
           languages,
+          reviewService: {
+            enabled: reviewEnabled,
+            listed: reviewEnabled && reviewListed,
+            availability: reviewAvailability,
+            notice: reviewNotice.trim() || null,
+            summary: reviewSummary.trim(),
+            publicContactUrl: reviewContactUrl.trim() || null,
+            feeMinor: reviewEnabled ? Math.round(reviewFee * 100) : null,
+            typicalTurnaroundDays: reviewEnabled ? reviewTurnaroundDays : null,
+            conflictDisclosureConfirmed: reviewDisclosureConfirmed,
+            conflictNotes: reviewConflictNotes.trim() || null,
+            conflictUsernames: [
+              ...new Set(
+                reviewConflictUsernames
+                  .split(",")
+                  .map((username) => username.trim().replace(/^@/, "").toLowerCase())
+                  .filter(Boolean),
+              ),
+            ],
+            domains: reviewDomains,
+            evidence: reviewEvidence,
+            feeMode: reviewFeeMode,
+          },
         },
       };
 
@@ -363,8 +448,6 @@ export function ProviderProfileManager() {
     );
   }
 
-  const isPayoutConfigured = Boolean(payoutEmail && payoutEmail.includes("@"));
-
   return (
     <form onSubmit={handleSave} className="flex w-full min-w-0 flex-col gap-6">
       {/* Overview Banner: Dual-Role Model */}
@@ -376,7 +459,7 @@ export function ProviderProfileManager() {
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="break-words text-sm font-semibold text-[var(--wp-text-primary)]">
-                Dual-Role Work Preferences
+                Professional service profile
               </span>
               <Badge
                 variant="outline"
@@ -397,8 +480,7 @@ export function ProviderProfileManager() {
               </Badge>
             </div>
             <p className="mt-1 max-w-2xl break-words text-xs leading-relaxed text-[var(--wp-text-secondary)]">
-              Configure the work you can perform, your availability schedule, and the commercial
-              terms under which you accept assignments.
+              Offer project work, paid reviews, or both from one profile.
             </p>
           </div>
         </div>
@@ -429,7 +511,7 @@ export function ProviderProfileManager() {
 
       {/* Work preference area navigation */}
       <div
-        className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
+        className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7"
         role="group"
         aria-label="Work preference areas"
       >
@@ -437,6 +519,7 @@ export function ProviderProfileManager() {
           { key: "capabilities", label: "Capabilities & Skills" },
           { key: "availability", label: "Availability & Capacity" },
           { key: "pricing", label: "Pricing & Commercials" },
+          { key: "reviews", label: "Paid Reviews" },
           { key: "commitments", label: "Acceptance Rules" },
           { key: "execution", label: "Execution & Quality" },
           { key: "payout", label: "Payment Validation" },
@@ -467,8 +550,8 @@ export function ProviderProfileManager() {
               Work Profile &amp; Demonstrated Capabilities
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Declare what tasks you can execute. Self-declared tags are matched against contract
-              requirements, while demonstrated skills reflect passing verification history.
+              Describe the work you can perform. Review domains are configured separately under Paid
+              Reviews.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -562,11 +645,10 @@ export function ProviderProfileManager() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                    Execution Capability Tags (Required for Deterministic Matching)
+                    Project-work capability tags
                   </span>
                   <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                    Active contract requirements match against these tags. Higher proficiency gives
-                    higher ranking.
+                    These tags help clients find relevant project-work profiles.
                   </span>
                 </div>
               </div>
@@ -966,6 +1048,550 @@ export function ProviderProfileManager() {
         </Card>
       )}
 
+      {/* SECTION: PAID REVIEW SERVICE */}
+      {activeSection === "reviews" && (
+        <div className="space-y-5">
+          <section className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-[0_20px_60px_-50px_rgba(76,29,149,0.8)]">
+            <div className="bg-[radial-gradient(circle_at_top_right,#7c3aed_0%,#312e81_42%,#111827_92%)] p-5 text-white sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-200">
+                    Review service
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold tracking-tight">
+                    Offer paid reviews from this Work Profile
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-200">
+                    Review work in the domains you know, whether or not you also accept project
+                    delivery assignments.
+                  </p>
+                </div>
+                <label className="flex w-fit cursor-pointer items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold backdrop-blur">
+                  <input
+                    type="checkbox"
+                    checked={reviewEnabled}
+                    onChange={(event) => {
+                      setReviewEnabled(event.target.checked);
+                      if (!event.target.checked) setReviewListed(false);
+                      markDirty();
+                    }}
+                    className="h-4 w-4 accent-violet-400"
+                  />
+                  Offer paid reviews
+                </label>
+              </div>
+            </div>
+
+            <div className={cn("space-y-5 p-5 sm:p-6", !reviewEnabled && "opacity-60")}>
+              {workAcceptanceStatus === "UNAVAILABLE" && reviewEnabled ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-950">
+                  Your profile is set to review-only availability. You can receive review
+                  engagements without appearing in project-work discovery.
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+                  <span className="block font-semibold text-slate-900">Marketplace listing</span>
+                  <span className="mt-1 block leading-5 text-slate-500">
+                    Let clients find this review service.
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={reviewListed}
+                    disabled={!reviewEnabled}
+                    onChange={(event) => {
+                      setReviewListed(event.target.checked);
+                      markDirty();
+                    }}
+                    className="mt-3 h-4 w-4 accent-violet-700"
+                  />
+                </label>
+                <label className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+                  <span className="block font-semibold text-slate-900">Review availability</span>
+                  <select
+                    value={reviewAvailability}
+                    disabled={!reviewEnabled}
+                    onChange={(event) => {
+                      setReviewAvailability(event.target.value as typeof reviewAvailability);
+                      markDirty();
+                    }}
+                    className="mt-3 h-9 w-full rounded-lg border border-slate-300 bg-white px-2"
+                  >
+                    <option value="AVAILABLE">Available</option>
+                    <option value="BUSY">Busy</option>
+                    <option value="OFFLINE">Offline</option>
+                  </select>
+                </label>
+                <label className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+                  <span className="block font-semibold text-slate-900">Typical turnaround</span>
+                  <span className="mt-1 block leading-5 text-slate-500">
+                    Expected calendar days.
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={reviewTurnaroundDays}
+                    disabled={!reviewEnabled}
+                    onChange={(event) => {
+                      setReviewTurnaroundDays(Math.max(1, Number(event.target.value) || 1));
+                      markDirty();
+                    }}
+                    className="mt-3 h-9 bg-white text-xs"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Review service summary
+                  <textarea
+                    value={reviewSummary}
+                    disabled={!reviewEnabled}
+                    onChange={(event) => {
+                      setReviewSummary(event.target.value);
+                      markDirty();
+                    }}
+                    rows={4}
+                    maxLength={1_200}
+                    placeholder="Describe the work you can assess, how you approach review, and the limits of your service."
+                    className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-6 outline-none focus:border-violet-500"
+                  />
+                </label>
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Availability note
+                    <textarea
+                      value={reviewNotice}
+                      disabled={!reviewEnabled}
+                      onChange={(event) => {
+                        setReviewNotice(event.target.value);
+                        markDirty();
+                      }}
+                      rows={2}
+                      maxLength={1_000}
+                      placeholder="Current lead time, blackout dates, or review conditions."
+                      className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs leading-5 outline-none focus:border-violet-500"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Public contact link (optional)
+                    <Input
+                      type="url"
+                      value={reviewContactUrl}
+                      disabled={!reviewEnabled}
+                      onChange={(event) => {
+                        setReviewContactUrl(event.target.value);
+                        markDirty();
+                      }}
+                      placeholder="https://your-site.example/reviews"
+                      className="mt-1.5 h-9 bg-white text-xs"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {reviewEnabled ? (
+            <>
+              <section className="rounded-2xl border border-slate-300 bg-white p-5 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-violet-700">
+                      Review domains
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                      Define where your review is useful
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Domain scope and methods are shown when a client compares reviewers.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setReviewDomains((current) => [
+                        ...current,
+                        {
+                          domainTag: "",
+                          scope: "",
+                          selfAssessedLevel: 3,
+                          yearsExperience: null,
+                          methods: [],
+                        },
+                      ]);
+                      markDirty();
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Add domain
+                  </Button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {reviewDomains.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                      Add the first domain you are prepared to review.
+                    </div>
+                  ) : null}
+                  {reviewDomains.map((domain, index) => (
+                    <article
+                      key={`${index}-${domain.domainTag}`}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="grid gap-3 lg:grid-cols-[0.8fr_1.4fr_0.45fr_0.45fr_auto]">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Domain
+                          <Input
+                            value={domain.domainTag}
+                            onChange={(event) => {
+                              setReviewDomains((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, domainTag: event.target.value }
+                                    : item,
+                                ),
+                              );
+                              markDirty();
+                            }}
+                            placeholder="accessibility"
+                            className="mt-1.5 h-9 bg-white text-xs"
+                          />
+                        </label>
+                        <label className="text-xs font-semibold text-slate-700">
+                          Review scope
+                          <Input
+                            value={domain.scope}
+                            onChange={(event) => {
+                              setReviewDomains((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, scope: event.target.value }
+                                    : item,
+                                ),
+                              );
+                              markDirty();
+                            }}
+                            placeholder="WCAG review of live web interfaces and design systems"
+                            className="mt-1.5 h-9 bg-white text-xs"
+                          />
+                        </label>
+                        <label className="text-xs font-semibold text-slate-700">
+                          Level
+                          <select
+                            value={domain.selfAssessedLevel}
+                            onChange={(event) => {
+                              setReviewDomains((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, selfAssessedLevel: Number(event.target.value) }
+                                    : item,
+                                ),
+                              );
+                              markDirty();
+                            }}
+                            className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs"
+                          >
+                            {[1, 2, 3, 4, 5].map((level) => (
+                              <option key={level} value={level}>
+                                {level}/5
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-xs font-semibold text-slate-700">
+                          Years
+                          <Input
+                            type="number"
+                            min={0}
+                            max={80}
+                            value={domain.yearsExperience ?? ""}
+                            onChange={(event) => {
+                              setReviewDomains((items) =>
+                                items.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        yearsExperience: event.target.value
+                                          ? Number(event.target.value)
+                                          : null,
+                                      }
+                                    : item,
+                                ),
+                              );
+                              markDirty();
+                            }}
+                            className="mt-1.5 h-9 bg-white text-xs"
+                          />
+                        </label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setReviewDomains((items) =>
+                              items.filter((_, itemIndex) => itemIndex !== index),
+                            );
+                            markDirty();
+                          }}
+                          className="self-end text-rose-700"
+                          aria-label={`Remove review domain ${domain.domainTag || index + 1}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <label className="mt-3 block text-xs font-semibold text-slate-700">
+                        Methods (comma separated)
+                        <Input
+                          value={domain.methods.join(", ")}
+                          onChange={(event) => {
+                            setReviewDomains((items) =>
+                              items.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      methods: event.target.value
+                                        .split(",")
+                                        .map((method) => method.trim())
+                                        .filter(Boolean),
+                                    }
+                                  : item,
+                              ),
+                            );
+                            markDirty();
+                          }}
+                          placeholder="manual audit, screen-reader testing, standards review"
+                          className="mt-1.5 h-9 bg-white text-xs"
+                        />
+                      </label>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="grid gap-5 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-300 bg-white p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-violet-700">
+                    Fee and turnaround
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Standard review fee (USD)
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={reviewFee}
+                        onChange={(event) => {
+                          setReviewFee(Math.max(0, Number(event.target.value) || 0));
+                          markDirty();
+                        }}
+                        className="mt-1.5 h-10 bg-white text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Fee handling
+                      <select
+                        value={reviewFeeMode}
+                        onChange={(event) => {
+                          setReviewFeeMode(event.target.value as typeof reviewFeeMode);
+                          markDirty();
+                        }}
+                        className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs"
+                      >
+                        <option value="PAYPAL">PayPal through Tenfo</option>
+                        <option value="DIRECT">Arranged directly</option>
+                      </select>
+                    </label>
+                  </div>
+                  {reviewFeeMode === "PAYPAL" ? (
+                    <Link
+                      href="/settings?tab=paypal"
+                      className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:underline"
+                    >
+                      Check PayPal seller onboarding <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl border border-slate-300 bg-white p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-violet-700">
+                    Conflicts and independence
+                  </p>
+                  <label className="mt-4 block text-xs font-semibold text-slate-700">
+                    Known conflicts by username
+                    <Input
+                      value={reviewConflictUsernames}
+                      onChange={(event) => {
+                        setReviewConflictUsernames(event.target.value);
+                        markDirty();
+                      }}
+                      placeholder="alex, @client-team"
+                      className="mt-1.5 h-10 bg-white text-xs"
+                    />
+                  </label>
+                  <label className="mt-3 block text-xs font-semibold text-slate-700">
+                    Other conflict notes (optional)
+                    <textarea
+                      value={reviewConflictNotes}
+                      onChange={(event) => {
+                        setReviewConflictNotes(event.target.value);
+                        markDirty();
+                      }}
+                      rows={2}
+                      maxLength={4_000}
+                      placeholder="Organizations, clients, financial interests, or relationships to disclose before matching."
+                      className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs leading-5"
+                    />
+                  </label>
+                  <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-950">
+                    <input
+                      type="checkbox"
+                      checked={reviewDisclosureConfirmed}
+                      onChange={(event) => {
+                        setReviewDisclosureConfirmed(event.target.checked);
+                        markDirty();
+                      }}
+                      className="mt-1 h-4 w-4 accent-violet-700"
+                    />
+                    I will disclose task-specific conflicts before accepting each review engagement.
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-300 bg-white p-5 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-violet-700">
+                      Supporting profile evidence
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                      Help clients evaluate fit
+                    </h3>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setReviewEvidence((current) => [
+                        ...current,
+                        {
+                          kind: "PORTFOLIO",
+                          title: "",
+                          description: "",
+                          url: null,
+                          issuer: null,
+                        },
+                      ]);
+                      markDirty();
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Add evidence
+                  </Button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {reviewEvidence.map((item, index) => (
+                    <div
+                      key={`${index}-${item.title}`}
+                      className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[0.45fr_0.8fr_1.2fr_1fr_auto]"
+                    >
+                      <select
+                        value={item.kind}
+                        onChange={(event) => {
+                          setReviewEvidence((items) =>
+                            items.map((evidence, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...evidence,
+                                    kind: event.target.value as typeof evidence.kind,
+                                  }
+                                : evidence,
+                            ),
+                          );
+                          markDirty();
+                        }}
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs"
+                      >
+                        <option value="PORTFOLIO">Portfolio</option>
+                        <option value="CREDENTIAL">Credential</option>
+                        <option value="EXPERIENCE">Experience</option>
+                        <option value="REFERENCE">Reference</option>
+                      </select>
+                      <Input
+                        value={item.title}
+                        onChange={(event) => {
+                          setReviewEvidence((items) =>
+                            items.map((evidence, itemIndex) =>
+                              itemIndex === index
+                                ? { ...evidence, title: event.target.value }
+                                : evidence,
+                            ),
+                          );
+                          markDirty();
+                        }}
+                        placeholder="Title"
+                        className="h-9 bg-white text-xs"
+                      />
+                      <Input
+                        value={item.description}
+                        onChange={(event) => {
+                          setReviewEvidence((items) =>
+                            items.map((evidence, itemIndex) =>
+                              itemIndex === index
+                                ? { ...evidence, description: event.target.value }
+                                : evidence,
+                            ),
+                          );
+                          markDirty();
+                        }}
+                        placeholder="Why this supports your review experience"
+                        className="h-9 bg-white text-xs"
+                      />
+                      <Input
+                        value={item.url ?? ""}
+                        onChange={(event) => {
+                          setReviewEvidence((items) =>
+                            items.map((evidence, itemIndex) =>
+                              itemIndex === index
+                                ? { ...evidence, url: event.target.value || null }
+                                : evidence,
+                            ),
+                          );
+                          markDirty();
+                        }}
+                        placeholder="HTTPS link (optional)"
+                        className="h-9 bg-white text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setReviewEvidence((items) =>
+                            items.filter((_, itemIndex) => itemIndex !== index),
+                          );
+                          markDirty();
+                        }}
+                        className="text-rose-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {reviewEvidence.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-xs text-slate-500">
+                      Evidence is optional. Add portfolio work, credentials, experience, or
+                      references when useful.
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            </>
+          ) : null}
+        </div>
+      )}
+
       {/* SECTION D: COMMITMENT & ACCEPTANCE RULES */}
       {activeSection === "commitments" && (
         <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
@@ -997,7 +1623,7 @@ export function ProviderProfileManager() {
                   htmlFor="requireExplicitApproval"
                   className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer"
                 >
-                  Require Explicit Human Confirmation Before Contract Acceptance (Recommended)
+                  Require explicit confirmation before accepting work
                 </label>
                 <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 leading-relaxed">
                   Finding or recommending an opportunity will never automatically bind you to a
@@ -1023,7 +1649,7 @@ export function ProviderProfileManager() {
                   htmlFor="aiRecommendationAllowed"
                   className="text-xs font-semibold text-[var(--wp-text-primary)] cursor-pointer"
                 >
-                  Permit AI Matching Engine to Propose Suitable Work Opportunities
+                  Allow this profile to appear in relevant work discovery
                 </label>
                 <p className="text-[11px] text-[var(--wp-text-secondary)] mt-0.5 leading-relaxed">
                   Allow the task planner to surface your profile to task owners whose specifications
@@ -1091,11 +1717,10 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <FileCheck className="h-4 w-4 text-[var(--wp-accent)]" />
-              Execution &amp; Verification Preferences
+              Work progress &amp; revision preferences
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Operational preferences for deliverables, intermediate reporting, and revision
-              handling.
+              Choose how you share progress, review context, and revision updates.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 grid gap-5">
@@ -1141,7 +1766,7 @@ export function ProviderProfileManager() {
 
             <div>
               <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                Preferred Delivery Artifact Format
+                Preferred review-package context
               </label>
               <Input
                 value={deliveryFormat}
@@ -1157,7 +1782,7 @@ export function ProviderProfileManager() {
             {/* Quality Invariant Toggles */}
             <div className="pt-3 border-t border-[var(--wp-border)] space-y-3">
               <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                Verification &amp; Revision Notifications
+                Review &amp; revision notifications
               </span>
 
               <div className="flex items-center gap-3">
@@ -1175,7 +1800,7 @@ export function ProviderProfileManager() {
                   htmlFor="notifyOnVerificationFail"
                   className="text-xs text-[var(--wp-text-primary)] cursor-pointer"
                 >
-                  Notify immediately if deliverable verification fails with unmet criteria evidence.
+                  Notify when a client records a constraint as not met or unclear.
                 </label>
               </div>
 
@@ -1200,9 +1825,8 @@ export function ProviderProfileManager() {
               </div>
 
               <div className="p-3.5 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/50 text-xs text-[var(--wp-text-secondary)] leading-relaxed">
-                <strong className="text-[var(--wp-text-primary)]">Invariant Notice:</strong> Worker
-                preferences cannot disable required verification or bypass objective acceptance
-                criteria once a contract is executed.
+                Review preferences organize communication only; the agreed scope and recorded review
+                decisions remain attached to the task.
               </div>
             </div>
           </CardContent>
@@ -1215,116 +1839,23 @@ export function ProviderProfileManager() {
           <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-              Payment integration is not active
+              PayPal service payments
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Professional profiles do not require or expose a payout destination during lifecycle
-              validation.
+              Use PayPal seller onboarding for project payments and paid review fees.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 sm:p-6 space-y-4 text-sm text-[var(--wp-text-secondary)]">
             <p>
-              Current payment states are simulated, so no funds are held and no payout occurs. A
-              future marketplace design requires separate professional onboarding, explicit buyer
-              approval, webhooks, reconciliation, and payment-provider consent.
+              Review your PayPal connection, seller readiness, and payment records from the payment
+              settings.
             </p>
             <Button asChild variant="outline" size="sm" className="text-xs font-medium gap-1.5">
-              <Link href="/payments">
-                <span>View payment records</span>
+              <Link href="/settings?tab=paypal">
+                <span>Open PayPal settings</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Legacy payout form retained temporarily for migration reference. */}
-      {Boolean(0) && activeSection === "payout" && (
-        <Card className="border-[var(--wp-border)] shadow-xs overflow-hidden">
-          <CardHeader className="bg-[var(--wp-surface-subtle)]/50 border-b border-[var(--wp-border)] pb-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-[var(--wp-accent)]" />
-              Payout Configuration
-            </CardTitle>
-            <CardDescription className="text-xs sm:text-sm text-[var(--wp-text-secondary)]">
-              Configure where eligible payments are transferred upon verified proof and policy
-              confirmation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 sm:p-6 grid gap-5">
-            {/* Payout Status Indicator */}
-            <div
-              className={cn(
-                "p-4 rounded-xl border flex items-start gap-3.5",
-                isPayoutConfigured
-                  ? "border-[var(--wp-success)]/40 bg-[var(--wp-success-subtle)]/30"
-                  : "border-[var(--wp-danger)]/40 bg-[var(--wp-danger-subtle)]/30",
-              )}
-            >
-              {isPayoutConfigured ? (
-                <ShieldCheck className="h-5 w-5 text-[var(--wp-success)] shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-[var(--wp-danger)] shrink-0 mt-0.5" />
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-xs text-[var(--wp-text-primary)]">
-                    {isPayoutConfigured
-                      ? "Payout Destination Configured"
-                      : "Payout Configuration Incomplete"}
-                  </span>
-                  <StatusBadge tone={isPayoutConfigured ? "success" : "danger"}>
-                    {isPayoutConfigured ? "READY FOR SETTLEMENT" : "PAYOUT BLOCKED"}
-                  </StatusBadge>
-                </div>
-                <p className="text-xs text-[var(--wp-text-secondary)] mt-1 leading-relaxed">
-                  {isPayoutConfigured
-                    ? `Eligible settlement captures will disburse to ${payoutEmail} via PayPal Payments v2 once acceptance verification passes with zero defects.`
-                    : "Please specify a valid PayPal email address. You may still accept tasks, but funds cannot be disbursed until this address is provided."}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-[var(--wp-text-primary)] block mb-1">
-                PayPal Payout Destination Email
-              </label>
-              <div className="relative max-w-md">
-                <span className="absolute left-3 top-2.5 text-xs text-[var(--wp-text-secondary)]">
-                  <Mail className="h-3.5 w-3.5" />
-                </span>
-                <Input
-                  type="email"
-                  value={payoutEmail}
-                  onChange={(e) => {
-                    setPayoutEmail(e.target.value);
-                    markDirty();
-                  }}
-                  placeholder="e.g. worker.paypal@example.com"
-                  className="pl-8 h-9 text-xs bg-white"
-                />
-              </div>
-              <span className="text-[11px] text-[var(--wp-text-secondary)] mt-1 block">
-                Must be an active PayPal account able to receive incoming business settlements.
-              </span>
-            </div>
-
-            <div className="pt-3 border-t border-[var(--wp-border)] flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold text-[var(--wp-text-primary)] block">
-                  Settlement History &amp; Payment Ledger
-                </span>
-                <span className="text-[11px] text-[var(--wp-text-secondary)] block">
-                  Inspect past disbursements, authorization holds, and audit receipts.
-                </span>
-              </div>
-              <Button asChild variant="outline" size="sm" className="text-xs font-medium gap-1.5">
-                <Link href="/payments">
-                  <span>View Ledger</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}

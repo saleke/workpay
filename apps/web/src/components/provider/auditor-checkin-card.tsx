@@ -27,7 +27,9 @@ interface AuditorCheckinCardProps {
 
 export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorCheckinCardProps) {
   const [audit, setAudit] = useState<TaskAuditStatusDto | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<"ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED">("ON_TRACK");
+  const [selectedStatus, setSelectedStatus] = useState<"ON_TRACK" | "MILESTONE_DRAFT" | "BLOCKED">(
+    "ON_TRACK",
+  );
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -76,9 +78,7 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">
-              Autonomous Auditor Check-in
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">Progress update</CardTitle>
           </div>
           {audit?.riskLevel === "ATTENTION" ? (
             <StatusBadge tone="attention">Attention Flagged</StatusBadge>
@@ -89,7 +89,7 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
           )}
         </div>
         <CardDescription className="text-xs sm:text-sm">
-          Keep the delivery on schedule. Submit continuous status updates so the Autonomous Auditor and Task Owner have full visibility into your progress.
+          Share a progress update with the client between review checkpoints.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -159,8 +159,8 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
                 }`}
               />
               <div>
-                <div className="text-xs font-semibold">Milestone Draft</div>
-                <div className="text-[11px] opacity-80">Draft ready to review</div>
+                <div className="text-xs font-semibold">Ready for checkpoint</div>
+                <div className="text-[11px] opacity-80">Client may open a review</div>
               </div>
             </button>
 
@@ -197,9 +197,7 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
           />
         </div>
 
-        {errorMessage ? (
-          <p className="text-xs text-destructive">{errorMessage}</p>
-        ) : null}
+        {errorMessage ? <p className="text-xs text-destructive">{errorMessage}</p> : null}
 
         {successMessage ? (
           <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
@@ -217,13 +215,15 @@ export function AuditorCheckinCard({ taskId, onCheckinSubmitted }: AuditorChecki
             className="w-full sm:w-auto"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
-            {submitting ? "Submitting Check-in..." : "Submit Auditor Check-in"}
+            {submitting ? "Sharing update..." : "Share progress update"}
           </Button>
 
           {audit?.latestCheckin ? (
             <div className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
               <Clock className="h-3 w-3" />
-              <span>Last: {audit.latestCheckin.status} ({formatDateTime(audit.latestCheckin.createdAt)})</span>
+              <span>
+                Last: {audit.latestCheckin.status} ({formatDateTime(audit.latestCheckin.createdAt)})
+              </span>
             </div>
           ) : null}
         </div>

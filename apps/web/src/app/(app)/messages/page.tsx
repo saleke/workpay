@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { ConversationThread } from "@/components/task-room/conversation-thread";
+import { WorkCommitmentPanel } from "@/components/commitments/work-commitment-panel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -79,6 +80,18 @@ function conversationState(conversation: MessageInboxConversationDto): {
   }
   if (conversation.status === "OPEN" && conversation.hasWorkExecution) {
     return { label: "Work assigned", tone: "text-blue-800 bg-blue-50" };
+  }
+  if (conversation.workCommitmentStatus === "AWAITING_PROVIDER") {
+    return { label: "Work proposed · professional deciding", tone: "text-amber-900 bg-amber-50" };
+  }
+  if (conversation.workCommitmentStatus === "AWAITING_CLIENT") {
+    return {
+      label: "Professional accepted · client decision",
+      tone: "text-emerald-900 bg-emerald-50",
+    };
+  }
+  if (conversation.workCommitmentStatus === "CONFIRMED") {
+    return { label: "Mutual commitment confirmed", tone: "text-emerald-900 bg-emerald-50" };
   }
   if (conversation.status === "OPEN") {
     return { label: "Discussion · no work assigned", tone: "text-sky-800 bg-sky-50" };
@@ -319,7 +332,11 @@ function MessagesPageContent() {
     selectedSummary?.status === "CONTACT_PENDING" &&
     selectedConversation?.providerUserId === currentUserId;
   const selectedIsOpenDiscussion =
-    selectedSummary?.status === "OPEN" && !selectedSummary.hasWorkExecution;
+    selectedSummary?.status === "OPEN" &&
+    !selectedSummary.hasWorkExecution &&
+    !["AWAITING_PROVIDER", "AWAITING_CLIENT", "CONFIRMED"].includes(
+      selectedSummary.workCommitmentStatus ?? "",
+    );
 
   return (
     <div className="space-y-5">
@@ -332,8 +349,8 @@ function MessagesPageContent() {
             Messages
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--wp-text-secondary)]">
-            Find people first. Each chat stays connected to its work, but messaging does not assign
-            or commit anyone to work.
+            Find people first. Messaging stays non-binding; explicit two-party work acceptance lives
+            in each thread's Work context.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--wp-text-secondary)]">
@@ -792,10 +809,21 @@ function MessagesPageContent() {
                       <Sparkles className="h-3.5 w-3.5" /> Discussion only
                     </p>
                     <p className="mt-1 text-xs leading-5 text-sky-900">
-                      Messages do not change the scope or assign the work. Both sides must complete
-                      the separate Tenfo assignment flow.
+                      Messages do not assign work. Open the commitment checkpoint below to send
+                      exact terms, accept them, and confirm the final professional.
                     </p>
                   </div>
+                ) : null}
+
+                {selectedSummary.status === "OPEN" ? (
+                  <WorkCommitmentPanel
+                    conversation={selectedConversation}
+                    currentUserId={currentUserId}
+                    onChanged={() => {
+                      setRefreshVersion((version) => version + 1);
+                      void refreshInbox();
+                    }}
+                  />
                 ) : null}
 
                 <div className="space-y-2">

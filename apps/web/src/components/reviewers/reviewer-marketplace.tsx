@@ -50,12 +50,13 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
         </p>
         <h1 className="text-2xl font-semibold text-[var(--charcoal)]">Find a reviewer</h1>
         <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-          Compare independent professionals by task-domain fit and the evidence they provide.
-          Recommendations are not quality ratings; Tenfo does not verify profile claims or judge the
-          work.
+          Compare review domains, methods, turnaround, fee, and supporting experience.
         </p>
-        <Link href="/reviewers/profile" className="inline-flex text-sm font-medium underline">
-          Offer independent review services
+        <Link
+          href="/settings?tab=work-preferences&section=reviews"
+          className="inline-flex text-sm font-medium underline"
+        >
+          Set up paid reviews in Work Profile
         </Link>
       </header>
 
@@ -245,6 +246,9 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
                               Typically {reviewer.typicalTurnaroundDays} day(s)
                             </Badge>
                           ) : null}
+                          <Badge variant="outline">
+                            {reviewer.feeMode === "PAYPAL" ? "PayPal fee" : "Direct fee"}
+                          </Badge>
                         </div>
 
                         <div className="space-y-3">
@@ -276,7 +280,7 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
                                   <p className="mt-1 text-muted-foreground">{item.description}</p>
                                   {item.issuer ? (
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                      Issuer named by reviewer: {item.issuer}
+                                      Issuer: {item.issuer}
                                     </p>
                                   ) : null}
                                   {item.url ? (
@@ -286,7 +290,7 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
                                       rel="noreferrer"
                                       className="mt-1 inline-block text-xs underline"
                                     >
-                                      Open reviewer-supplied link
+                                      Open supporting link
                                     </a>
                                   ) : null}
                                 </li>
@@ -297,16 +301,7 @@ export function ReviewerMarketplace({ taskId }: { taskId?: string }) {
                               No supporting evidence supplied.
                             </p>
                           )}
-                          <p className="mt-2 text-xs text-amber-800">
-                            Reviewer-supplied information is not independently verified by Tenfo.
-                            Confirm expertise, evidence, and conflicts directly before engaging.
-                          </p>
                         </div>
-
-                        <p className="border-t pt-3 text-xs text-muted-foreground">
-                          You choose whether to contact this reviewer. Tenfo has not contacted or
-                          engaged them.
-                        </p>
                         {reviewer.publicContactUrl ? (
                           <a
                             href={reviewer.publicContactUrl}

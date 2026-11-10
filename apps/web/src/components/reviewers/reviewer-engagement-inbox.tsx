@@ -1,51 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, BriefcaseBusiness, Check, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  decideIndependentReview,
-  listReviewerEngagements,
-  submitIndependentReviewReport,
-} from "@/lib/api/endpoints";
-import type {
-  IndependentReviewEngagementDto,
-  IndependentReviewFindingDto,
-} from "@/lib/api/types";
-
-type FindingDraft = {
-  outcome: IndependentReviewFindingDto["outcome"];
-  rationale: string;
-  evidenceDescription: string;
-  evidenceUrl: string;
-};
-
-function emptyFindingDraft(): FindingDraft {
-  return {
-    outcome: "UNCERTAIN",
-    rationale: "",
-    evidenceDescription: "",
-    evidenceUrl: "",
-  };
-}
+import { decideIndependentReview, listReviewerEngagements } from "@/lib/api/endpoints";
+import type { IndependentReviewEngagementDto } from "@/lib/api/types";
 
 export function ReviewerEngagementInbox() {
   const [engagements, setEngagements] = useState<IndependentReviewEngagementDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmNoConflict, setConfirmNoConflict] = useState(false);
-  const [reportId, setReportId] = useState<string | null>(null);
-  const [reportRationale, setReportRationale] = useState("");
-  const [findings, setFindings] = useState<Record<string, FindingDraft>>({});
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(async () => {
     const response = await listReviewerEngagements();
     setLoading(false);
-    if (response.error) {
-      setError(response.error.message);
-      return;
-    }
-    setEngagements(response.data ?? []);
+    if (response.error) setError(response.error.message);
+    else setEngagements(response.data ?? []);
   }, []);
 
   useEffect(() => {
@@ -56,362 +29,146 @@ export function ReviewerEngagementInbox() {
     engagement: IndependentReviewEngagementDto,
     decision: "accept" | "decline",
   ) => {
-    setBusy(true);
+    setBusyId(engagement.id);
     setError(null);
     const response = await decideIndependentReview(engagement.conversationId, engagement.id, {
       decision,
-      ...(decision === "accept" ? { confirmNoConflict } : {}),
+      ...(decision === "accept" ? { confirmNoConflict: true } : {}),
     });
-    setBusy(false);
+    setBusyId(null);
     if (response.error) {
       setError(response.error.message);
       return;
     }
-    setConfirmNoConflict(false);
     await refresh();
   };
 
-  const startReport = (engagement: IndependentReviewEngagementDto) => {
-    setReportId(engagement.id);
-    setReportRationale("");
-    setFindings(
-      Object.fromEntries(
-        engagement.requirementKeys.map((key) => [
-          key,
-          emptyFindingDraft(),
-        ]),
-      ),
-    );
-  };
-
-  const submitReport = async (engagement: IndependentReviewEngagementDto) => {
-    const submission = engagement.latestSubmission;
-    if (!submission) return;
-    setBusy(true);
-    setError(null);
-    const response = await submitIndependentReviewReport(engagement.conversationId, engagement.id, {
-      submissionId: submission.id,
-      contractVersion: engagement.contractVersion,
-      contractHash: engagement.contractHash,
-      rationale: reportRationale,
-      findings: engagement.requirementKeys.map((requirementKey) => {
-        const finding = findings[requirementKey] ?? emptyFindingDraft();
-        return {
-          requirementKey,
-          outcome: finding.outcome,
-          rationale: finding.rationale,
-          evidence: [
-            {
-              description: finding.evidenceDescription,
-              ...(finding.evidenceUrl.trim() ? { url: finding.evidenceUrl.trim() } : {}),
-            },
-          ],
-        };
-      }),
-    });
-    setBusy(false);
-    if (response.error) {
-      setError(response.error.message);
-      return;
-    }
-    setReportId(null);
-    await refresh();
-  };
-
-  if (loading) return <p className="text-sm text-muted-foreground">Loading review engagements…</p>;
+  if (loading) return <p className="text-sm text-slate-500">Loading review engagements…</p>;
 
   return (
     <div className="space-y-4">
       {engagements.length === 0 ? (
-        <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-          No independent review invitations or engagements yet. A task participant must agree the
-          review terms before you can accept an assignment.
-        </p>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <BriefcaseBusiness className="mx-auto h-7 w-7 text-slate-400" />
+          <p className="mt-2 text-sm font-semibold text-slate-900">No review engagements yet</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Agreed review invitations and active review packages will appear here.
+          </p>
+        </div>
       ) : null}
       {engagements.map((engagement) => {
-        const isPending = engagement.status === "AWAITING_REVIEWER";
-        const isEngaged = engagement.status === "ENGAGED";
-        const submission = engagement.latestSubmission;
-        const reportOpen = reportId === engagement.id;
+        const pending = engagement.status === "AWAITING_REVIEWER";
+        const ready = engagement.status === "ENGAGED" && engagement.workReviewId;
         return (
-          <article key={engagement.id} className="space-y-4 rounded-lg border border-border p-4">
-            <header>
-              <p className="font-semibold">
-                {engagement.contractContext?.title ?? "Review request"} · Contract v
-                {engagement.contractVersion}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {engagement.domains.join(", ")} · {engagement.status.replaceAll("_", " ")}
-              </p>
-            </header>
-            {engagement.contractContext ? (
-              <section className="space-y-3 rounded-md bg-muted/40 p-3" aria-label="Agreed contract context">
+          <article
+            key={engagement.id}
+            className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_20px_55px_-48px_rgba(15,23,42,0.9)]"
+          >
+            <div className="border-b border-slate-200 bg-[linear-gradient(120deg,#f5f3ff_0%,#ffffff_72%)] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-medium">Agreed work and review criteria</h3>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">
-                    {engagement.contractContext.summary}
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-violet-700">
+                    Paid review engagement
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                    {engagement.contractContext?.title ?? "Review engagement"}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    {engagement.domains.join(" · ")} · contract v{engagement.contractVersion}
                   </p>
                 </div>
-                <ul className="space-y-2 text-sm">
-                  {engagement.contractContext.requirements.map((requirement) => (
-                    <li key={requirement.key} className="rounded border bg-background p-2">
-                      <p className="font-medium">{requirement.key}: {requirement.statement}</p>
-                      {requirement.reviewInstructions
-                        .filter((rule) => rule.method === "HUMAN_REVIEW" && rule.instructions)
-                        .map((rule, index) => (
-                          <p key={`${requirement.key}-${index}`} className="mt-1 text-muted-foreground">
-                            Review instructions: {rule.instructions}
-                          </p>
-                        ))}
-                    </li>
-                  ))}
-                </ul>
-                {engagement.contractContext.included.length ? (
-                  <p className="text-sm">
-                    <span className="font-medium">Included scope:</span>{" "}
-                    {engagement.contractContext.included.join("; ")}
-                  </p>
-                ) : null}
-                {engagement.contractContext.excluded.length ? (
-                  <p className="text-sm">
-                    <span className="font-medium">Excluded scope:</span>{" "}
-                    {engagement.contractContext.excluded.join("; ")}
-                  </p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  This material is the contract version explicitly accepted for this engagement
-                  (SHA-256 {engagement.contractHash}).
-                </p>
-              </section>
-            ) : null}
-            <dl className="grid gap-2 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-muted-foreground">Agreed criteria</dt>
-                <dd>
-                  {engagement.contractContext?.requirements
-                    .map((requirement) => requirement.key)
-                    .join(", ") ?? engagement.requirementKeys.join(", ")}
-                </dd>
+                <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-900">
+                  {engagement.status.replaceAll("_", " ").toLowerCase()}
+                </span>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Fee arrangement</dt>
-                <dd>
-                  {engagement.feePayer}
-                  {engagement.feeMinor !== null
-                    ? ` · ${engagement.feeCurrency} ${(engagement.feeMinor / 100).toFixed(2)}`
-                    : ""}
-                </dd>
-              </div>
-            </dl>
-            {isPending ? (
-              <div className="space-y-3 rounded-md bg-muted/40 p-3">
-                <p className="text-sm">
-                  Accept only if these criteria, terms, and your independence are acceptable. A
-                  reviewer report is attributable and may affect contractual acceptance.
-                </p>
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={confirmNoConflict}
-                    onChange={(event) => setConfirmNoConflict(event.target.checked)}
-                    className="mt-1"
-                  />
-                  <span>I have reviewed relevant relationships and confirm no undisclosed conflict.</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    disabled={busy || !confirmNoConflict}
-                    onClick={() => void respond(engagement, "accept")}
-                  >
-                    Accept review assignment
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void respond(engagement, "decline")}
-                  >
-                    Decline
-                  </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 text-xs sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-900">Review focus</p>
+                  <p className="mt-1 leading-5 text-slate-600">
+                    {engagement.requirementKeys.join(", ")}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-900">Fee arrangement</p>
+                  <p className="mt-1 leading-5 text-slate-600">
+                    {engagement.feePayer}
+                    {engagement.feeMinor !== null
+                      ? ` · ${engagement.feeCurrency} ${(engagement.feeMinor / 100).toFixed(2)}`
+                      : " · arranged directly"}
+                  </p>
                 </div>
               </div>
-            ) : null}
-            {isEngaged && submission ? (
-              <div className="space-y-3">
-                <p className="text-sm">
-                  Current submission available for review
-                  {submission.submittedAt ? ` · ${new Date(submission.submittedAt).toLocaleString()}` : ""}
-                  . Your findings must address every criterion and include evidence.
-                </p>
-                {submission.notes ? (
-                  <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
-                    Professional’s submission notes: {submission.notes}
-                  </p>
-                ) : null}
-                {submission.artifacts.length > 0 ? (
-                  <ul className="space-y-2 rounded-md border p-3 text-sm" aria-label="Submitted deliverables">
-                    {submission.artifacts.map((artifact) => (
-                      <li key={artifact.id} className="flex flex-wrap items-center justify-between gap-2">
-                        <span>
-                          {artifact.filename} · {(artifact.sizeBytes / 1024).toFixed(1)} KB · {artifact.type}
-                        </span>
-                        <a
-                          href={`/api/v1/reviewer/engagements/${encodeURIComponent(engagement.id)}/artifacts/${encodeURIComponent(artifact.id)}`}
-                          className="font-medium text-primary underline underline-offset-2"
-                        >
-                          Download securely
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-destructive">
-                    The submission has no attached deliverables, so review cannot proceed.
-                  </p>
-                )}
-                {!reportOpen ? (
-                  <Button
-                    type="button"
-                    disabled={submission.artifacts.length === 0}
-                    onClick={() => startReport(engagement)}
-                  >
-                    Prepare review report
-                  </Button>
-                ) : (
-                  <div className="space-y-4 border-t border-border pt-4">
-                    <label className="grid gap-1 text-sm">
-                      <span>Overall rationale (at least 20 characters)</span>
-                      <textarea
-                        rows={3}
-                        value={reportRationale}
-                        onChange={(event) => setReportRationale(event.target.value)}
-                        className="rounded-md border border-input bg-background px-3 py-2"
-                      />
-                    </label>
-                    {engagement.requirementKeys.map((key) => {
-                      const finding = findings[key] ?? emptyFindingDraft();
-                      const criterion = engagement.contractContext?.requirements.find(
-                        (requirement) => requirement.key === key,
-                      );
-                      return (
-                        <fieldset key={key} className="space-y-2 rounded-md border p-3">
-                          <legend className="px-1 text-sm font-medium">
-                            {key}
-                            {criterion ? ` — ${criterion.statement}` : ""}
-                          </legend>
-                          <label className="grid gap-1 text-sm">
-                            <span>Finding</span>
-                            <select
-                              value={finding.outcome}
-                              onChange={(event) =>
-                                setFindings((current) => ({
-                                  ...current,
-                                  [key]: {
-                                    ...(current[key] ?? emptyFindingDraft()),
-                                    outcome: event.target.value as FindingDraft["outcome"],
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-input bg-background px-3 py-2"
-                            >
-                              <option value="PASS">Meets criterion</option>
-                              <option value="FAIL">Does not meet criterion</option>
-                              <option value="UNCERTAIN">Unable to determine</option>
-                            </select>
-                          </label>
-                          <label className="grid gap-1 text-sm">
-                            <span>Reason (at least 5 characters)</span>
-                            <textarea
-                              rows={2}
-                              value={finding.rationale}
-                              onChange={(event) =>
-                                setFindings((current) => ({
-                                  ...current,
-                                  [key]: {
-                                    ...(current[key] ?? emptyFindingDraft()),
-                                    rationale: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-input bg-background px-3 py-2"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-sm">
-                            <span>Evidence description (at least 5 characters)</span>
-                            <input
-                              value={finding.evidenceDescription}
-                              onChange={(event) =>
-                                setFindings((current) => ({
-                                  ...current,
-                                  [key]: {
-                                    ...(current[key] ?? emptyFindingDraft()),
-                                    evidenceDescription: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-input bg-background px-3 py-2"
-                            />
-                          </label>
-                          <label className="grid gap-1 text-sm">
-                            <span>Evidence link (optional, HTTPS only)</span>
-                            <input
-                              type="url"
-                              value={finding.evidenceUrl}
-                              onChange={(event) =>
-                                setFindings((current) => ({
-                                  ...current,
-                                  [key]: {
-                                    ...(current[key] ?? emptyFindingDraft()),
-                                    evidenceUrl: event.target.value,
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-input bg-background px-3 py-2"
-                            />
-                          </label>
-                        </fieldset>
-                      );
-                    })}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        disabled={
-                          busy ||
-                          reportRationale.trim().length < 20 ||
-                          engagement.requirementKeys.some(
-                            (key) =>
-                              (findings[key] ?? emptyFindingDraft()).rationale.trim().length < 5 ||
-                              (findings[key] ?? emptyFindingDraft()).evidenceDescription.trim()
-                                .length < 5,
-                          )
-                        }
-                        onClick={() => void submitReport(engagement)}
-                      >
-                        Submit attributable report
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => setReportId(null)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
+                {engagement.brief}
+              </div>
+              {pending ? (
+                <div className="space-y-3 rounded-xl border border-violet-200 bg-violet-50 p-4">
+                  <label className="flex items-start gap-2 text-xs leading-5 text-violet-950">
+                    <input
+                      type="checkbox"
+                      checked={confirmed[engagement.id] ?? false}
+                      onChange={(event) =>
+                        setConfirmed((current) => ({
+                          ...current,
+                          [engagement.id]: event.target.checked,
+                        }))
+                      }
+                      className="mt-1 h-4 w-4 accent-violet-700"
+                    />
+                    I reviewed the parties, scope, and known relationships and confirm no
+                    undisclosed conflict.
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={busyId === engagement.id || !confirmed[engagement.id]}
+                      onClick={() => void respond(engagement, "accept")}
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Accept engagement
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={busyId === engagement.id}
+                      onClick={() => void respond(engagement, "decline")}
+                    >
+                      Decline
+                    </Button>
                   </div>
-                )}
-              </div>
-            ) : null}
-            {engagement.reports.length ? (
-              <p className="text-sm text-muted-foreground">
-                Report submitted: {engagement.reports.at(-1)?.outcome}
-              </p>
-            ) : null}
+                </div>
+              ) : null}
+              {ready ? (
+                <Link
+                  href={`/reviewer/reviews/${encodeURIComponent(engagement.workReviewId!)}`}
+                  className="inline-flex min-h-11 w-full items-center justify-between rounded-xl bg-violet-800 px-4 text-sm font-semibold text-white transition hover:bg-violet-900"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Check className="h-4 w-4" /> Open review package
+                  </span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : engagement.status === "ENGAGED" ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  Engagement accepted. The client can attach you when a review package is ready.
+                </p>
+              ) : engagement.status === "AWAITING_FEE_AUTHORIZATION" ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Your engagement is accepted. It will become active after the agreed fee approvals
+                  are complete.
+                </p>
+              ) : null}
+            </div>
           </article>
         );
       })}
-      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+      {error ? (
+        <p
+          className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

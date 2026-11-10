@@ -44,9 +44,9 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
 
   const phaseLabels: Record<TaskAuditStatusDto["phase"], string> = {
     KICKOFF: "Phase 1: Kickoff & Alignment",
-    PROGRESS_AUDIT: "Phase 2: Milestone Execution & Progress Audit",
+    PROGRESS_AUDIT: "Phase 2: Ongoing work",
     CRITICAL_PATH: "Phase 3: Critical Path Delivery",
-    FINAL_COUNTDOWN: "Phase 4: Final Countdown & Pre-verification",
+    FINAL_COUNTDOWN: "Phase 4: Delivery window",
   };
 
   const riskBadge = (risk: TaskAuditStatusDto["riskLevel"]) => {
@@ -95,9 +95,7 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">
-              Autonomous Auditor &amp; Follow-up Monitor
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">Progress and timing</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             {audit ? riskBadge(audit.riskLevel) : null}
@@ -113,8 +111,7 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
           </div>
         </div>
         <CardDescription className="text-xs sm:text-sm">
-          Tenfo does not wait passively. The Autonomous Auditor actively tracks deadline burn-down,
-          collects milestone check-ins, and escalates early if delivery risks appear.
+          Follow timing and professional progress updates between review checkpoints.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -156,7 +153,7 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
             <div className="grid gap-2">
               <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                <span>Specialist Check-in Feed</span>
+                <span>Professional progress updates</span>
               </div>
 
               {audit.checkins.length === 0 ? (
@@ -194,9 +191,7 @@ export function AuditorMonitorCard({ taskId }: AuditorMonitorCardProps) {
             </div>
           </>
         ) : (
-          <div className="text-xs text-muted-foreground py-2">
-            Synchronizing auditor telemetry...
-          </div>
+          <div className="text-xs text-muted-foreground py-2">Loading self-reported progress…</div>
         )}
       </CardContent>
     </Card>

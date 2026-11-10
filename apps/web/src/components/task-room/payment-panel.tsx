@@ -23,8 +23,8 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <Wallet className="h-4 w-4 text-primary" /> Payment activity
           </CardTitle>
           <CardDescription>
-            No simulated payment record exists yet. Tenfo does not hold, charge, or pay funds in
-            this validation environment.
+            No payment record exists yet. Evaluator accounts use simulation; authenticated member
+            accounts require linked PayPal buyer and professional seller accounts.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -38,6 +38,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
   const decision = payment.latestDecision;
   const isCaptured = payment.status === "CAPTURED";
   const isAuthorized = payment.status === "AUTHORIZED";
+  const isFake = payment.mode === "FAKE";
 
   return (
     <div className="grid gap-4">
@@ -47,10 +48,13 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <ShieldCheck className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Simulated capture recorded</div>
+            <div className="font-semibold text-base">
+              {isFake ? "Simulated capture recorded" : "PayPal capture completed"}
+            </div>
             <p className="mt-0.5 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              Policy recorded a simulated capture for {amount} after buyer approval. No funds were
-              charged or paid.
+              {isFake
+                ? `Policy recorded a simulated capture for ${amount} after buyer approval. No funds were charged or paid.`
+                : `PayPal captured ${amount} after the exact buyer review gate and routed it to the onboarded professional merchant.`}
             </p>
           </div>
         </div>
@@ -60,10 +64,13 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             <Lock className="h-4 w-4" />
           </div>
           <div>
-            <div className="font-semibold text-base">Simulated authorization recorded</div>
+            <div className="font-semibold text-base">
+              {isFake ? "Simulated authorization recorded" : "PayPal authorization active"}
+            </div>
             <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-              The policy model recorded authorization for {amount}. This is not a hold and no funds
-              moved. Buyer review remains required.
+              {isFake
+                ? `The policy model recorded authorization for ${amount}. This is not a hold and no funds moved.`
+                : `The buyer approved a PayPal authorization for ${amount}. Capture remains blocked until exact buyer acceptance.`}
             </p>
           </div>
         </div>
@@ -80,8 +87,9 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
             </StatusBadge>
           </div>
           <CardDescription className="mt-0.5">
-            These are validation-only policy states. No PayPal account, hold, charge, payout, or
-            transfer is involved.
+            {isFake
+              ? "This evaluator payment is deterministic simulation only."
+              : "This payment uses explicit PayPal account linking, order approval, authorization, and review-gated capture."}
           </CardDescription>
         </CardHeader>
 
@@ -102,9 +110,11 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
                 Environment
               </span>
               <span className="text-xs font-mono font-semibold text-foreground mt-1 block truncate">
-                Simulation only
+                {isFake ? "Evaluator simulation" : payment.mode.replace("PAYPAL_", "PayPal ")}
               </span>
-              <span className="text-[11px] text-muted-foreground">No live gateway account</span>
+              <span className="text-[11px] text-muted-foreground">
+                {isFake ? "No gateway account" : "Persisted payment mode"}
+              </span>
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
@@ -116,7 +126,9 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
                   ? "Policy authorized"
                   : payment.status.replaceAll("_", " ")}
               </span>
-              <span className="text-[11px] text-muted-foreground">No funds held</span>
+              <span className="text-[11px] text-muted-foreground">
+                {isFake ? "No funds held" : "PayPal authorization lifecycle"}
+              </span>
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card p-3.5 shadow-xs">
@@ -124,7 +136,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
                 Release gate
               </span>
               <span className="text-xs font-semibold text-foreground mt-1 block">
-                Human approval required
+                Client approval required
               </span>
               <span className="text-[11px] text-muted-foreground">Evidence + client decision</span>
             </div>
@@ -184,7 +196,7 @@ export function PaymentPanel({ payment }: { payment: PaymentDto | null }) {
 
                 <div className="rounded-lg border border-border/60 bg-card p-3">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Human gate
+                    Review gate
                   </div>
                   <div className="mt-1 text-sm font-medium text-foreground">
                     {decision.result === "ALLOW" ? "Simulation allowed" : "Waiting / blocked"}

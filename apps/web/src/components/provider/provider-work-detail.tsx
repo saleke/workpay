@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { formatMinorMoney } from "@/lib/format";
-import { acceptProviderWork, startProviderWork, submitDeliverable } from "@/lib/api/endpoints";
+import { acceptProviderWork, startProviderWork } from "@/lib/api/endpoints";
 import type { ProviderWorkDto } from "@/lib/api/types";
+import { ProviderReviewContext } from "./provider-review-context";
 
 function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -19,8 +20,6 @@ export function ProviderWorkDetail({
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const accept = useCallback(async () => {
     setBusy("accept");
@@ -45,25 +44,6 @@ export function ProviderWorkDetail({
       onChanged();
     }
   }, [work.executionId, onChanged]);
-
-  const submit = useCallback(async () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError("Please choose a file to submit.");
-      return;
-    }
-    setBusy("submit");
-    setError(null);
-    const res = await submitDeliverable(work.executionId, file, note.trim(), newIdempotencyKey());
-    setBusy(null);
-    if (res.error) {
-      setError("Submission could not be recorded. Please try again.");
-    } else {
-      setNote("");
-      if (fileRef.current) fileRef.current.value = "";
-      onChanged();
-    }
-  }, [work.executionId, note, onChanged]);
 
   const isAccepted = work.status === "COMPLETED";
   const moneyAmount = formatMinorMoney(work.pay);
@@ -149,51 +129,39 @@ export function ProviderWorkDetail({
                   <span className="mt-1 block">{work.revisionReason}</span>
                 </div>
               ) : null}
-              <div className="sheet-meta">Submit deliverable for verification</div>
-              <div>
-                <label htmlFor="deliverable-file" className="lbl block mb-1">
-                  Select deliverable file
-                </label>
-                <input
-                  id="deliverable-file"
-                  type="file"
-                  ref={fileRef}
-                  className="text-sm font-serif file:mr-3 file:py-1.5 file:px-3 file:rounded-[var(--radius-control)] file:border file:border-[var(--ink)] file:text-xs file:font-sans file:bg-[var(--ink)] file:text-[var(--paper)] hover:file:opacity-90 cursor-pointer"
-                />
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950">
+                <strong className="block">Keep progress connected to the actual work.</strong>
+                <p className="mt-1 leading-6 text-indigo-900">
+                  Continue the real work wherever it lives: a website, repository, meeting, live
+                  system, document, or physical setting. The client can open a checkpoint or final
+                  review when useful.
+                </p>
               </div>
-              <div>
-                <label htmlFor="submission-note" className="lbl block mb-1">
-                  Notes on submission
-                </label>
-                <textarea
-                  id="submission-note"
-                  rows={3}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Explain how requirements were satisfied..."
-                  className="w-full bg-transparent border-0 border-b border-[var(--paper-rule)] focus:border-[var(--ink)] text-[var(--text-body)] font-serif text-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:italic focus:outline-none py-1 resize-y"
-                />
-              </div>
-              <div className="sheet-actions mt-2 pt-2 border-t-0">
-                <button type="button" onClick={submit} disabled={busy === "submit"} className="btn">
-                  {busy === "submit" ? "Submitting..." : "Submit for verification"}
-                </button>
-                <span className="lbl">
-                  Submitting work does not complete the payment simulation; buyer approval remains
-                  required.
-                </span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-[var(--paper-rule)] p-3">
+                  <div className="lbl">Accepted checkpoints</div>
+                  <div className="mt-1 text-xl font-semibold">{work.acceptedCheckpointCount}</div>
+                </div>
+                <div className="rounded-xl border border-[var(--paper-rule)] p-3">
+                  <div className="lbl">Current review</div>
+                  <div className="mt-1 text-sm font-semibold">Waiting for client to open</div>
+                </div>
               </div>
             </div>
           )}
 
+          {(work.status === "REVIEW_REQUESTED" || work.status === "UNDER_REVIEW") &&
+          work.activeReviewId ? (
+            <ProviderReviewContext reviewId={work.activeReviewId} onChanged={onChanged} />
+          ) : null}
+
           {work.status === "SUBMITTED" && (
             <div>
               <p className="note note-unsure">
-                The submission is recorded. Verification status may still be pending, and the
-                simulated release remains controlled by the approval gate.
+                This work is ready to move into the review workspace.
               </p>
               <p className="lbl mt-2">
-                Automated checks provide evidence only. Buyer review remains the acceptance gate.
+                Continue with the current agreement constraints and review context.
               </p>
             </div>
           )}
@@ -201,8 +169,8 @@ export function ProviderWorkDetail({
           {isAccepted && (
             <div className="flex items-center justify-between">
               <p className="note note-met">
-                The buyer accepted this submitted work. Any simulated release policy is tracked
-                separately from professional delivery.
+                The final work was accepted against the current agreement. Payment release is
+                tracked separately.
               </p>
               <div className="stamp note-met">Delivery accepted</div>
             </div>

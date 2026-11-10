@@ -79,7 +79,7 @@ export default function PaymentsPage() {
     <PageHeader
       eyebrow="Records"
       title="Payment records"
-      description="Review validation-only authorization and capture-policy records. No funds are held, charged, or paid."
+      description="Review PayPal authorization and capture records for member accounts, alongside clearly marked evaluator simulations."
       actions={
         <Link
           href="/intake"
@@ -133,27 +133,27 @@ export default function PaymentsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Simulated authorizations</span>
+            <span>Authorized amounts</span>
             <Lock className="h-4 w-4 text-[var(--amber)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {summary.heldStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Policy-authorized amounts awaiting buyer review. No funds are held.
+            PayPal authorizations and evaluator simulations awaiting review-gated release.
           </p>
         </div>
 
         <div className="workpay-card p-5">
           <div className="flex items-center justify-between text-xs font-medium text-[var(--text-muted)]">
-            <span>Simulated captures</span>
+            <span>Captured amounts</span>
             <CheckCircle2 className="h-4 w-4 text-[var(--green)]" />
           </div>
           <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--charcoal)]">
             {summary.capturedStr}
           </div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Completed policy simulations after final buyer approval. No payout occurred.
+            PayPal captures or evaluator simulations completed after final buyer approval.
           </p>
         </div>
 
@@ -254,7 +254,7 @@ export default function PaymentsPage() {
             let badgeText = paymentStatusLabel(p.status);
             if (isCaptured) {
               badgeBg = "bg-emerald-100 text-emerald-800";
-              badgeText = "Simulation completed";
+              badgeText = p.mode === "FAKE" ? "Simulation completed" : "PayPal captured";
             } else if (isRefunded) {
               badgeBg = "bg-gray-100 text-gray-700";
               badgeText = "Void / refunded";
@@ -297,7 +297,11 @@ export default function PaymentsPage() {
                         Environment
                       </div>
                       <div className="text-xs font-medium text-[var(--charcoal)]">
-                        Validation only
+                        {p.mode === "FAKE"
+                          ? "Evaluator simulation"
+                          : p.mode === "PAYPAL_SANDBOX"
+                            ? "PayPal Sandbox"
+                            : "PayPal Live"}
                       </div>
                     </div>
                   </div>
@@ -344,9 +348,13 @@ export default function PaymentsPage() {
 
                   <div className="pt-2 flex items-center justify-between">
                     <span className="text-[11px] text-[var(--text-muted)]">
-                      {isCaptured
-                        ? "Simulated capture recorded after the approval gate"
-                        : "No funds are held; policy release remains blocked until approval"}
+                      {p.mode === "FAKE"
+                        ? isCaptured
+                          ? "Simulated capture recorded after the approval gate"
+                          : "Evaluator simulation; no funds move"
+                        : isCaptured
+                          ? "PayPal capture completed after the approval gate"
+                          : "PayPal authorization or order state"}
                     </span>
 
                     <Link

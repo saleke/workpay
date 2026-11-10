@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
-import { rankCandidatesByScope } from "@workpay/shared";
+import { rankCandidatesByScope } from "@workpay/shared/provider-relevance";
 import {
   draftFirstContactMessage,
   getTaskConversations,

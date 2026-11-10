@@ -1,4 +1,4 @@
-import type { Money } from "@workpay/shared";
+import type { Money } from "@workpay/shared/money";
 
 /**
  * Response DTOs for the WorkPay `/api/v1` contract.
@@ -22,6 +22,7 @@ export type TaskStatus =
   | "AGREEMENT_READY"
   | "PAYMENT_AUTHORIZATION"
   | "WORK_IN_PROGRESS"
+  | "REVIEW_REQUESTED"
   | "SUBMITTED"
   | "VERIFYING"
   | "AWAITING_CLIENT_REVIEW"
@@ -44,6 +45,9 @@ export type RequirementSource =
 
 export type PaymentStatus =
   | "PENDING"
+  | "ORDER_CREATE_REQUESTED"
+  | "AWAITING_BUYER_APPROVAL"
+  | "ORDER_APPROVED"
   | "AUTHORIZATION_REQUESTED"
   | "AUTHORIZED"
   | "CAPTURE_REQUESTED"
@@ -64,6 +68,8 @@ export type ExecutionStatus =
   | "ASSIGNED"
   | "ACCEPTED"
   | "IN_PROGRESS"
+  | "REVIEW_REQUESTED"
+  | "UNDER_REVIEW"
   | "SUBMITTED"
   | "REVISION_REQUESTED"
   | "COMPLETED"
@@ -236,49 +242,8 @@ export interface ReviewerEvidenceDto {
   provenance?: "REVIEWER_SUPPLIED";
 }
 
-export interface ReviewerProfileDto {
-  id: string;
-  isListed: boolean;
-  available: boolean;
-  offersWork: boolean;
-  offersReview: boolean;
-  acceptsReviewOnly: boolean;
-  reviewAvailability: "AVAILABLE" | "BUSY" | "OFFLINE";
-  reviewNotice: string | null;
-  displayName: string;
-  publicContactUrl: string | null;
-  summary: string;
-  languages: string[];
-  feeMinor: number | null;
-  currency: string;
-  typicalTurnaroundDays: number | null;
-  conflictDisclosureConfirmed: boolean;
-  expertise: ReviewerExpertiseDto[];
-  evidence: ReviewerEvidenceDto[];
-  conflicts: Array<{ username: string | null; displayName: string | null }>;
-}
-
-export interface ReviewerProfileInputDto {
-  isListed: boolean;
-  available: boolean;
-  offersWork: boolean;
-  offersReview: boolean;
-  acceptsReviewOnly: boolean;
-  reviewAvailability: "AVAILABLE" | "BUSY" | "OFFLINE";
-  reviewNotice: string | null;
-  displayName: string;
-  publicContactUrl: string | null;
-  summary: string;
-  languages: string[];
-  feeMinor: number | null;
-  typicalTurnaroundDays: number | null;
-  conflictDisclosureConfirmed: boolean;
-  conflictUsernames: string[];
-  expertise: ReviewerExpertiseDto[];
-  evidence: Array<Omit<ReviewerEvidenceDto, "provenance">>;
-}
-
 export interface ReviewerRecommendationDto {
+  providerId: string;
   userId: string;
   username: string | null;
   displayName: string;
@@ -288,6 +253,8 @@ export interface ReviewerRecommendationDto {
   currency: string;
   languages: string[];
   typicalTurnaroundDays: number | null;
+  feeMode: "PAYPAL" | "DIRECT";
+  paymentReady: boolean;
   matchedDomains: string[];
   matchingExpertise: ReviewerExpertiseDto[];
   evidence: Array<ReviewerEvidenceDto & { id: string }>;
@@ -334,16 +301,23 @@ export interface IndependentReviewEngagementDto {
   buyerUserId: string;
   providerUserId: string;
   reviewerUserId: string;
+  reviewerProviderId: string | null;
+  workReviewId: string | null;
   proposerUserId: string;
   requirementKeys: string[];
   domains: string[];
+  brief: string;
   authority: "ADVISORY";
   feeMinor: number | null;
   feeCurrency: string;
   feePayer: "BUYER" | "PROVIDER" | "SHARED" | "DIRECT";
+  feeMode: "PAYPAL" | "DIRECT";
+  feeStatus: "NOT_REQUIRED" | "PENDING" | "PAID" | "FAILED" | "UNKNOWN";
+  feePaidAt: string | null;
   status:
     | "PROPOSED"
     | "AWAITING_REVIEWER"
+    | "AWAITING_FEE_AUTHORIZATION"
     | "ENGAGED"
     | "INCONCLUSIVE"
     | "CLOSED"
@@ -355,7 +329,6 @@ export interface IndependentReviewEngagementDto {
   reviewerConflictConfirmed: boolean;
   createdAt: string;
   updatedAt: string;
-  reports: IndependentReviewReportDto[];
   contractContext?: {
     title: string;
     summary: string;
@@ -371,24 +344,6 @@ export interface IndependentReviewEngagementDto {
     included: string[];
     excluded: string[];
   };
-  latestSubmission?: {
-    id: string;
-    taskId: string;
-    contractVersion: number;
-    contractHash: string;
-    status: "SUBMITTED" | "UNDER_REVIEW";
-    submittedAt: string | null;
-    notes: string | null;
-    submissionHash: string | null;
-    artifacts: Array<{
-      id: string;
-      submissionId: string;
-      type: "PRIMARY_DELIVERABLE" | "SUPPORTING_FILE" | "EVIDENCE";
-      filename: string;
-      contentType: string | null;
-      sizeBytes: number;
-    }>;
-  } | null;
 }
 
 export interface OfferDto {
@@ -438,13 +393,34 @@ export interface PaymentDto {
   amountMinor: number;
   currency: string;
   status: PaymentStatus;
-  mode: "FAKE" | "SANDBOX" | "LIVE";
+  mode: "FAKE" | "PAYPAL_SANDBOX" | "PAYPAL_LIVE";
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
   payoutEmail?: string | null;
   authorizedAt: string | null;
   capturedAt: string | null;
   latestDecision: PaymentDecisionDto | null;
+}
+
+export interface PayPalAccountStatusDto {
+  accountClass: "UNCLASSIFIED" | "DEMO_FIXTURE" | "MEMBER";
+  mode: "FAKE" | "PAYPAL_SANDBOX" | "PAYPAL_LIVE";
+  environment: "SANDBOX" | "LIVE" | null;
+  configured: boolean;
+  identity: {
+    status: "LINKED" | "REVOKED";
+    email: string;
+    accountVerified: boolean;
+    linkedAt: string;
+  } | null;
+  seller: {
+    status: "PENDING" | "ACTIVE" | "RESTRICTED" | "REVOKED";
+    paymentsReceivable: boolean;
+    primaryEmailConfirmed: boolean;
+    consentStatus: boolean;
+    actionUrl: string | null;
+    lastCheckedAt: string | null;
+  } | null;
 }
 
 export interface SubmissionArtifactDto {
@@ -519,6 +495,86 @@ export interface ReviewPackageDto {
   createdAt: string;
   updatedAt: string;
   reviewedAt: string | null;
+}
+
+export type WorkReviewKind = "CHECKPOINT" | "FINAL";
+export type WorkReviewStatus =
+  | "REQUESTED"
+  | "PREPARING"
+  | "CLARIFICATION_REQUESTED"
+  | "READY_FOR_REVIEW"
+  | "REFERRED"
+  | "DISSATISFIED"
+  | "CLIENT_RESPONSE_OVERDUE"
+  | "CHECKPOINT_ACCEPTED"
+  | "FINAL_ACCEPTED"
+  | "CHANGES_REQUESTED"
+  | "CANCELLED";
+export type WorkReviewAssessmentStatus =
+  "MET" | "PARTIAL" | "NOT_MET" | "UNCLEAR" | "NOT_APPLICABLE";
+
+export interface WorkReviewItemDto {
+  id: string;
+  type: "NOTE" | "LINK" | "FILE";
+  authorUserId: string;
+  label: string | null;
+  note: string | null;
+  url: string | null;
+  filename: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  downloadUrl: string | null;
+  createdAt: string;
+}
+
+export interface WorkReviewAssessmentDto {
+  id: string;
+  requirementKey: string;
+  status: WorkReviewAssessmentStatus;
+  rationale: string | null;
+  assessedByUserId: string;
+  updatedAt: string;
+}
+
+export interface WorkReviewDto {
+  id: string;
+  taskId: string;
+  executionId: string;
+  conversationId: string | null;
+  contractId: string;
+  contractVersion: number;
+  contractHash: string;
+  sequence: number;
+  kind: WorkReviewKind;
+  status: WorkReviewStatus;
+  title: string;
+  openingNote: string;
+  requirementKeys: string[];
+  responseWindowDays: number;
+  responseDueAt: string | null;
+  openedByUserId: string;
+  providerResponseSummary: string | null;
+  providerRespondedAt: string | null;
+  packageHash: string | null;
+  reviewerSummary: string | null;
+  reviewerRespondedAt: string | null;
+  decisionByUserId: string | null;
+  decisionRole: "CLIENT" | "AGREED_REVIEWER" | null;
+  decisionReason: string | null;
+  dissatisfactionRemedy: "REVISION" | "PAID_REVIEW" | "CANCEL" | "OTHER" | null;
+  providerResponse: "ACCEPT_REVISION" | "DISAGREE" | "REQUEST_PAID_REVIEW" | null;
+  providerResponseNote: string | null;
+  providerResponseAt: string | null;
+  riskAcknowledged: boolean;
+  openedAt: string;
+  decidedAt: string | null;
+  taskTitle: string;
+  providerUserId: string;
+  currentUserRole: "CLIENT" | "PROVIDER" | "REVIEWER";
+  currentUserId: string;
+  items: WorkReviewItemDto[];
+  assessments: WorkReviewAssessmentDto[];
+  requirements: ProviderWorkRequirementDto[];
 }
 
 export interface ExecutionDto {
@@ -623,7 +679,6 @@ export interface TaskRoomDto {
   providerSelection: ProviderSelectionDto | null;
   agentRun: { id: string; status: string; actions: AgentActionDto[] } | null;
   execution: ExecutionDto | null;
-  reviewPackage: ReviewPackageDto | null;
   cases: CaseDto[];
 }
 
@@ -694,6 +749,7 @@ export interface MessageInboxConversationDto {
   taskTitle: string;
   taskStatus: string;
   status: TaskConversationDto["status"];
+  workCommitmentStatus: WorkCommitmentStatus | null;
   hasWorkExecution: boolean;
   updatedAt: string;
   otherParticipant: {
@@ -713,6 +769,41 @@ export interface MessageInboxConversationDto {
 export interface MessageInboxDto {
   currentUserId: string;
   conversations: MessageInboxConversationDto[];
+}
+
+export type WorkCommitmentStatus =
+  | "AWAITING_PROVIDER"
+  | "AWAITING_CLIENT"
+  | "CONFIRMED"
+  | "PROVIDER_DECLINED"
+  | "BUYER_WITHDRAWN"
+  | "NOT_SELECTED"
+  | "SUPERSEDED";
+
+export interface WorkCommitmentDto {
+  id: string;
+  taskId: string;
+  conversationId: string;
+  contractId: string;
+  contractVersion: number;
+  contractHash: string;
+  buyerUserId: string;
+  providerId: string;
+  providerUserId: string;
+  status: WorkCommitmentStatus;
+  amount: Money;
+  deliveryDeadline: string | null;
+  terms: ConversationContractSnapshotDto;
+  termsHash: string;
+  providerResponseNote: string | null;
+  proposedAt: string;
+  providerRespondedAt: string | null;
+  buyerConfirmedAt: string | null;
+  taskTitle: string;
+  taskRequest: string;
+  buyerDisplayName: string;
+  providerDisplayName: string;
+  executionId: string | null;
 }
 
 export interface ProviderInboxSummaryDto {
@@ -816,6 +907,8 @@ export interface ProviderWorkDto {
   revisionReason: string | null;
   acceptedAt: string | null;
   startedAt: string | null;
+  activeReviewId: string | null;
+  acceptedCheckpointCount: number;
 }
 
 export interface TaskInvitationDto {

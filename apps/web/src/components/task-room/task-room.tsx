@@ -6,9 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Check,
-  CheckCircle2,
-  CheckSquare,
-  Clock,
+  ClipboardCheck,
   Copy,
   FileText,
   History,
@@ -17,25 +15,26 @@ import {
   RotateCw,
   Trash2,
   Users,
-  XCircle,
 } from "lucide-react";
 import { formatMinorMoney } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { useEventStream } from "@/lib/use-event-stream";
 import {
   approveContract,
+  createPayPalPaymentOrder,
+  getPayPalAccountStatus,
   getTaskActivity,
   getTaskPayment,
   getTaskRoom,
-  getSubmissionVerification,
   modifyContractCriteria,
   releaseTaskPayment,
   simulatePaymentAuthorization,
 } from "@/lib/api/endpoints";
-import type { ContractDto, TaskRoomDto, VerificationDto } from "@/lib/api/types";
+import type { ContractDto, TaskRoomDto } from "@/lib/api/types";
 import { TaskConversationsPanel } from "./task-conversations-panel";
 import { PaymentPanel } from "./payment-panel";
-import { ReviewPackagePanel } from "./review-package-panel";
+import { HumanReviewWorkspace } from "./human-review-workspace";
+import { CasesPanel } from "./cases-panel";
 import { Button } from "@/components/ui/button";
 
 function newIdempotencyKey(): string {
@@ -47,15 +46,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const room = useApi(() => getTaskRoom(taskId), [taskId], `task-room-${taskId}`);
   const activity = useApi(() => getTaskActivity(taskId), [taskId], `task-activity-${taskId}`);
   const payment = useApi(() => getTaskPayment(taskId), [taskId], `task-payment-${taskId}`);
-
-  const submissionId = room.data?.execution?.latestSubmission?.id ?? null;
-  const verification = useApi<VerificationDto>(
-    () =>
-      submissionId
-        ? getSubmissionVerification(submissionId)
-        : Promise.resolve({ data: null, error: null }),
-    [submissionId],
-  );
+  const paypal = useApi(() => getPayPalAccountStatus(), [], "paypal-account-status");
 
   const [activeTab, setActiveTab] = useState<
     "contract" | "execution" | "verification" | "payment" | "activity" | null
@@ -81,6 +72,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("section") === "execution") setActiveTab("execution");
+    if (params.get("section") === "review") setActiveTab("verification");
   }, [taskId]);
 
   const [signing, setSigning] = useState(false);
@@ -91,13 +83,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const [copiedId, setCopiedId] = useState(false);
   const [simulatingPayment, setSimulatingPayment] = useState(false);
   const [releasingPayment, setReleasingPayment] = useState(false);
+  const [paymentReleaseConfirmed, setPaymentReleaseConfirmed] = useState(false);
 
   const refresh = useCallback(() => {
     room.reload();
     activity.reload();
     payment.reload();
-    verification.reload();
-  }, [room, activity, payment, verification]);
+  }, [room, activity, payment]);
 
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const debouncedRefresh = useCallback(() => {
@@ -174,10 +166,29 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   const beginPaymentAuthorization = async () => {
     setSimulatingPayment(true);
     setActionError(null);
-    const result = await simulatePaymentAuthorization(taskId, newIdempotencyKey());
+    const isEvaluator = paypal.data?.accountClass === "DEMO_FIXTURE";
+    if (!isEvaluator) {
+      if (!paypal.data?.configured) {
+        setSimulatingPayment(false);
+        setActionError("PayPal Sandbox is not configured for authenticated member accounts.");
+        return;
+      }
+      if (paypal.data.identity?.status !== "LINKED" || !paypal.data.identity.accountVerified) {
+        setSimulatingPayment(false);
+        setActionError("Link and verify your PayPal account in Settings before approving payment.");
+        return;
+      }
+    }
+    const result = isEvaluator
+      ? await simulatePaymentAuthorization(taskId, newIdempotencyKey())
+      : await createPayPalPaymentOrder(taskId, newIdempotencyKey());
     setSimulatingPayment(false);
     if (result.error) {
       setActionError(result.error.message);
+      return;
+    }
+    if (!isEvaluator && result.data && "approvalUrl" in result.data) {
+      window.location.href = result.data.approvalUrl;
       return;
     }
     setActiveTab("payment");
@@ -185,9 +196,19 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   };
 
   const releasePayment = async () => {
+    if (!payment.data || !paymentReleaseConfirmed) return;
     setReleasingPayment(true);
     setActionError(null);
-    const result = await releaseTaskPayment(taskId, newIdempotencyKey());
+    const result = await releaseTaskPayment(
+      taskId,
+      {
+        expectedPaymentId: payment.data.id,
+        expectedAmountMinor: payment.data.amountMinor,
+        expectedCurrency: payment.data.currency as "USD",
+        confirm: true,
+      },
+      newIdempotencyKey(),
+    );
     setReleasingPayment(false);
     if (result.error) {
       setActionError(result.error.message);
@@ -279,8 +300,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     activeContract?.status === "AWAITING_APPROVAL";
 
   const requirements = activeContract?.requirements ?? workSpecification?.requirements ?? [];
-  const verificationResults = verification.data?.results ?? [];
-  const resultsByKey = new Map(verificationResults.map((r) => [r.requirementKey, r]));
   const profileCount = new Set(
     [
       ...(providerSelection?.provider ? [providerSelection.provider] : []),
@@ -300,6 +319,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   } else if (task.status === "AWAITING_CLIENT_REVIEW") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Awaiting client review";
+  } else if (task.status === "REVIEW_REQUESTED") {
+    statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
+    statusText = "Review package requested";
   } else if (task.status === "AWAITING_EXTERNAL_REVIEW") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
     statusText = "Awaiting independent review";
@@ -308,13 +330,13 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     statusText = "Review accepted";
   } else if (task.status === "HUMAN_REVIEW") {
     statusBadgeClass = "bg-[var(--wp-warning-subtle)] text-[var(--wp-warning)]";
-    statusText = "Independent review needed";
+    statusText = "Review needed";
   } else if (task.status === "REVISION_REQUIRED" || task.status === "REJECTED") {
     statusBadgeClass = "bg-[var(--wp-danger-subtle)] text-[var(--wp-danger)]";
     statusText = task.status === "REJECTED" ? "Delivery rejected" : "Revision requested";
   } else if (task.status === "SUBMITTED" || task.status === "VERIFYING") {
     statusBadgeClass = "bg-[var(--wp-info-subtle)] text-[var(--wp-info)]";
-    statusText = "Review in progress";
+    statusText = "Ready to open review";
   } else if (
     (task.status === "PROVIDER_SEARCH" || task.status === "NEGOTIATION") &&
     lifecycle.pending > 0
@@ -358,42 +380,44 @@ export function TaskRoom({ taskId }: { taskId: string }) {
       ? "Review and approve the scope"
       : task.status === "AWAITING_CLIENT_REVIEW"
         ? "Review the live delivery package and decide whether to accept it"
-        : task.status === "AWAITING_EXTERNAL_REVIEW"
-          ? "Await the agreed independent report, then record the buyer decision"
-          : task.status === "REVIEW_ACCEPTED"
-            ? "The delivery has been accepted; run the separate simulated release policy"
-            : task.status === "HUMAN_REVIEW"
-              ? "Choose an independent reviewer"
-              : task.status === "REVISION_REQUIRED" || task.status === "REJECTED"
-                ? "Review the requested revision or rejection"
-                : task.status === "SUBMITTED" || task.status === "VERIFYING"
-                  ? "Deliverables are being reviewed"
-                  : task.status === "PAYMENT_RELEASE"
-                    ? "Review simulated release status"
-                    : task.status === "COMPLETED"
-                      ? "Task is complete"
-                      : task.status === "CANCELLED"
-                        ? "Task cancelled"
-                        : task.status === "EXPIRED"
-                          ? "Task expired"
-                          : !execution && lifecycle.pending > 0
-                            ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
-                            : !execution && lifecycle.open > 0
-                              ? "Continue the discussion; work is not committed"
-                              : execution?.status === "ASSIGNED"
-                                ? "Review the assignment and accept to begin"
-                                : execution?.status === "ACCEPTED" ||
-                                    execution?.status === "IN_PROGRESS"
-                                  ? "Work is in progress"
-                                  : task.status === "AGREEMENT_READY"
-                                    ? "Run simulated authorization and assign work"
-                                    : task.status === "PROVIDER_SEARCH"
-                                      ? profileCount > 0
-                                        ? "Choose a professional to contact"
-                                        : "Finding available professionals"
-                                      : task.status === "NEGOTIATION"
-                                        ? "Continue your contact discussion"
-                                        : "Review task details";
+        : task.status === "REVIEW_REQUESTED"
+          ? "The professional is preparing the requested review package"
+          : task.status === "AWAITING_EXTERNAL_REVIEW"
+            ? "Await the agreed independent report, then record the buyer decision"
+            : task.status === "REVIEW_ACCEPTED"
+              ? "The delivery has been accepted; run the separate simulated release policy"
+              : task.status === "HUMAN_REVIEW"
+                ? "Open a review or involve an agreed paid reviewer"
+                : task.status === "REVISION_REQUIRED" || task.status === "REJECTED"
+                  ? "Review the requested revision or rejection"
+                  : task.status === "SUBMITTED" || task.status === "VERIFYING"
+                    ? "Open a review for the current work"
+                    : task.status === "PAYMENT_RELEASE"
+                      ? "Review simulated release status"
+                      : task.status === "COMPLETED"
+                        ? "Task is complete"
+                        : task.status === "CANCELLED"
+                          ? "Task cancelled"
+                          : task.status === "EXPIRED"
+                            ? "Task expired"
+                            : !execution && lifecycle.pending > 0
+                              ? `Waiting for ${lifecycle.pending} professional response${lifecycle.pending === 1 ? "" : "s"}`
+                              : !execution && lifecycle.open > 0
+                                ? "Continue the discussion; work is not committed"
+                                : execution?.status === "ASSIGNED"
+                                  ? "Review the assignment and accept to begin"
+                                  : execution?.status === "ACCEPTED" ||
+                                      execution?.status === "IN_PROGRESS"
+                                    ? "Work is in progress"
+                                    : task.status === "AGREEMENT_READY"
+                                      ? "Run simulated authorization and assign work"
+                                      : task.status === "PROVIDER_SEARCH"
+                                        ? profileCount > 0
+                                          ? "Choose a professional to contact"
+                                          : "Finding available professionals"
+                                        : task.status === "NEGOTIATION"
+                                          ? "Continue your contact discussion"
+                                          : "Review task details";
 
   const workspaceSections = [
     {
@@ -417,22 +441,24 @@ export function TaskRoom({ taskId }: { taskId: string }) {
     },
     {
       id: "verification" as const,
-      icon: CheckSquare,
-      title: "Assignment & delivery",
+      icon: ClipboardCheck,
+      title: "Progress & review",
       status:
         execution?.status === "ASSIGNED"
           ? "Awaiting professional acceptance"
           : execution?.status === "ACCEPTED"
             ? "Accepted · ready to start"
             : execution?.status === "IN_PROGRESS"
-              ? "Work in progress"
-              : task.status === "HUMAN_REVIEW"
-                ? "Independent review needed"
-                : verification.data?.outcome === "PASS"
-                  ? "Checks passed"
-                  : verification.data?.outcome === "FAIL"
-                    ? "Checks need attention"
-                    : `${requirements.length} ${requirements.length === 1 ? "check" : "checks"}`,
+              ? "Work in progress · client can open review"
+              : execution?.status === "REVIEW_REQUESTED"
+                ? "Review package requested"
+                : execution?.status === "UNDER_REVIEW"
+                  ? "Review open"
+                  : task.status === "REVIEW_ACCEPTED"
+                    ? "Final work accepted"
+                    : task.status === "HUMAN_REVIEW" || task.status === "AWAITING_EXTERNAL_REVIEW"
+                      ? "Paid reviewer involved"
+                      : `${requirements.length} agreement constraint${requirements.length === 1 ? "" : "s"}`,
     },
     {
       id: "payment" as const,
@@ -554,6 +580,18 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                     ? "Your contact request is waiting for a response. Keep watching the conversation for the next step."
                     : "A professional accepted the discussion. Work starts only after the exact terms and assignment are accepted by both parties."}
                 </p>
+                <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-xl border border-[var(--wp-border)] bg-white p-3 text-xs leading-5 text-[var(--wp-text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={paymentReleaseConfirmed}
+                    onChange={(event) => setPaymentReleaseConfirmed(event.target.checked)}
+                    className="mt-1 h-4 w-4 accent-emerald-700"
+                  />
+                  <span>
+                    I approve release of {payment.data ? formatMinorMoney(payment.data) : "the authorized amount"}
+                    {payment.data?.mode === "FAKE" ? " in evaluator simulation" : " through PayPal"}.
+                  </span>
+                </label>
                 <Button
                   type="button"
                   variant="outline"
@@ -585,8 +623,9 @@ export function TaskRoom({ taskId }: { taskId: string }) {
             ) : task.status === "AGREEMENT_READY" ? (
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  The task is ready for simulated authorization and assignment. No funds are held or
-                  moved in this validation environment.
+                  {paypal.data?.accountClass === "DEMO_FIXTURE"
+                    ? "This evaluator task uses deterministic simulated authorization; no funds move."
+                    : "Approve this PayPal order to authorize the agreed amount directly for the onboarded professional."}
                 </p>
                 <Button
                   type="button"
@@ -595,24 +634,50 @@ export function TaskRoom({ taskId }: { taskId: string }) {
                   className="mt-4 w-full max-w-md"
                 >
                   {simulatingPayment
-                    ? "Running simulated authorization…"
-                    : "Simulate authorization and assign work"}
+                    ? "Preparing authorization…"
+                    : paypal.data?.accountClass === "DEMO_FIXTURE"
+                      ? "Simulate authorization and assign work"
+                      : "Continue to PayPal approval"}
                   <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </>
+            ) : task.status === "WORK_IN_PROGRESS" ||
+              task.status === "REVIEW_REQUESTED" ||
+              task.status === "SUBMITTED" ||
+              task.status === "VERIFYING" ||
+              task.status === "AWAITING_CLIENT_REVIEW" ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Open a progress checkpoint or final review at any useful moment. Add notes, live
+                  links, or files that help explain the work.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => setActiveTab("verification")}
+                  className="mt-4 w-full max-w-md"
+                >
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                  Open review workspace
                 </Button>
               </>
             ) : task.status === "REVIEW_ACCEPTED" || task.status === "PAYMENT_RELEASE" ? (
               <>
                 <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-                  The buyer accepted this delivery. Run the separate simulated release gate to
-                  validate policy and completion; no funds will be charged or paid.
+                  {payment.data?.mode === "FAKE"
+                    ? "The buyer accepted this delivery. Run the simulated release policy; no funds will be charged or paid."
+                    : "The buyer accepted this delivery. Recheck policy and capture the authorized PayPal amount directly to the onboarded professional."}
                 </p>
                 <Button
                   type="button"
                   onClick={() => void releasePayment()}
-                  disabled={releasingPayment}
+                  disabled={releasingPayment || !paymentReleaseConfirmed}
                   className="mt-4 w-full max-w-md"
                 >
-                  {releasingPayment ? "Running release policy…" : "Run simulated release"}
+                  {releasingPayment
+                    ? "Running release policy…"
+                    : payment.data?.mode === "FAKE"
+                      ? "Approve simulated release"
+                      : "Approve and release PayPal payment"}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </>
@@ -642,6 +707,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
           {actionError}
         </div>
       )}
+      <CasesPanel cases={room.data.cases} />
 
       <section aria-labelledby="task-details-heading" className="space-y-4">
         <div>
@@ -875,125 +941,23 @@ export function TaskRoom({ taskId }: { taskId: string }) {
               />
             </div>
 
-            {/* Work and review */}
+            {/* Progress and review */}
             {currentTab === "verification" && (
               <div className="space-y-6">
-                <div className="workpay-card p-6 space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-[var(--charcoal)]">
-                      Deliverables and review checks
-                    </h2>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
-                      Review submitted work against the checks recorded in the agreement. Automated
-                      results are evidence to consider, not a judgment of professional quality.
-                    </p>
+                {execution ? (
+                  <HumanReviewWorkspace
+                    taskId={taskId}
+                    taskStatus={task.status}
+                    execution={execution}
+                    requirements={requirements}
+                    onChanged={refresh}
+                  />
+                ) : (
+                  <div className="workpay-card p-6 text-sm leading-6 text-[var(--text-muted)]">
+                    Review becomes available after a professional is confirmed, payment is
+                    authorized, and work starts.
                   </div>
-
-                  {/* Criteria Results */}
-                  <div className="space-y-3">
-                    {requirements.map((req, idx) => {
-                      const result = resultsByKey.get(req.key);
-                      let badgeClass = "bg-gray-100 text-gray-700";
-                      let badgeText = "Pending Submission";
-                      let icon = <Clock className="h-3.5 w-3.5" />;
-
-                      if (result) {
-                        if (result.outcome === "PASS") {
-                          badgeClass = "bg-emerald-100 text-emerald-800";
-                          badgeText = "Passed Proof";
-                          icon = <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />;
-                        } else if (result.outcome === "FAIL") {
-                          badgeClass = "bg-rose-100 text-rose-800";
-                          badgeText = "Failed Verification";
-                          icon = <XCircle className="h-3.5 w-3.5 text-rose-600" />;
-                        } else if (result.outcome === "UNCERTAIN") {
-                          badgeClass = "bg-amber-100 text-amber-800";
-                          badgeText = "Uncertain - Review Needed";
-                          icon = <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />;
-                        }
-                      }
-
-                      return (
-                        <div
-                          key={req.key || idx}
-                          className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-subtle)] space-y-2"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-start gap-2.5">
-                              <span className="font-mono text-xs text-[var(--text-muted)] mt-0.5">
-                                {idx + 1}.
-                              </span>
-                              <span className="text-xs sm:text-sm font-semibold text-[var(--charcoal)]">
-                                {req.statement}
-                              </span>
-                            </div>
-
-                            <span
-                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0 self-start sm:self-auto ${badgeClass}`}
-                            >
-                              {icon}
-                              <span>{badgeText}</span>
-                            </span>
-                          </div>
-
-                          {result && result.explanation && (
-                            <div className="pl-6 pt-1 text-xs text-[var(--text-soft)] bg-white/60 p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                              <div className="font-medium text-[var(--charcoal)]">Evidence:</div>
-                              <p className="mt-0.5">{result.explanation}</p>
-                              {result.actual && (
-                                <p className="mt-1 font-mono text-[11px] text-[var(--text-muted)]">
-                                  Observed: {result.actual}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {(task.status === "SUBMITTED" ||
-                    task.status === "VERIFYING" ||
-                    task.status === "AWAITING_CLIENT_REVIEW" ||
-                    task.status === "AWAITING_EXTERNAL_REVIEW" ||
-                    task.status === "REVIEW_ACCEPTED" ||
-                    task.status === "REJECTED" ||
-                    task.status === "REVISION_REQUIRED" ||
-                    task.status === "HUMAN_REVIEW") && (
-                    <ReviewPackagePanel
-                      taskId={taskId}
-                      taskTitle={task.title}
-                      contractSummary={
-                        activeContract?.summary ?? workSpecification?.summary ?? null
-                      }
-                      taskStatus={task.status}
-                      reviewPackage={room.data.reviewPackage}
-                      onChanged={refresh}
-                    />
-                  )}
-
-                  {/* Human Review Decision Surface (Section 11) */}
-                  {task.status === "HUMAN_REVIEW" && (
-                    <div className="p-5 rounded-xl border border-amber-300 bg-amber-50/40 space-y-3">
-                      <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        <span>Independent review needed</span>
-                      </div>
-                      <p className="text-xs text-amber-800 leading-relaxed">
-                        Automated checks and AI cannot determine whether this work is professionally
-                        satisfactory. Tenfo does not provide an arbitrator or judge this result. Use
-                        the agreed review criteria and contact an independent reviewer. Payment
-                        states are simulated and this screen does not represent funds being held.
-                      </p>
-                      <Link
-                        href={`/reviewers?taskId=${encodeURIComponent(taskId)}`}
-                        className="inline-flex rounded-lg bg-amber-700 px-4 py-2 text-xs font-medium text-white hover:bg-amber-800"
-                      >
-                        Find an independent reviewer
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             )}
 

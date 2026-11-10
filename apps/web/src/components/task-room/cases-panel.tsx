@@ -25,8 +25,7 @@ export function CasesPanel({ cases }: { cases: CaseDto[] }) {
           <AlertTriangle className="h-4 w-4" /> Case status
         </CardTitle>
         <CardDescription>
-          A case is a platform status signal, not a decision about work quality. Any independent review
-          is agreed and handled by the task participants.
+          Open issues, participant responses, and their effect on payment release.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">

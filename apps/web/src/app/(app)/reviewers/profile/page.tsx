@@ -1,5 +1,5 @@
-import { ReviewerProfileEditor } from "@/components/reviewers/reviewer-profile-editor";
+import { redirect } from "next/navigation";
 
 export default function ReviewerProfilePage() {
-  return <ReviewerProfileEditor />;
+  redirect("/settings?tab=work-preferences&section=reviews");
 }

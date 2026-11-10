@@ -8,15 +8,13 @@ import type {
   ContractDto,
   ContractChangeRequestDto,
   IndependentReviewEngagementDto,
-  IndependentReviewReportDto,
   MessageInboxDto,
   NotificationDto,
   PaymentDto,
+  PayPalAccountStatusDto,
   ProviderInboxSummaryDto,
   ProviderSelectionDto,
   ProviderWorkDto,
-  ReviewerProfileDto,
-  ReviewerProfileInputDto,
   ReviewPackageDecision,
   ReviewPackageDto,
   TaskReviewerRecommendationsDto,
@@ -26,8 +24,9 @@ import type {
   TaskInvitationDto,
   TaskConversationDto,
   TaskRoomDto,
-  VerificationDto,
-  VerificationOutcome,
+  WorkCommitmentDto,
+  WorkReviewAssessmentStatus,
+  WorkReviewDto,
   WorkSpecificationDto,
 } from "./types";
 
@@ -122,9 +121,58 @@ export function simulatePaymentAuthorization(
 
 export function releaseTaskPayment(
   taskId: string,
+  approval: {
+    expectedPaymentId: string;
+    expectedAmountMinor: number;
+    expectedCurrency: "USD";
+    confirm: true;
+  },
   idempotencyKey: string,
 ): Promise<ApiResponse<{ paymentId: string; status: string; captured: boolean }>> {
   return apiFetch(`${BASE}/tasks/${taskId}/payment/release`, {
+    method: "POST",
+    body: approval,
+    idempotencyKey,
+  });
+}
+
+export function getPayPalAccountStatus(): Promise<ApiResponse<PayPalAccountStatusDto>> {
+  return apiFetch(`${BASE}/user/paypal/status`);
+}
+
+export function startPayPalSellerOnboarding(): Promise<
+  ApiResponse<{ status: string; actionUrl?: string }>
+> {
+  return apiFetch(`${BASE}/provider/paypal/onboarding`, { method: "POST" });
+}
+
+export function refreshPayPalSellerStatus(): Promise<ApiResponse<unknown>> {
+  return apiFetch(`${BASE}/provider/paypal/status`, { method: "POST" });
+}
+
+export function createPayPalPaymentOrder(
+  taskId: string,
+  idempotencyKey: string,
+): Promise<
+  ApiResponse<{
+    paymentId: string;
+    orderId: string | null;
+    approvalUrl: string;
+    mode: "PAYPAL_SANDBOX" | "PAYPAL_LIVE";
+    reused: boolean;
+  }>
+> {
+  return apiFetch(`${BASE}/tasks/${taskId}/payment/order`, {
+    method: "POST",
+    idempotencyKey,
+  });
+}
+
+export function reconcilePayment(
+  paymentId: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<{ status: string }>> {
+  return apiFetch(`${BASE}/payments/${paymentId}/reconcile`, {
     method: "POST",
     idempotencyKey,
   });
@@ -135,22 +183,120 @@ export function getTaskRoom(taskId: string): Promise<ApiResponse<TaskRoomDto>> {
   return apiFetch<TaskRoomDto>(`${BASE}/tasks/${taskId}/task-room`);
 }
 
-export function submitReviewPackageDecision(
+export function listWorkReviews(taskId: string): Promise<ApiResponse<WorkReviewDto[]>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/reviews`);
+}
+
+export function openWorkReview(
   taskId: string,
   input: {
-    packageId: string;
-    decision: ReviewPackageDecision;
-    reason: string;
-    expectedContractVersion: number;
-    expectedContractHash: string;
-    expectedSubmissionVersion: number;
-    expectedSubmissionHash: string;
+    kind: "CHECKPOINT" | "FINAL";
+    title: string;
+    openingNote: string;
+    requirementKeys: string[];
+    responseWindowDays: number;
   },
   idempotencyKey: string,
-): Promise<ApiResponse<ReviewPackageDto>> {
-  return apiFetch(`${BASE}/tasks/${taskId}/review-package`, {
+): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/tasks/${taskId}/reviews`, {
     method: "POST",
     body: input,
+    idempotencyKey,
+  });
+}
+
+export function getWorkReview(reviewId: string): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}`);
+}
+
+export function addWorkReviewContext(
+  reviewId: string,
+  input:
+    | { type: "NOTE"; note: string; label?: string }
+    | { type: "LINK"; label: string; url: string; note?: string }
+    | { type: "FILE"; file: File; label?: string; note?: string },
+): Promise<ApiResponse<WorkReviewDto>> {
+  const form = new FormData();
+  form.set("type", input.type);
+  if ("label" in input && input.label) form.set("label", input.label);
+  if ("note" in input && input.note) form.set("note", input.note);
+  if (input.type === "LINK") form.set("url", input.url);
+  if (input.type === "FILE") form.set("file", input.file);
+  return apiUpload(`${BASE}/reviews/${reviewId}/items`, form, crypto.randomUUID());
+}
+
+export function assessWorkReviewRequirement(
+  reviewId: string,
+  requirementKey: string,
+  input: { status: WorkReviewAssessmentStatus; rationale?: string },
+): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}/assessments/${encodeURIComponent(requirementKey)}`, {
+    method: "PUT",
+    body: input,
+  });
+}
+
+export function decideWorkReview(
+  reviewId: string,
+  input: {
+    decision:
+      | "ACCEPT_CHECKPOINT"
+      | "ACCEPT_FINAL"
+      | "REQUEST_CHANGES"
+      | "CANCEL_REVIEW"
+      | "REFER_TO_REVIEWER"
+      | "EXPRESS_DISSATISFACTION";
+    reason: string;
+    riskAcknowledged: boolean;
+    dissatisfactionRemedy?: "REVISION" | "PAID_REVIEW" | "CANCEL" | "OTHER";
+  },
+  idempotencyKey: string,
+): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}/decision`, {
+    method: "POST",
+    body: input,
+    idempotencyKey,
+  });
+}
+
+export function respondToReviewResolution(
+  reviewId: string,
+  input: {
+    response: "ACCEPT_REVISION" | "DISAGREE" | "REQUEST_PAID_REVIEW";
+    note: string;
+  },
+  idempotencyKey: string,
+): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}/provider-response`, {
+    method: "POST",
+    body: input,
+    idempotencyKey,
+  });
+}
+
+export function respondToWorkReviewRequest(
+  reviewId: string,
+  input: {
+    action: "PREPARE" | "REQUEST_CLARIFICATION" | "SEND_PACKAGE";
+    summary?: string;
+  },
+  idempotencyKey: string,
+): Promise<ApiResponse<WorkReviewDto>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}/response`, {
+    method: "POST",
+    body: input,
+    idempotencyKey,
+  });
+}
+
+export function completePaidWorkReview(
+  reviewId: string,
+  summary: string,
+  idempotencyKey: string,
+): Promise<ApiResponse<{ reviewId: string; completed: boolean }>> {
+  return apiFetch(`${BASE}/reviews/${reviewId}/reviewer-complete`, {
+    method: "POST",
+    body: { summary },
     idempotencyKey,
   });
 }
@@ -269,6 +415,38 @@ export function getTaskConversationMessages(
   return apiFetch<TaskConversationDto>(`${BASE}/conversations/${conversationId}/messages${search}`);
 }
 
+export function getWorkCommitment(
+  conversationId: string,
+): Promise<ApiResponse<WorkCommitmentDto | null>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/work-commitment`);
+}
+
+export function proposeWorkCommitment(
+  conversationId: string,
+  input: { amountMinor: number; currency: "USD"; deliveryDeadline: string | null },
+  idempotencyKey: string,
+): Promise<ApiResponse<WorkCommitmentDto>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/work-commitment`, {
+    method: "POST",
+    body: input,
+    idempotencyKey,
+  });
+}
+
+export function decideWorkCommitment(
+  conversationId: string,
+  commitmentId: string,
+  action: "PROVIDER_ACCEPT" | "PROVIDER_DECLINE" | "BUYER_CONFIRM" | "BUYER_WITHDRAW",
+  idempotencyKey: string,
+  note?: string,
+): Promise<ApiResponse<WorkCommitmentDto>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/work-commitment/${commitmentId}`, {
+    method: "PATCH",
+    body: { action, ...(note?.trim() ? { note: note.trim() } : {}) },
+    idempotencyKey,
+  });
+}
+
 export function listContractChangeRequests(
   conversationId: string,
 ): Promise<ApiResponse<ContractChangeRequestDto[]>> {
@@ -340,17 +518,6 @@ export function startProviderSearch(taskId: string): Promise<ApiResponse<Provide
   });
 }
 
-export function getReviewerProfile(): Promise<ApiResponse<{ profile: ReviewerProfileDto | null }>> {
-  return apiFetch(`${BASE}/provider/reviewer-profile`);
-}
-
-export function saveReviewerProfile(input: ReviewerProfileInputDto) {
-  return apiFetch<{ profile: ReviewerProfileDto }>(`${BASE}/provider/reviewer-profile`, {
-    method: "PUT",
-    body: input,
-  });
-}
-
 export function getTaskReviewerRecommendations(
   taskId: string,
   additionalDomains: string[],
@@ -376,9 +543,11 @@ export function proposeIndependentReview(
     expectedContractHash: string;
     requirementKeys: string[];
     domains: string[];
+    brief: string;
     feeMinor: number | null;
     feeCurrency: "USD";
     feePayer: "BUYER" | "PROVIDER" | "SHARED" | "DIRECT";
+    feeMode: "PAYPAL" | "DIRECT";
   },
 ): Promise<ApiResponse<IndependentReviewEngagementDto>> {
   return apiFetch(`${BASE}/conversations/${conversationId}/independent-reviews`, {
@@ -398,31 +567,37 @@ export function decideIndependentReview(
   );
 }
 
-export function submitIndependentReviewReport(
-  conversationId: string,
-  engagementId: string,
-  report: {
-    submissionId: string;
-    contractVersion: number;
-    contractHash: string;
-    rationale: string;
-    findings: IndependentReviewReportDto["findings"];
-  },
-): Promise<ApiResponse<{ report: IndependentReviewReportDto; outcome: VerificationOutcome }>> {
-  return apiFetch(
-    `${BASE}/conversations/${conversationId}/independent-reviews/${engagementId}/reports`,
-    { method: "POST", body: report },
+export function getReviewFeeStatus(engagementId: string) {
+  return apiFetch<{
+    engagement: IndependentReviewEngagementDto;
+    payments: Array<{
+      id: string;
+      payerUserId: string;
+      amountMinor: number;
+      currency: string;
+      mode: "FAKE" | "PAYPAL_SANDBOX" | "PAYPAL_LIVE";
+      status: string;
+      approvalUrl: string | null;
+    }>;
+  }>(`${BASE}/review-engagements/${engagementId}/fee`);
+}
+
+export function createReviewFeeOrder(engagementId: string, idempotencyKey: string) {
+  return apiFetch<{ paid: boolean; approvalUrl: string | null; simulated: boolean }>(
+    `${BASE}/review-engagements/${engagementId}/fee`,
+    { method: "POST", idempotencyKey },
   );
+}
+
+export function reconcileReviewFee(paymentId: string, idempotencyKey: string) {
+  return apiFetch<{ paid: boolean }>(`${BASE}/review-fees/${paymentId}/reconcile`, {
+    method: "POST",
+    idempotencyKey,
+  });
 }
 
 export function listReviewerEngagements(): Promise<ApiResponse<IndependentReviewEngagementDto[]>> {
   return apiFetch(`${BASE}/reviewer/engagements`);
-}
-
-export function getSubmissionVerification(
-  submissionId: string,
-): Promise<ApiResponse<VerificationDto>> {
-  return apiFetch<VerificationDto>(`${BASE}/submissions/${submissionId}/verification`);
 }
 
 export function listNotifications(): Promise<ApiResponse<NotificationDto[]>> {
@@ -443,6 +618,10 @@ export function markNotificationRead(body: {
 /** Provider portal (B). */
 export function listProviderWork(): Promise<ApiResponse<ProviderWorkDto[]>> {
   return apiFetch<ProviderWorkDto[]>(`${BASE}/provider/work`);
+}
+
+export function listProviderWorkProposals(): Promise<ApiResponse<WorkCommitmentDto[]>> {
+  return apiFetch<WorkCommitmentDto[]>(`${BASE}/provider/work-proposals`);
 }
 
 export function getProviderWork(executionId: string): Promise<ApiResponse<ProviderWorkDto>> {
@@ -469,19 +648,6 @@ export function startProviderWork(
   });
 }
 
-export function submitDeliverable(
-  executionId: string,
-  file: File,
-  note: string,
-  idempotencyKey: string,
-): Promise<ApiResponse<SubmissionDto>> {
-  const form = new FormData();
-  form.set("executionId", executionId);
-  form.set("note", note);
-  form.set("file", file);
-  return apiUpload<SubmissionDto>(`${BASE}/submissions`, form, idempotencyKey);
-}
-
 export interface WorkPreferencesDto {
   workAcceptanceStatus: "ACCEPTING" | "LIMITED" | "UNAVAILABLE";
   timezone: string;
@@ -505,6 +671,34 @@ export interface WorkPreferencesDto {
   reviewSpecBeforeAccept: boolean;
   toolsAndTechnologies: string[];
   languages: string[];
+  reviewService?: {
+    enabled: boolean;
+    listed: boolean;
+    availability: "AVAILABLE" | "BUSY" | "OFFLINE";
+    notice?: string | null;
+    summary: string;
+    publicContactUrl: string | null;
+    feeMinor: number | null;
+    typicalTurnaroundDays: number | null;
+    conflictDisclosureConfirmed: boolean;
+    conflictNotes?: string | null;
+    conflictUsernames: string[];
+    domains: Array<{
+      domainTag: string;
+      scope: string;
+      selfAssessedLevel: number;
+      yearsExperience: number | null;
+      methods: string[];
+    }>;
+    evidence: Array<{
+      kind: "PORTFOLIO" | "CREDENTIAL" | "EXPERIENCE" | "REFERENCE";
+      title: string;
+      description: string;
+      url: string | null;
+      issuer: string | null;
+    }>;
+    feeMode: "PAYPAL" | "DIRECT";
+  };
 }
 
 export interface ProviderAvailabilityDto {
