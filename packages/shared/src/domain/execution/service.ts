@@ -19,6 +19,9 @@ import { contractChangeRequests } from "../../db/schema/contract-changes.js";
 import { workContracts } from "../../db/schema/contracts.js";
 import { availability, providers } from "../../db/schema/providers.js";
 import { tasks } from "../../db/schema/tasks.js";
+import { payments } from "../../db/schema/payments.js";
+import { commercialAgreements } from "../../db/schema/negotiation.js";
+import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { hashObject, sha256HexOfBytes } from "../../platform/hashing.js";
 import { newId } from "../../platform/ids.js";
@@ -98,6 +101,48 @@ export async function assignExecution(
   ) {
     throw conflict("Execution must use the current active contract version.");
   }
+  const [payment] = await tx
+    .select()
+    .from(payments)
+    .where(and(eq(payments.taskId, options.taskId), eq(payments.agreementId, options.agreementId)))
+    .limit(1);
+  if (
+    !payment ||
+    payment.status !== "AUTHORIZED" ||
+    payment.providerId !== options.providerId ||
+    (payment.mode !== "FAKE" && !payment.sellerMerchantIdSnapshot)
+  ) {
+    throw conflict("Assignment requires a current authorized payment for this professional.");
+  }
+  const [agreement] = await tx
+    .select()
+    .from(commercialAgreements)
+    .where(eq(commercialAgreements.id, options.agreementId))
+    .limit(1);
+  if (!agreement || agreement.providerId !== options.providerId) {
+    throw conflict("Assignment agreement does not match this professional.");
+  }
+  const [commitment] = agreement.workCommitmentId
+    ? await tx
+        .select()
+        .from(workCommitments)
+        .where(eq(workCommitments.id, agreement.workCommitmentId))
+        .limit(1)
+    : [];
+  if (
+    agreement.workCommitmentId &&
+    (!commitment ||
+      commitment.status !== "CONFIRMED" ||
+      commitment.taskId !== options.taskId ||
+      commitment.providerId !== options.providerId ||
+      commitment.contractId !== options.contractId ||
+      commitment.contractVersion !== options.contractVersion ||
+      commitment.contractHash !== options.contractHash ||
+      !commitment.capacityReservedAt ||
+      commitment.capacityReleasedAt)
+  ) {
+    throw conflict("Assignment requires the current mutual work commitment.");
+  }
   const [execution] = await tx
     .insert(workExecutions)
     .values({
@@ -106,12 +151,21 @@ export async function assignExecution(
       contractId: options.contractId,
       agreementId: options.agreementId,
       providerId: options.providerId,
-      status: "ASSIGNED",
+      status: commitment ? "ACCEPTED" : "ASSIGNED",
       contractVersion: options.contractVersion,
       contractHash: options.contractHash,
     })
     .returning();
   if (!execution) throw new Error("Execution insert returned no row");
+  if (commitment) {
+    await tx.insert(providerAcceptances).values({
+      id: newId("paccept"),
+      executionId: execution.id,
+      providerId: options.providerId,
+      acceptedContractHash: execution.contractHash,
+      createdAt: commitment.providerRespondedAt ?? commitment.updatedAt,
+    });
+  }
   return execution;
 }
 

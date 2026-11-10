@@ -37,8 +37,11 @@ export * from "./providers/relevance.js";
 export * from "./providers/discovery-service.js";
 export * from "./reviewers/recommendation.js";
 export * from "./reviewers/service.js";
+export * from "./reviewers/work-profile.js";
+export * from "./reviewers/fee-service.js";
 export * from "./reviewers/independent-review-service.js";
 export * from "./conversations/service.js";
+export * from "./commitments/service.js";
 export * from "./notifications/conversation.js";
 
 // Negotiation
@@ -47,11 +50,15 @@ export * from "./negotiation/service.js";
 
 // Payments
 export * from "./payments/policy.js";
+export * from "./payments/mode.js";
+export * from "./payments/paypal-order-service.js";
+export * from "./payments/reconciliation.js";
 export * from "./payments/service.js";
 
 // Execution and submission
 export * from "./execution/service.js";
 export * from "./review-packages/service.js";
+export * from "./reviews/service.js";
 
 // Verification
 export * from "./verification/checks.js";

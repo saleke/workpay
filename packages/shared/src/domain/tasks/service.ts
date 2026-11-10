@@ -5,9 +5,11 @@
  * reading them with the data the UI needs, and moving them through the status
  * machine. Every mutation writes its event in the same transaction.
  */
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { tasks } from "../../db/schema/tasks.js";
+import { availability } from "../../db/schema/providers.js";
+import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { newCorrelationId, newId } from "../../platform/ids.js";
 import { money, type Money } from "../../platform/money.js";
@@ -104,6 +106,34 @@ export async function transitionTask(
     .where(eq(tasks.id, taskId))
     .returning();
   if (!updated) throw new Error("Task update returned no row");
+
+  if (to === "COMPLETED" || to === "CANCELLED") {
+    const [commitment] = await tx
+      .select()
+      .from(workCommitments)
+      .where(
+        and(
+          eq(workCommitments.taskId, taskId),
+          eq(workCommitments.status, "CONFIRMED"),
+          isNull(workCommitments.capacityReleasedAt),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (commitment?.capacityReservedAt) {
+      await tx
+        .update(availability)
+        .set({
+          activeAssignments: sql`greatest(${availability.activeAssignments} - 1, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(eq(availability.providerId, commitment.providerId));
+      await tx
+        .update(workCommitments)
+        .set({ capacityReleasedAt: new Date(), updatedAt: new Date() })
+        .where(eq(workCommitments.id, commitment.id));
+    }
+  }
 
   await appendEvent(tx, {
     type: "TASK_STATUS_CHANGED",

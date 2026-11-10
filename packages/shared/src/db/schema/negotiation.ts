@@ -33,6 +33,7 @@ import { workContracts } from "./contracts";
 import { providers } from "./providers";
 import { tasks } from "./tasks";
 import { taskConversations } from "./conversations";
+import { workCommitments } from "./work-commitments";
 
 export const negotiations = pgTable(
   "negotiations",
@@ -121,6 +122,10 @@ export const commercialAgreements = pgTable(
       () => taskConversations.id,
       { onDelete: "restrict" },
     ),
+    workCommitmentId: varchar("work_commitment_id", { length: 64 }).references(
+      () => workCommitments.id,
+      { onDelete: "restrict" },
+    ),
     providerId: varchar("provider_id", { length: 64 })
       .notNull()
       .references(() => providers.id, { onDelete: "cascade" }),
@@ -141,6 +146,7 @@ export const commercialAgreements = pgTable(
   },
   (t) => ({
     taskIdx: uniqueIndex("commercial_agreements_task_unique").on(t.taskId),
+    commitmentIdx: uniqueIndex("commercial_agreements_commitment_unique").on(t.workCommitmentId),
     priceCheck: check("commercial_agreements_price_nonnegative", sql`${t.agreedPriceMinor} >= 0`),
   }),
 );
@@ -172,5 +178,9 @@ export const commercialAgreementsRelations = relations(commercialAgreements, ({ 
   conversation: one(taskConversations, {
     fields: [commercialAgreements.sourceConversationId],
     references: [taskConversations.id],
+  }),
+  workCommitment: one(workCommitments, {
+    fields: [commercialAgreements.workCommitmentId],
+    references: [workCommitments.id],
   }),
 }));

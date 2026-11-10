@@ -1,14 +1,10 @@
 /**
- * Verification tables (Component 8). Verification is where WorkPay decides,
- * before any money moves, whether the deliverable satisfies the contract.
+ * Legacy automated-observation tables retained for historical records.
  *
- * Deterministic checks run first and are authoritative for their requirements.
- * Semantic (AI) checks may only add evidence or escalate to human review; they
- * never override a failed deterministic check and never authorize payment.
+ * New work does not create these records. Tenfo is not a reviewer and no
+ * deterministic or AI output is authoritative for professional work.
  *
- * An AcceptanceDecision is the frozen verdict. Payment capture reads the most
- * recent decision and refuses unless it is PASS and bound to the current
- * contract hash.
+ * Legacy human buyer decisions remain readable for already-persisted tasks.
  */
 import { relations, sql } from "drizzle-orm";
 import {

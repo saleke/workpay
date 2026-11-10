@@ -18,6 +18,7 @@ import { workExecutions } from "../../db/schema/execution.js";
 import { availability, providers, providerSelections } from "../../db/schema/providers.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { users } from "../../db/schema/identity.js";
+import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { conflict, notFound } from "../../platform/errors.js";
 import { newId } from "../../platform/ids.js";
@@ -282,10 +283,23 @@ export async function getFirstContactContext(
     .from(availability)
     .where(eq(availability.providerId, input.providerId))
     .limit(1);
+  const [[buyerAccount], [providerAccount]] = provider?.userId
+    ? await Promise.all([
+        db.select({ accountClass: users.accountClass }).from(users).where(eq(users.id, task.userId)),
+        db
+          .select({ accountClass: users.accountClass })
+          .from(users)
+          .where(eq(users.id, provider.userId)),
+      ])
+    : [[], []];
   if (
     !provider?.userId ||
     provider.userId === task.userId ||
     provider.status !== "ACTIVE" ||
+    !buyerAccount ||
+    !providerAccount ||
+    buyerAccount.accountClass === "UNCLASSIFIED" ||
+    buyerAccount.accountClass !== providerAccount.accountClass ||
     !providerAvailability?.available ||
     providerAvailability.activeAssignments >= providerAvailability.capacity
   ) {
@@ -510,6 +524,21 @@ export async function withdrawTaskConversation(
   if (execution) {
     throw conflict(
       "A work assignment already exists. Contact the buyer in the conversation; this discussion cannot be withdrawn as a substitute for handling an assignment.",
+    );
+  }
+  const [activeCommitment] = await tx
+    .select({ status: workCommitments.status })
+    .from(workCommitments)
+    .where(
+      and(
+        eq(workCommitments.conversationId, conversation.id),
+        inArray(workCommitments.status, ["AWAITING_PROVIDER", "AWAITING_CLIENT", "CONFIRMED"]),
+      ),
+    )
+    .limit(1);
+  if (activeCommitment) {
+    throw conflict(
+      "This discussion has an active work proposal or commitment. Resolve it from Work context before closing the discussion.",
     );
   }
 
@@ -861,7 +890,7 @@ export async function listMessageInbox(db: Database, userId: string) {
     .where(inArray(taskConversationMessages.conversationId, conversationIds))
     .groupBy(taskConversationMessages.conversationId)
     .as("latest_conversation_messages");
-  const [messages, unreadRows, executions] = await Promise.all([
+  const [messages, unreadRows, executions, commitmentRows] = await Promise.all([
     db
       .select({
         conversationId: taskConversationMessages.conversationId,
@@ -905,6 +934,15 @@ export async function listMessageInbox(db: Database, userId: string) {
       .select({ taskId: workExecutions.taskId, providerId: workExecutions.providerId })
       .from(workExecutions)
       .where(inArray(workExecutions.taskId, taskIds)),
+    db
+      .select({
+        conversationId: workCommitments.conversationId,
+        status: workCommitments.status,
+        updatedAt: workCommitments.updatedAt,
+      })
+      .from(workCommitments)
+      .where(inArray(workCommitments.conversationId, conversationIds))
+      .orderBy(desc(workCommitments.updatedAt)),
   ]);
   const latestMessageByConversation = new Map(
     messages.map((message) => [message.conversationId, message]),
@@ -915,6 +953,15 @@ export async function listMessageInbox(db: Database, userId: string) {
   const taskProvidersWithExecutions = new Set(
     executions.map((execution) => taskProviderKey(execution.taskId, execution.providerId)),
   );
+  const commitmentStatusByConversation = new Map<
+    string,
+    (typeof commitmentRows)[number]["status"]
+  >();
+  for (const commitment of commitmentRows) {
+    if (!commitmentStatusByConversation.has(commitment.conversationId)) {
+      commitmentStatusByConversation.set(commitment.conversationId, commitment.status);
+    }
+  }
 
   return {
     currentUserId: userId,
@@ -927,6 +974,7 @@ export async function listMessageInbox(db: Database, userId: string) {
         taskTitle: row.taskTitle,
         taskStatus: row.taskStatus,
         status: row.status,
+        workCommitmentStatus: commitmentStatusByConversation.get(row.id) ?? null,
         hasWorkExecution: taskProvidersWithExecutions.has(
           taskProviderKey(row.taskId, row.providerId),
         ),

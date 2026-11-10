@@ -16,7 +16,7 @@
 import { hashObject } from "../../platform/hashing.js";
 import { money, type Money } from "../../platform/money.js";
 
-export const POLICY_VERSION = "pay-policy-v2";
+export const POLICY_VERSION = "pay-policy-v3";
 
 export type PaymentAction = "AUTHORIZE" | "CAPTURE" | "VOID" | "REFUND";
 export type PolicyResult = "ALLOW" | "DENY";
@@ -38,11 +38,21 @@ export interface PaymentPolicyInput {
   /** Payment facts. */
   payment: {
     id: string;
+    mode: "FAKE" | "PAYPAL_SANDBOX" | "PAYPAL_LIVE";
     status: string;
     amount: Money;
     capturedAmountMinor: number | null;
     providerAuthorizationId: string | null;
+    payerIdSnapshot: string | null;
+    sellerMerchantIdSnapshot: string | null;
+    authorizationValid: boolean;
   };
+  paymentAccounts: {
+    payerLinked: boolean;
+    sellerReady: boolean;
+    payerIdCurrent: boolean;
+    sellerMerchantIdCurrent: boolean;
+  } | null;
   /** Commercial agreement facts. */
   agreement: {
     id: string;
@@ -58,22 +68,22 @@ export interface PaymentPolicyInput {
     currentHash: string;
     budget: Money;
   };
-  /** Most recent acceptance decision bound to a contract version, if any. */
-  acceptanceDecision: {
-    submissionId: string;
-    submissionVersion: number | null;
-    submissionHash: string | null;
-    reviewPackageId: string | null;
-    outcome: "PASS" | "FAIL" | "UNCERTAIN";
+  /** Current final review decision. */
+  workReviewDecision?: {
+    id: string;
+    kind: "CHECKPOINT" | "FINAL";
+    status: string;
     contractVersion: number;
     contractHash: string;
-    reviewedBy: string | null;
-    hasDeterministicFailure: boolean;
+    decisionByUserId: string | null;
+    decisionRole: "CLIENT" | "AGREED_REVIEWER" | null;
+    requirementCount: number;
+    assessmentCount: number;
   } | null;
-  currentSubmission: {
-    id: string;
-    version: number;
-    submissionHash: string | null;
+  releaseApproval?: {
+    reviewId: string;
+    buyerUserId: string;
+    amount: Money;
     contractVersion: number;
     contractHash: string;
   } | null;
@@ -131,6 +141,7 @@ function commonChecks(input: PaymentPolicyInput): PolicyCheck[] {
       ? fail("system.kill_switch", "Payments are paused by the emergency kill switch")
       : pass("system.kill_switch", "Payment system is active"),
   );
+
   const allowedAgreementStatuses =
     input.action === "AUTHORIZE" ? AUTHORIZABLE_AGREEMENT_STATUSES : CAPTURABLE_AGREEMENT_STATUSES;
   checks.push(
@@ -167,6 +178,28 @@ function commonChecks(input: PaymentPolicyInput): PolicyCheck[] {
 
 function authorizeChecks(input: PaymentPolicyInput): PolicyCheck[] {
   const checks = commonChecks(input);
+  if (input.payment.mode === "FAKE") {
+    checks.push(na("paypal.accounts_current", "PayPal linking does not apply to demo payments"));
+  } else if (!input.paymentAccounts) {
+    checks.push(fail("paypal.accounts_current", "PayPal account readiness could not be loaded"));
+  } else {
+    const accountsCurrent =
+      input.paymentAccounts.payerLinked &&
+      input.paymentAccounts.sellerReady &&
+      input.paymentAccounts.payerIdCurrent &&
+      input.paymentAccounts.sellerMerchantIdCurrent;
+    checks.push(
+      accountsCurrent
+        ? pass("paypal.accounts_current", "Buyer and professional PayPal accounts are eligible")
+        : fail(
+            "paypal.accounts_current",
+            "A linked PayPal account is missing, stale, or restricted",
+            {
+              ...input.paymentAccounts,
+            },
+          ),
+    );
+  }
   checks.push(
     input.payment.status === "PENDING"
       ? pass("payment.pending", "Payment is awaiting authorization")
@@ -206,6 +239,35 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
       ? pass("authorization.present", "A provider authorization id is present")
       : fail("authorization.present", "No provider authorization id is recorded"),
   );
+  checks.push(
+    input.payment.authorizationValid
+      ? pass("authorization.valid", "The authorization remains valid")
+      : fail("authorization.valid", "The authorization is expired or has no valid expiry"),
+  );
+  if (input.payment.mode === "FAKE") {
+    checks.push(
+      na("paypal.accounts_current", "PayPal account checks do not apply to demo payments"),
+    );
+  } else if (!input.paymentAccounts) {
+    checks.push(fail("paypal.accounts_current", "PayPal account readiness could not be loaded"));
+  } else {
+    const accountsCurrent =
+      input.paymentAccounts.payerLinked &&
+      input.paymentAccounts.sellerReady &&
+      input.paymentAccounts.payerIdCurrent &&
+      input.paymentAccounts.sellerMerchantIdCurrent;
+    checks.push(
+      accountsCurrent
+        ? pass("paypal.accounts_current", "Buyer and professional PayPal accounts remain eligible")
+        : fail(
+            "paypal.accounts_current",
+            "A linked PayPal account is missing, stale, or restricted",
+            {
+              ...input.paymentAccounts,
+            },
+          ),
+    );
+  }
 
   checks.push(
     !input.hasSucceededCapture
@@ -230,78 +292,65 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
         }),
   );
 
-  const decision = input.acceptanceDecision;
-  const submission = input.currentSubmission;
-  if (!submission) {
-    checks.push(fail("submission.current", "No current submission exists"));
-  } else {
-    checks.push(pass("submission.current", "The current submission is identified"));
+  const finalReview = input.workReviewDecision;
+  if (finalReview) {
+    checks.push(pass("human_review.present", "A final review decision exists"));
     checks.push(
-      submission.contractVersion === input.contract.currentVersion &&
-        submission.contractHash === input.contract.currentHash
-        ? pass("submission.contract_current", "Submission is bound to the current contract")
-        : fail("submission.contract_current", "Submission is bound to a stale contract"),
+      finalReview.kind === "FINAL" && finalReview.status === "FINAL_ACCEPTED"
+        ? pass("human_review.final_accepted", "The final review accepted the work")
+        : fail("human_review.final_accepted", "The latest review is not a final acceptance"),
     );
+    checks.push(
+      finalReview.decisionRole === "CLIENT" &&
+        finalReview.decisionByUserId === input.task.ownerUserId
+        ? pass("human_review.authority", "The task owner recorded the final decision")
+        : fail("human_review.authority", "The final decision was not recorded by the task owner"),
+    );
+    checks.push(
+      finalReview.contractVersion === input.contract.currentVersion &&
+        finalReview.contractHash === input.contract.currentHash
+        ? pass("human_review.contract_current", "Review is bound to the current agreement")
+        : fail("human_review.contract_current", "Review is bound to stale terms"),
+    );
+    checks.push(
+      finalReview.requirementCount > 0 &&
+        finalReview.assessmentCount >= finalReview.requirementCount
+        ? pass(
+            "human_review.constraints_assessed",
+            "All selected agreement constraints were assessed",
+          )
+        : fail(
+            "human_review.constraints_assessed",
+            "The final review did not assess every constraint",
+          ),
+    );
+  } else {
+    checks.push(fail("human_review.present", "No final review acceptance exists"));
   }
-  if (!decision) {
-    checks.push(
-      fail("buyer_review.present", "No buyer approval exists for the current submission"),
-    );
-    checks.push(na("buyer_review.owner", "No buyer approval to evaluate"));
-    checks.push(na("buyer_review.submission_current", "No buyer approval to evaluate"));
-    checks.push(na("buyer_review.passed", "No buyer approval to evaluate"));
-    checks.push(na("buyer_review.contract_current", "No buyer approval to evaluate"));
-    checks.push(na("verification.no_deterministic_failure", "No buyer approval to evaluate"));
+
+  const releaseApproval = input.releaseApproval;
+  if (!releaseApproval) {
+    checks.push(fail("payment_release.client_approved", "The client has not approved payment release"));
   } else {
-    checks.push(pass("buyer_review.present", "A buyer review decision exists"));
     checks.push(
-      decision.reviewedBy === input.task.ownerUserId
-        ? pass("buyer_review.owner", "The task owner recorded the approval")
-        : fail("buyer_review.owner", "The approval was not recorded by the task owner"),
+      releaseApproval.buyerUserId === input.task.ownerUserId
+        ? pass("payment_release.client_approved", "The task owner approved payment release")
+        : fail("payment_release.client_approved", "Payment release approval belongs to another user"),
     );
     checks.push(
-      submission && decision.submissionId === submission.id
-        ? pass("buyer_review.submission_current", "Approval refers to the current submission")
-        : fail("buyer_review.submission_current", "Approval refers to a stale submission"),
+      sameMoney(releaseApproval.amount, input.payment.amount)
+        ? pass("payment_release.amount_current", "Release approval matches the authorized amount")
+        : fail("payment_release.amount_current", "Release approval amount is stale"),
     );
     checks.push(
-      submission &&
-        decision.submissionVersion === submission.version &&
-        decision.submissionHash === submission.submissionHash &&
-        Boolean(decision.reviewPackageId)
-        ? pass("buyer_review.evidence_current", "Approval is bound to the current evidence package")
-        : fail(
-            "buyer_review.evidence_current",
-            "Approval is not bound to the current evidence package",
-          ),
-    );
-    checks.push(
-      decision.contractVersion === input.contract.currentVersion
-        ? pass("buyer_review.contract_current", "Approval refers to the current contract version")
-        : fail("buyer_review.contract_current", "Approval refers to a stale contract version", {
-            decisionVersion: decision.contractVersion,
-            currentVersion: input.contract.currentVersion,
-          }),
-    );
-    checks.push(
-      decision.contractHash === input.contract.currentHash
-        ? pass("buyer_review.hash_matches", "Approval is bound to the current contract hash")
-        : fail("buyer_review.hash_matches", "Approval is bound to a different contract hash"),
-    );
-    checks.push(
-      decision.outcome === "PASS"
-        ? pass("buyer_review.passed", "The buyer approved the delivery")
-        : fail("buyer_review.passed", `Buyer review outcome is ${decision.outcome}`, {
-            outcome: decision.outcome,
-          }),
-    );
-    checks.push(
-      !decision.hasDeterministicFailure
-        ? pass("verification.no_deterministic_failure", "No deterministic contract check failed")
-        : fail(
-            "verification.no_deterministic_failure",
-            "A deterministic contract check failed and blocks release",
-          ),
+      releaseApproval.contractVersion === input.contract.currentVersion &&
+        releaseApproval.contractHash === input.contract.currentHash &&
+        releaseApproval.reviewId === finalReview?.id
+        ? pass(
+            "payment_release.binding_current",
+            "Release approval matches the final review and agreement",
+          )
+        : fail("payment_release.binding_current", "Release approval is bound to stale review terms"),
     );
   }
 

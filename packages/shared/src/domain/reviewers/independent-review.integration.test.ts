@@ -9,8 +9,10 @@ import {
 } from "../../db/schema/contracts.js";
 import { taskConversations } from "../../db/schema/conversations.js";
 import { events, outboxEvents } from "../../db/schema/infra.js";
-import { reviewerConflicts, reviewerProfiles } from "../../db/schema/reviewers.js";
 import { providers } from "../../db/schema/providers.js";
+import { commercialAgreements } from "../../db/schema/negotiation.js";
+import { workExecutions } from "../../db/schema/execution.js";
+import { tasks } from "../../db/schema/tasks.js";
 import {
   hasTestDatabase,
   resetDatabase,
@@ -26,8 +28,17 @@ import {
   decideIndependentReviewEngagement,
   listReviewerEngagements,
   proposeIndependentReview,
-  submitIndependentReviewReport,
 } from "./independent-review-service.js";
+import {
+  addWorkReviewItem,
+  completePaidWorkReview,
+  decideWorkReview,
+  openWorkReview,
+  recordWorkReviewAssessment,
+  respondToWorkReviewRequest,
+} from "../reviews/service.js";
+import { getTaskReviewerRecommendations } from "./service.js";
+import { createReviewFeeOrder } from "./fee-service.js";
 
 if (process.env.RUN_DB_TESTS === "1") {
   const { getEnv } = await import("../../platform/env.js");
@@ -52,10 +63,46 @@ describeDb("independent review engagement (integration)", () => {
     const providerUser = await createUser(db, { role: "provider", name: "Professional" });
     const reviewerUser = await createUser(db, { role: "admin_reviewer", name: "Reviewer" });
     const provider = await createProvider(db);
+    const reviewerProvider = await createProvider(db, { displayName: "Independent reviewer" });
     await db
       .update(providers)
       .set({ userId: providerUser.id })
       .where(eq(providers.id, provider.id));
+    const reviewerWorkPreferences = {
+      workAcceptanceStatus: "UNAVAILABLE",
+      languages: ["English"],
+      reviewService: {
+        enabled: true,
+        listed: true,
+        availability: "AVAILABLE",
+        notice: null,
+        summary: "Independent review of analytical work and conclusions.",
+        publicContactUrl: null,
+        feeMinor: 12_000,
+        typicalTurnaroundDays: 3,
+        conflictDisclosureConfirmed: true,
+        conflictUserIds: [] as string[],
+        domains: [
+          {
+            domainTag: "data-analysis",
+            scope: "Independent review of analysis methods, calculations, and conclusions.",
+            selfAssessedLevel: 4,
+            yearsExperience: 5,
+            methods: ["reproducibility review"],
+          },
+        ],
+        evidence: [],
+        feeMode: "PAYPAL",
+      },
+    };
+    await db
+      .update(providers)
+      .set({
+        userId: reviewerUser.id,
+        bio: "Independent review of analytical work.",
+        workPreferences: reviewerWorkPreferences,
+      })
+      .where(eq(providers.id, reviewerProvider.id));
 
     const buyer: Actor = { kind: "USER", id: buyerUser.id, role: "buyer" };
     const professional: Actor = { kind: "USER", id: providerUser.id, role: "provider" };
@@ -142,22 +189,16 @@ describeDb("independent review engagement (integration)", () => {
       .where(eq(taskConversations.taskId, task.id))
       .limit(1);
     if (!conversation) throw new Error("conversation fixture was not inserted");
-
-    const [reviewerProfile] = await db
-      .insert(reviewerProfiles)
-      .values({
-        id: newId("reviewer"),
-        userId: reviewerUser.id,
-        displayName: "Independent reviewer",
-        isListed: true,
-        available: true,
-        offersReview: true,
-        reviewAvailability: "AVAILABLE",
-        summary: "Independent review of analytical work.",
-        conflictDisclosureConfirmed: true,
-      })
-      .returning();
-    if (!reviewerProfile) throw new Error("reviewer profile fixture was not inserted");
+    const recommendations = await getTaskReviewerRecommendations(db, {
+      taskId: task.id,
+      userId: buyerUser.id,
+      additionalDomains: ["data-analysis"],
+    });
+    expect(recommendations.recommendations[0]).toMatchObject({
+      providerId: reviewerProvider.id,
+      userId: reviewerUser.id,
+      feeMode: "PAYPAL",
+    });
 
     await expect(
       withTransaction((tx) =>
@@ -171,9 +212,11 @@ describeDb("independent review engagement (integration)", () => {
             expectedContractHash: "b".repeat(64),
             requirementKeys: ["analysis_correctness"],
             domains: ["data-analysis"],
-            feeMinor: null,
+            brief: "Review the calculations and conclusions against the supplied data.",
+            feeMinor: 12_000,
             feeCurrency: "USD",
-            feePayer: "DIRECT",
+            feePayer: "BUYER",
+            feeMode: "PAYPAL",
           },
         }),
       ),
@@ -190,9 +233,11 @@ describeDb("independent review engagement (integration)", () => {
           expectedContractHash: contractHash,
           requirementKeys: ["analysis_correctness"],
           domains: ["data-analysis"],
-          feeMinor: null,
+          brief: "Review the calculations and conclusions against the supplied data.",
+          feeMinor: 12_000,
           feeCurrency: "USD",
-          feePayer: "DIRECT",
+          feePayer: "BUYER",
+          feeMode: "PAYPAL",
         },
       }),
     );
@@ -215,15 +260,18 @@ describeDb("independent review engagement (integration)", () => {
         correlationId,
       }),
     );
-    const [newConflict] = await db
-      .insert(reviewerConflicts)
-      .values({
-        id: newId("rconf"),
-        profileId: reviewerProfile.id,
-        conflictedUserId: buyerUser.id,
+    await db
+      .update(providers)
+      .set({
+        workPreferences: {
+          ...reviewerWorkPreferences,
+          reviewService: {
+            ...reviewerWorkPreferences.reviewService,
+            conflictUserIds: [buyerUser.id],
+          },
+        },
       })
-      .returning();
-    if (!newConflict) throw new Error("reviewer conflict fixture was not inserted");
+      .where(eq(providers.id, reviewerProvider.id));
     await expect(
       withTransaction((tx) =>
         decideIndependentReviewEngagement(tx, {
@@ -236,7 +284,10 @@ describeDb("independent review engagement (integration)", () => {
         }),
       ),
     ).rejects.toThrow("disclosed conflict now prevents accepting");
-    await db.delete(reviewerConflicts).where(eq(reviewerConflicts.id, newConflict.id));
+    await db
+      .update(providers)
+      .set({ workPreferences: reviewerWorkPreferences })
+      .where(eq(providers.id, reviewerProvider.id));
 
     const engaged = await withTransaction((tx) =>
       decideIndependentReviewEngagement(tx, {
@@ -249,31 +300,112 @@ describeDb("independent review engagement (integration)", () => {
       }),
     );
 
-    expect(engaged.status).toBe("ENGAGED");
+    expect(engaged.status).toBe("AWAITING_FEE_AUTHORIZATION");
     await expect(
-      withTransaction((tx) =>
-        submitIndependentReviewReport(tx, {
-          engagementId: proposal.id,
-          conversationId: conversation.id,
-          actor: reviewer,
-          correlationId,
-          report: {
-            submissionId: newId("sub"),
-            contractVersion: 1,
-            contractHash: "b".repeat(64),
-            rationale: "The report is intentionally bound to a stale contract hash.",
-            findings: [
-              {
-                requirementKey: "analysis_correctness",
-                outcome: "PASS",
-                rationale: "The requirement is met based on evidence.",
-                evidence: [{ description: "A sample of the calculations was checked." }],
-              },
-            ],
-          },
-        }),
-      ),
-    ).rejects.toThrow("exact contract version accepted for review");
+      createReviewFeeOrder({
+        engagementId: proposal.id,
+        payerUserId: buyerUser.id,
+        actor: buyer,
+        correlationId,
+        appUrl: "https://tenfo.test",
+      }),
+    ).resolves.toMatchObject({ paid: true, simulated: true });
+    const agreementId = newId("agreement");
+    await db.insert(commercialAgreements).values({
+      id: agreementId,
+      taskId: task.id,
+      contractId,
+      sourceConversationId: conversation.id,
+      providerId: provider.id,
+      contractVersion: 1,
+      status: "ACTIVE",
+      agreedPriceMinor: 20_000,
+      currency: "USD",
+      agreementHash: "d".repeat(64),
+    });
+    const executionId = newId("exec");
+    await db.insert(workExecutions).values({
+      id: executionId,
+      taskId: task.id,
+      contractId,
+      agreementId,
+      providerId: provider.id,
+      status: "IN_PROGRESS",
+      contractVersion: 1,
+      contractHash,
+      startedAt: new Date(),
+    });
+    await db.update(tasks).set({ status: "WORK_IN_PROGRESS" }).where(eq(tasks.id, task.id));
+    const review = await withTransaction((tx) =>
+      openWorkReview(tx, {
+        taskId: task.id,
+        buyerUserId: buyerUser.id,
+        kind: "FINAL",
+        title: "Final analysis review",
+        openingNote: "Review the analysis and its conclusions against the agreed data constraints.",
+        requirementKeys: [],
+        responseWindowDays: 5,
+        actor: buyer,
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      addWorkReviewItem(tx, {
+        reviewId: review.id,
+        actor: professional,
+        type: "LINK",
+        label: "Analysis workbook",
+        url: "https://example.test/analysis",
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      respondToWorkReviewRequest(tx, {
+        reviewId: review.id,
+        action: "SEND_PACKAGE",
+        summary: "The analysis workbook and conclusions are ready for independent review.",
+        actor: professional,
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      decideWorkReview(tx, {
+        reviewId: review.id,
+        decision: "REFER_TO_REVIEWER",
+        reason: "Use the agreed data-analysis reviewer for an independent assessment.",
+        riskAcknowledged: false,
+        actor: buyer,
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      recordWorkReviewAssessment(tx, {
+        reviewId: review.id,
+        requirementKey: "analysis_correctness",
+        status: "MET",
+        rationale: "The sampled calculations support the stated conclusions.",
+        actor: reviewer,
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      completePaidWorkReview(tx, {
+        reviewId: review.id,
+        summary: "The sampled calculations and conclusions are consistent with the supplied data.",
+        actor: reviewer,
+        correlationId,
+      }),
+    );
+    await withTransaction((tx) =>
+      decideWorkReview(tx, {
+        reviewId: review.id,
+        decision: "ACCEPT_FINAL",
+        reason: "The agreed reviewer findings support final acceptance of the analysis.",
+        riskAcknowledged: false,
+        actor: buyer,
+        correlationId,
+      }),
+    );
     const inbox = await listReviewerEngagements(db, reviewerUser.id);
     expect(inbox).toHaveLength(1);
     expect(inbox[0]?.contractContext).toMatchObject({
@@ -294,6 +426,7 @@ describeDb("independent review engagement (integration)", () => {
       included: ["Check calculations and conclusions."],
       excluded: ["Do not create a new analysis."],
     });
+    expect(inbox[0]?.workReviewId).toBe(review.id);
 
     await expect(
       withTransaction((tx) =>

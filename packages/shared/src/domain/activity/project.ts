@@ -307,11 +307,16 @@ export function describeEvent(
     case "PAYMENT_AUTHORIZED": {
       const { name: subj, isSelf } = resolveSubject(context, "Task Owner");
       const money = formatMoney(p.amount);
+      const simulated = p.simulated === true;
       return {
-        title: "Simulated authorization recorded",
-        description: isSelf
-          ? `You recorded a simulated authorization of ${money}; no funds were held or moved.`
-          : `${subj} recorded a simulated authorization of ${money}; no funds were held or moved.`,
+        title: simulated ? "Simulated authorization recorded" : "PayPal authorization active",
+        description: simulated
+          ? isSelf
+            ? `You recorded a simulated authorization of ${money}; no funds were held or moved.`
+            : `${subj} recorded a simulated authorization of ${money}; no funds were held or moved.`
+          : isSelf
+            ? `You approved a PayPal authorization of ${money}.`
+            : `${subj} approved a PayPal authorization of ${money}.`,
       };
     }
     case "PAYMENT_AUTHORIZATION_FAILED":
@@ -327,8 +332,11 @@ export function describeEvent(
     case "PAYMENT_CAPTURED": {
       const money = formatMoney(p.amount);
       return {
-        title: "Simulated capture recorded",
-        description: `The policy recorded simulated capture for ${money}; no funds were charged or paid.`,
+        title: p.simulated === true ? "Simulated capture recorded" : "PayPal capture completed",
+        description:
+          p.simulated === true
+            ? `The policy recorded simulated capture for ${money}; no funds were charged or paid.`
+            : `PayPal captured ${money} to the onboarded professional after buyer approval.`,
       };
     }
     case "PAYMENT_CAPTURE_FAILED":

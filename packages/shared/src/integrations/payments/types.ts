@@ -39,11 +39,98 @@ export interface CaptureRequest {
   authorizationId: string;
   amount: Money;
   idempotencyKey: string;
+  payeeMerchantId?: string;
+}
+
+export interface CreatePayPalOrderRequest {
+  localOrderId: string;
+  paymentId: string;
+  amount: Money;
+  description: string;
+  payeeMerchantId: string;
+  returnUrl: string;
+  cancelUrl: string;
+  idempotencyKey: string;
+}
+
+export interface CreatePayPalOrderResult {
+  status: "SUCCESS" | "DECLINED" | "UNKNOWN";
+  orderId?: string;
+  approvalUrl?: string;
+  providerStatus?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface PayPalOrderDetails {
+  id: string;
+  status: string;
+  payerId: string | null;
+  payeeMerchantId: string | null;
+  referenceId: string | null;
+  customId: string | null;
+  invoiceId: string | null;
+  amount: Money | null;
+  authorizationId: string | null;
+  authorizationStatus: string | null;
+  authorizationExpiresAt: Date | null;
+  captureId: string | null;
+  captureStatus: string | null;
+}
+
+export interface PayPalResourceDetails {
+  id: string;
+  status: string;
+  amount: Money | null;
+  orderId: string | null;
+  authorizationId: string | null;
+  payeeMerchantId: string | null;
+  expiresAt: Date | null;
+}
+
+export interface AuthorizeApprovedOrderResult extends AuthorizeResult {
+  providerStatus?: string;
+  amount?: Money;
+  payerId?: string;
+  payeeMerchantId?: string;
+  referenceId?: string;
+  customId?: string;
+  invoiceId?: string;
+  authorizationStatus?: string;
+  authorizationExpiresAt?: Date;
+}
+
+export interface PartnerReferralRequest {
+  trackingId: string;
+  returnUrl: string;
+  idempotencyKey: string;
+}
+
+export interface PartnerReferralResult {
+  referralId: string;
+  actionUrl: string;
+}
+
+export interface MerchantIntegrationStatus {
+  merchantId: string;
+  trackingId: string | null;
+  paymentsReceivable: boolean;
+  primaryEmailConfirmed: boolean;
+  consentStatus: boolean;
+  productReady: boolean;
+  oauthIntegrationReady: boolean;
+  products: string[];
+  permissions: string[];
 }
 
 export interface CaptureResult {
   status: "SUCCESS" | "DECLINED" | "UNKNOWN";
   captureId?: string;
+  providerStatus?: string;
+  amount?: Money;
+  payeeMerchantId?: string;
+  orderId?: string;
+  authorizationId?: string;
   errorCode?: string;
   errorMessage?: string;
 }
@@ -51,6 +138,7 @@ export interface CaptureResult {
 export interface VoidRequest {
   authorizationId: string;
   idempotencyKey: string;
+  payeeMerchantId?: string;
 }
 
 export interface VoidResult {
@@ -63,26 +151,12 @@ export interface RefundRequest {
   captureId: string;
   amount: Money;
   idempotencyKey: string;
+  payeeMerchantId?: string;
 }
 
 export interface RefundResult {
   status: "SUCCESS" | "DECLINED" | "UNKNOWN";
   refundId?: string;
-  errorCode?: string;
-  errorMessage?: string;
-}
-
-export interface PayoutRequest {
-  recipientEmail: string;
-  amount: Money;
-  note?: string;
-  idempotencyKey: string;
-}
-
-export interface PayoutResult {
-  status: "SUCCESS" | "DECLINED" | "UNKNOWN";
-  payoutBatchId?: string;
-  payoutItemId?: string;
   errorCode?: string;
   errorMessage?: string;
 }
@@ -94,6 +168,7 @@ export interface WebhookVerificationInput {
 }
 
 export interface WebhookVerificationResult {
+  status: "VERIFIED" | "INVALID" | "UNKNOWN";
   verified: boolean;
   /** Provider event id, used to dedupe redeliveries. */
   eventId?: string;
@@ -109,6 +184,5 @@ export interface PaymentGateway {
   capture(request: CaptureRequest): Promise<CaptureResult>;
   void(request: VoidRequest): Promise<VoidResult>;
   refund(request: RefundRequest): Promise<RefundResult>;
-  payout(request: PayoutRequest): Promise<PayoutResult>;
   verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult>;
 }

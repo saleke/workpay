@@ -1,11 +1,9 @@
 /**
- * Deterministic verification checks (Component 8).
+ * Retired deterministic observation helpers for legacy records and tests.
  *
- * These run before anything else and are authoritative for the requirements
- * they cover. They operate on a parsed dataset, not on a model's opinion, so a
- * FAIL is a fact, not a judgment call. A check that cannot be evaluated (an
- * unknown check name, a missing column) returns UNCERTAIN rather than PASS:
- * uncertainty must escalate, never authorize.
+ * They are not invoked for new review cycles and their output is never review
+ * authority. Even a mechanically accurate observation cannot judge the whole
+ * real-world work or make a payment decision.
  */
 export interface Dataset {
   columns: string[];

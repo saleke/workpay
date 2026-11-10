@@ -34,6 +34,14 @@ export async function discoverProviders(
 ) {
   const [task] = await tx.select().from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
   if (!task || task.userId !== input.buyerUserId) throw notFound("Task");
+  const [buyer] = await tx
+    .select({ accountClass: users.accountClass })
+    .from(users)
+    .where(eq(users.id, task.userId))
+    .limit(1);
+  if (!buyer || buyer.accountClass === "UNCLASSIFIED") {
+    throw conflict("The buyer account must be classified before professional discovery.");
+  }
 
   const [contract] = await tx
     .select()
@@ -75,11 +83,12 @@ export async function discoverProviders(
   );
   const profileRows = linkedUserIds.length
     ? await tx
-        .select({ id: users.id, image: users.image })
+        .select({ id: users.id, image: users.image, accountClass: users.accountClass })
         .from(users)
         .where(inArray(users.id, linkedUserIds))
     : [];
   const profileImages = new Map(profileRows.map((user) => [user.id, user.image]));
+  const profileClasses = new Map(profileRows.map((user) => [user.id, user.accountClass]));
   const latestReputation = new Map<string, (typeof reputationRows)[number]>();
   for (const row of reputationRows) {
     const current = latestReputation.get(row.providerId);
@@ -89,7 +98,12 @@ export async function discoverProviders(
   const candidateSnapshots = providerRows
     .filter(
       (provider) =>
-        provider.userId && provider.userId !== task.userId && Boolean(provider.bio?.trim()),
+        provider.userId &&
+        provider.userId !== task.userId &&
+        profileClasses.get(provider.userId) === buyer.accountClass &&
+        Boolean(provider.bio?.trim()) &&
+        (provider.workPreferences as { workAcceptanceStatus?: string } | null)
+          ?.workAcceptanceStatus !== "UNAVAILABLE",
     )
     .flatMap((provider) => {
       const currentAvailability = availabilityRows.find((row) => row.providerId === provider.id);

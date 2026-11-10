@@ -18,6 +18,8 @@ import { workContracts } from "./contracts";
 import { workSubmissions } from "./execution";
 import { tasks } from "./tasks";
 import { users } from "./identity";
+import { workReviews } from "./work-reviews";
+import { providers } from "./providers";
 
 export const independentReviewEngagements = pgTable(
   "independent_review_engagements",
@@ -43,15 +45,26 @@ export const independentReviewEngagements = pgTable(
     reviewerUserId: varchar("reviewer_user_id", { length: 64 })
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    reviewerProviderId: varchar("reviewer_provider_id", { length: 64 }).references(
+      () => providers.id,
+      { onDelete: "restrict" },
+    ),
+    workReviewId: varchar("work_review_id", { length: 64 }).references(() => workReviews.id, {
+      onDelete: "restrict",
+    }),
     proposerUserId: varchar("proposer_user_id", { length: 64 })
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     requirementKeys: jsonb("requirement_keys").$type<string[]>().notNull(),
     domains: jsonb("domains").$type<string[]>().notNull(),
+    brief: text("brief").notNull(),
     authority: varchar("authority", { length: 32 }).notNull(),
     feeMinor: bigint("fee_minor", { mode: "number" }),
     feeCurrency: varchar("fee_currency", { length: 3 }).notNull().default("USD"),
     feePayer: varchar("fee_payer", { length: 16 }).notNull(),
+    feeMode: varchar("fee_mode", { length: 16 }).notNull().default("DIRECT"),
+    feeStatus: varchar("fee_status", { length: 32 }).notNull().default("NOT_REQUIRED"),
+    feePaidAt: timestamp("fee_paid_at", { withTimezone: true }),
     status: varchar("status", { length: 32 }).notNull().default("PROPOSED"),
     buyerAcceptedAt: timestamp("buyer_accepted_at", { withTimezone: true }),
     providerAcceptedAt: timestamp("provider_accepted_at", { withTimezone: true }),
@@ -70,9 +83,14 @@ export const independentReviewEngagements = pgTable(
       t.contractId,
       t.contractVersion,
     ),
+    workReviewIdx: uniqueIndex("independent_review_engagements_work_review_unique").on(
+      t.workReviewId,
+    ),
     activeTaskUnique: uniqueIndex("independent_review_engagements_active_task_unique")
       .on(t.taskId)
-      .where(sql`${t.status} in ('PROPOSED', 'AWAITING_REVIEWER', 'ENGAGED')`),
+      .where(
+        sql`${t.status} in ('PROPOSED', 'AWAITING_REVIEWER', 'AWAITING_FEE_AUTHORIZATION', 'ENGAGED')`,
+      ),
     versionCheck: check(
       "independent_review_engagements_version_positive",
       sql`${t.contractVersion} > 0`,
@@ -91,11 +109,23 @@ export const independentReviewEngagements = pgTable(
     ),
     statusCheck: check(
       "independent_review_engagements_status_check",
-      sql`${t.status} in ('PROPOSED', 'AWAITING_REVIEWER', 'ENGAGED', 'INCONCLUSIVE', 'CLOSED', 'DECLINED', 'CANCELLED')`,
+      sql`${t.status} in ('PROPOSED', 'AWAITING_REVIEWER', 'AWAITING_FEE_AUTHORIZATION', 'ENGAGED', 'INCONCLUSIVE', 'CLOSED', 'DECLINED', 'CANCELLED')`,
     ),
     feeCheck: check(
       "independent_review_engagements_fee_nonnegative",
       sql`${t.feeMinor} is null or ${t.feeMinor} >= 0`,
+    ),
+    briefCheck: check(
+      "independent_review_engagements_brief_nonempty",
+      sql`length(trim(${t.brief})) >= 20`,
+    ),
+    feeModeCheck: check(
+      "independent_review_engagements_fee_mode_check",
+      sql`${t.feeMode} in ('PAYPAL', 'DIRECT')`,
+    ),
+    feeStatusCheck: check(
+      "independent_review_engagements_fee_status_check",
+      sql`${t.feeStatus} in ('NOT_REQUIRED', 'PENDING', 'PAID', 'FAILED', 'UNKNOWN')`,
     ),
   }),
 );

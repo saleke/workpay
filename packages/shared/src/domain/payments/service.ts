@@ -16,7 +16,7 @@
  * partial unique index allows at most one SUCCEEDED capture per payment, so a
  * retry (or a race) cannot double-spend.
  */
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { withTransaction } from "../../db/client.js";
 import { cases } from "../../db/schema/cases.js";
@@ -28,13 +28,16 @@ import {
   paymentDecisions,
   paymentOperations,
   paymentPolicyChecks,
+  paymentReleaseApprovals,
   payments,
 } from "../../db/schema/payments.js";
+import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
 import { tasks } from "../../db/schema/tasks.js";
-import { workExecutions, workSubmissions } from "../../db/schema/execution.js";
-import { acceptanceDecisions } from "../../db/schema/verification.js";
+import { workExecutions } from "../../db/schema/execution.js";
+import { workReviewAssessments, workReviews } from "../../db/schema/work-reviews.js";
 import { appendEvent } from "../../events/outbox.js";
 import { getPaymentGateway } from "../../integrations/payments/index.js";
+import { isPayPalMode, paymentModeEnvironment } from "../../integrations/payments/config.js";
 import { paypalRequestId } from "../../integrations/payments/idempotency.js";
 import { getEnv } from "../../platform/env.js";
 import { hashObject } from "../../platform/hashing.js";
@@ -52,6 +55,7 @@ import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
 import { assignExecution } from "../execution/service.js";
 import { transitionTask } from "../tasks/service.js";
+import { resolvePaymentParticipants } from "./mode.js";
 import {
   evaluatePaymentPolicy,
   type PaymentAction,
@@ -69,14 +73,68 @@ export async function ensurePaymentForAgreement(
     .from(payments)
     .where(eq(payments.taskId, options.taskId))
     .limit(1);
-  if (existing) return existing;
+  const participants = await resolvePaymentParticipants(tx, options.taskId, options.agreementId);
+  if (existing) {
+    if (
+      existing.agreementId !== participants.agreement.id ||
+      (existing.mode === "FAKE"
+        ? participants.mode !== "FAKE"
+        : !isPayPalMode(existing.mode) || !isPayPalMode(participants.mode)) ||
+      existing.buyerUserId !== participants.buyer.id ||
+      existing.providerId !== participants.provider.id
+    ) {
+      throw conflict("The existing payment is bound to different participants, terms, or mode.");
+    }
+    return existing;
+  }
 
-  const [agreement] = await tx
-    .select()
-    .from(commercialAgreements)
-    .where(eq(commercialAgreements.id, options.agreementId))
-    .limit(1);
-  if (!agreement) throw notFound("Agreement");
+  let payerIdSnapshot: string | null = null;
+  let sellerMerchantIdSnapshot: string | null = null;
+  if (isPayPalMode(participants.mode)) {
+    const environment = paymentModeEnvironment(participants.mode);
+    const [identityLink] = await tx
+      .select()
+      .from(paypalIdentityLinks)
+      .where(
+        and(
+          eq(paypalIdentityLinks.userId, participants.buyer.id),
+          eq(paypalIdentityLinks.environment, environment),
+          eq(paypalIdentityLinks.status, "LINKED"),
+        ),
+      )
+      .limit(1);
+    if (!identityLink?.accountVerified || !identityLink.emailVerified) {
+      throw conflict(
+        `Link and verify the buyer's PayPal ${environment.toLowerCase()} account first.`,
+      );
+    }
+    const [sellerAccount] = await tx
+      .select()
+      .from(providerPaypalAccounts)
+      .where(
+        and(
+          eq(providerPaypalAccounts.providerId, participants.provider.id),
+          eq(providerPaypalAccounts.environment, environment),
+          eq(providerPaypalAccounts.status, "ACTIVE"),
+        ),
+      )
+      .limit(1);
+    if (
+      !sellerAccount?.merchantId ||
+      !sellerAccount.paymentsReceivable ||
+      !sellerAccount.primaryEmailConfirmed ||
+      !sellerAccount.consentStatus
+    ) {
+      throw conflict(
+        `The professional must complete PayPal ${environment.toLowerCase()} seller onboarding first.`,
+      );
+    }
+    payerIdSnapshot = identityLink.payerId;
+    sellerMerchantIdSnapshot = sellerAccount.merchantId;
+    if (payerIdSnapshot === sellerMerchantIdSnapshot) {
+      throw conflict("The buyer and professional must use different PayPal accounts.");
+    }
+  }
 
   // The amount is copied from the agreement, never from a request body.
   const [payment] = await tx
@@ -84,9 +142,14 @@ export async function ensurePaymentForAgreement(
     .values({
       id: newId("pay"),
       taskId: options.taskId,
-      agreementId: agreement.id,
-      amountMinor: agreement.agreedPriceMinor,
-      currency: agreement.currency,
+      agreementId: participants.agreement.id,
+      mode: participants.mode,
+      buyerUserId: participants.buyer.id,
+      providerId: participants.provider.id,
+      payerIdSnapshot,
+      sellerMerchantIdSnapshot,
+      amountMinor: participants.agreement.agreedPriceMinor,
+      currency: participants.agreement.currency,
       status: "PENDING",
     })
     .returning();
@@ -130,6 +193,19 @@ async function evaluateAndRecord(
     .where(eq(commercialAgreements.id, payment.agreementId))
     .limit(1);
   if (!agreement) throw notFound("Agreement");
+  const participants = await resolvePaymentParticipants(tx, payment.taskId, payment.agreementId);
+  if (
+    (payment.mode === "FAKE"
+      ? participants.mode !== "FAKE"
+      : !isPayPalMode(payment.mode) || !isPayPalMode(participants.mode)) ||
+    participants.buyer.id !== payment.buyerUserId ||
+    participants.provider.id !== payment.providerId
+  ) {
+    throw policyDenied(
+      "payment.binding_current",
+      "The payment no longer matches the current account classes or participants.",
+    );
+  }
 
   const [contract] = await tx
     .select()
@@ -139,33 +215,23 @@ async function evaluateAndRecord(
     .limit(1);
   if (!contract) throw notFound("Contract");
 
-  const [execution] = await tx
-    .select({ id: workExecutions.id })
-    .from(workExecutions)
-    .where(eq(workExecutions.taskId, payment.taskId))
+  const [latestWorkReview] = await tx
+    .select()
+    .from(workReviews)
+    .where(and(eq(workReviews.taskId, payment.taskId), eq(workReviews.status, "FINAL_ACCEPTED")))
+    .orderBy(desc(workReviews.decidedAt))
     .limit(1);
-  const [currentSubmission] = execution
+  const [workReviewAssessmentCount] = latestWorkReview
     ? await tx
-        .select()
-        .from(workSubmissions)
-        .where(eq(workSubmissions.executionId, execution.id))
-        .orderBy(desc(workSubmissions.version))
-        .limit(1)
+        .select({ count: count() })
+        .from(workReviewAssessments)
+        .where(eq(workReviewAssessments.reviewId, latestWorkReview.id))
     : [];
-
-  const [latestDecision] = currentSubmission
-    ? await tx
-        .select()
-        .from(acceptanceDecisions)
-        .where(
-          and(
-            eq(acceptanceDecisions.taskId, payment.taskId),
-            eq(acceptanceDecisions.submissionId, currentSubmission.id),
-          ),
-        )
-        .orderBy(desc(acceptanceDecisions.createdAt))
-        .limit(1)
-    : [];
+  const [releaseApproval] = await tx
+    .select()
+    .from(paymentReleaseApprovals)
+    .where(eq(paymentReleaseApprovals.paymentId, payment.id))
+    .limit(1);
 
   const [blockingCase] = await tx
     .select()
@@ -211,16 +277,61 @@ async function evaluateAndRecord(
     ? { id: blockingCase.id, category: blockingCase.category }
     : null;
 
+  let paymentAccounts: PaymentPolicyInput["paymentAccounts"] = null;
+  if (isPayPalMode(payment.mode)) {
+    const environment = paymentModeEnvironment(payment.mode);
+    const [[identityLink], [sellerAccount]] = await Promise.all([
+      tx
+        .select()
+        .from(paypalIdentityLinks)
+        .where(
+          and(
+            eq(paypalIdentityLinks.userId, payment.buyerUserId),
+            eq(paypalIdentityLinks.environment, environment),
+            eq(paypalIdentityLinks.status, "LINKED"),
+          ),
+        )
+        .limit(1),
+      tx
+        .select()
+        .from(providerPaypalAccounts)
+        .where(
+          and(
+            eq(providerPaypalAccounts.providerId, payment.providerId),
+            eq(providerPaypalAccounts.environment, environment),
+            eq(providerPaypalAccounts.status, "ACTIVE"),
+          ),
+        )
+        .limit(1),
+    ]);
+    paymentAccounts = {
+      payerLinked: Boolean(identityLink?.accountVerified && identityLink.emailVerified),
+      sellerReady: Boolean(
+        sellerAccount?.paymentsReceivable &&
+        sellerAccount.primaryEmailConfirmed &&
+        sellerAccount.consentStatus,
+      ),
+      payerIdCurrent: identityLink?.payerId === payment.payerIdSnapshot,
+      sellerMerchantIdCurrent: sellerAccount?.merchantId === payment.sellerMerchantIdSnapshot,
+    };
+  }
+
   const input: PaymentPolicyInput = {
     action: options.action,
     task: { status: task.status, ownerUserId: task.userId },
     payment: {
       id: payment.id,
+      mode: payment.mode,
       status: options.paymentStatusOverride ?? payment.status,
       amount: money(payment.amountMinor, payment.currency as Money["currency"]),
       capturedAmountMinor: payment.capturedAmountMinor ?? null,
       providerAuthorizationId: payment.providerAuthorizationId ?? null,
+      payerIdSnapshot: payment.payerIdSnapshot,
+      sellerMerchantIdSnapshot: payment.sellerMerchantIdSnapshot,
+      authorizationValid:
+        payment.authorizationExpiresAt !== null && payment.authorizationExpiresAt > new Date(),
     },
+    paymentAccounts,
     agreement: {
       id: agreement.id,
       status: agreement.status,
@@ -234,26 +345,31 @@ async function evaluateAndRecord(
       currentHash: contract.contractHash,
       budget: money(contract.budgetMinor, contract.currency as Money["currency"]),
     },
-    acceptanceDecision: latestDecision
+    workReviewDecision: latestWorkReview
       ? {
-          submissionId: latestDecision.submissionId,
-          submissionVersion: latestDecision.submissionVersion,
-          submissionHash: latestDecision.submissionHash,
-          reviewPackageId: latestDecision.reviewPackageId,
-          outcome: latestDecision.outcome,
-          contractVersion: latestDecision.contractVersion,
-          contractHash: latestDecision.contractHash,
-          reviewedBy: latestDecision.reviewedBy,
-          hasDeterministicFailure: latestDecision.hasDeterministicFailure,
+          id: latestWorkReview.id,
+          kind: latestWorkReview.kind,
+          status: latestWorkReview.status,
+          contractVersion: latestWorkReview.contractVersion,
+          contractHash: latestWorkReview.contractHash,
+          decisionByUserId: latestWorkReview.decisionByUserId,
+          decisionRole: latestWorkReview.decisionRole as "CLIENT" | "AGREED_REVIEWER" | null,
+          requirementCount: Array.isArray(latestWorkReview.requirementKeys)
+            ? latestWorkReview.requirementKeys.filter((key) => typeof key === "string").length
+            : 0,
+          assessmentCount: workReviewAssessmentCount?.count ?? 0,
         }
       : null,
-    currentSubmission: currentSubmission
+    releaseApproval: releaseApproval
       ? {
-          id: currentSubmission.id,
-          version: currentSubmission.version,
-          submissionHash: currentSubmission.submissionHash,
-          contractVersion: currentSubmission.contractVersion,
-          contractHash: currentSubmission.contractHash,
+          reviewId: releaseApproval.reviewId,
+          buyerUserId: releaseApproval.buyerUserId,
+          amount: money(
+            releaseApproval.amountMinor,
+            releaseApproval.currency as Money["currency"],
+          ),
+          contractVersion: releaseApproval.contractVersion,
+          contractHash: releaseApproval.contractHash,
         }
       : null,
     blockingCase: blockingCaseOpen,
@@ -315,6 +431,17 @@ export interface PolicyOutcome {
   captureCommandId?: string;
 }
 
+export async function evaluatePaymentAction(options: {
+  paymentId: string;
+  action: PaymentAction;
+  actor: Actor;
+  correlationId: string;
+  paymentStatusOverride?: string;
+}): Promise<PolicyOutcome> {
+  const result = await withTransaction((tx) => evaluateAndRecord(tx, options));
+  return { decision: result.decision, decisionId: result.decisionId };
+}
+
 /**
  * Authorize the payment with the gateway.
  *
@@ -339,6 +466,9 @@ export async function authorizePayment(options: {
   if (decision.result === "DENY") {
     return { decision, decisionId };
   }
+  if (payment.mode !== "FAKE") {
+    throw conflict("PayPal payments require explicit buyer approval before authorization.");
+  }
 
   const amount = money(payment.amountMinor, payment.currency as Money["currency"]);
   const idempotencyKey = paypalRequestId(
@@ -361,13 +491,13 @@ export async function authorizePayment(options: {
         taskId: payment.taskId,
         paymentId: payment.id,
         amount: { amountMinor: amount.amountMinor, currency: amount.currency },
-        simulated: true,
+        simulated: payment.mode === "FAKE",
       },
     });
   });
 
   // Network call, deliberately outside any transaction (P4).
-  const gateway = getPaymentGateway();
+  const gateway = getPaymentGateway(payment.mode);
   const result = await gateway.authorize({
     orderId: payment.id,
     amount,
@@ -405,6 +535,7 @@ export async function authorizePayment(options: {
           providerAuthorizationId: result.authorizationId ?? null,
           providerOrderId: result.providerOrderId ?? null,
           authorizedAt: new Date(),
+          authorizationExpiresAt: new Date(Date.now() + 29 * 24 * 60 * 60 * 1000),
           updatedAt: new Date(),
         })
         .where(eq(payments.id, payment.id));
@@ -423,7 +554,7 @@ export async function authorizePayment(options: {
           paymentId: payment.id,
           amount: { amountMinor: amount.amountMinor, currency: amount.currency },
           paypalAuthorizationId: result.authorizationId ?? null,
-          simulated: true,
+          simulated: payment.mode === "FAKE",
         },
       });
     } else if (result.status === "DECLINED") {
@@ -465,10 +596,6 @@ export async function simulateAuthorizationAndAssign(options: {
   actor: Actor;
   correlationId: string;
 }): Promise<{ paymentId: string; executionId: string; alreadyPrepared: boolean }> {
-  if (getEnv().PAYMENT_GATEWAY !== "fake") {
-    throw conflict("Live payment execution is disabled during lifecycle validation.");
-  }
-
   const prepared = await withTransaction(async (tx) => {
     const [task] = await tx
       .select()
@@ -487,6 +614,10 @@ export async function simulateAuthorizationAndAssign(options: {
       .for("update")
       .limit(1);
     if (!agreement) throw conflict("Both parties must agree commercial terms first.");
+    const participants = await resolvePaymentParticipants(tx, task.id, agreement.id);
+    if (participants.mode !== "FAKE") {
+      throw conflict("Authenticated member accounts must approve the PayPal order instead.");
+    }
 
     const [contract] = await tx
       .select()
@@ -763,7 +894,57 @@ export async function executeCapture(options: {
     if (payment.status !== "CAPTURE_REQUESTED" || !payment.providerAuthorizationId) {
       throw conflict("Payment does not have an active capture request.");
     }
-    return { alreadyCaptured: false as const, command, payment };
+    if (!payment.authorizationExpiresAt || payment.authorizationExpiresAt <= new Date()) {
+      throw policyDenied("authorization.valid", "The PayPal authorization is expired.");
+    }
+    if (isPayPalMode(payment.mode)) {
+      const environment = paymentModeEnvironment(payment.mode);
+      const [[identityLink], [sellerAccount]] = await Promise.all([
+        tx
+          .select()
+          .from(paypalIdentityLinks)
+          .where(
+            and(
+              eq(paypalIdentityLinks.userId, payment.buyerUserId),
+              eq(paypalIdentityLinks.environment, environment),
+              eq(paypalIdentityLinks.status, "LINKED"),
+            ),
+          )
+          .limit(1),
+        tx
+          .select()
+          .from(providerPaypalAccounts)
+          .where(
+            and(
+              eq(providerPaypalAccounts.providerId, payment.providerId),
+              eq(providerPaypalAccounts.environment, environment),
+              eq(providerPaypalAccounts.status, "ACTIVE"),
+            ),
+          )
+          .limit(1),
+      ]);
+      if (
+        identityLink?.payerId !== payment.payerIdSnapshot ||
+        sellerAccount?.merchantId !== payment.sellerMerchantIdSnapshot ||
+        !sellerAccount.paymentsReceivable ||
+        !sellerAccount.primaryEmailConfirmed ||
+        !sellerAccount.consentStatus
+      ) {
+        throw policyDenied(
+          "paypal.accounts_current",
+          "A linked PayPal account is no longer eligible.",
+        );
+      }
+    }
+    const [claimedCommand] = await tx
+      .update(paymentCommands)
+      .set({ consumed: true, consumedAt: new Date() })
+      .where(and(eq(paymentCommands.id, command.id), eq(paymentCommands.consumed, false)))
+      .returning();
+    if (!claimedCommand) {
+      throw externalUnknown("The capture command is already being executed or reconciled.");
+    }
+    return { alreadyCaptured: false as const, command: claimedCommand, payment };
   });
   if (prepared.alreadyCaptured) {
     return {
@@ -774,19 +955,34 @@ export async function executeCapture(options: {
   const { command, payment } = prepared;
 
   const amount = money(command.amountMinor, command.currency as Money["currency"]);
-  const gateway = getPaymentGateway();
-  const result = await gateway.capture({
+  const gateway = getPaymentGateway(payment.mode);
+  const gatewayResult = await gateway.capture({
     authorizationId: payment.providerAuthorizationId!,
     amount,
     idempotencyKey: command.idempotencyKey,
+    ...(payment.sellerMerchantIdSnapshot
+      ? { payeeMerchantId: payment.sellerMerchantIdSnapshot }
+      : {}),
   });
+  const result =
+    gatewayResult.status === "SUCCESS" &&
+    isPayPalMode(payment.mode) &&
+    (!gatewayResult.captureId ||
+      gatewayResult.providerStatus !== "COMPLETED" ||
+      gatewayResult.amount?.amountMinor !== amount.amountMinor ||
+      gatewayResult.amount.currency !== amount.currency ||
+      gatewayResult.authorizationId !== payment.providerAuthorizationId ||
+      gatewayResult.orderId !== payment.providerOrderId ||
+      gatewayResult.payeeMerchantId !== payment.sellerMerchantIdSnapshot)
+      ? ({
+          ...gatewayResult,
+          status: "UNKNOWN" as const,
+          errorCode: "CAPTURE_BINDING_UNCONFIRMED",
+          errorMessage: "PayPal capture response did not match the authorized payment.",
+        } satisfies typeof gatewayResult)
+      : gatewayResult;
 
   await withTransaction(async (tx) => {
-    const [existingOperation] = await tx
-      .select({ id: paymentOperations.id })
-      .from(paymentOperations)
-      .where(eq(paymentOperations.idempotencyKey, command.idempotencyKey))
-      .limit(1);
     const operationStatus =
       result.status === "SUCCESS"
         ? "SUCCEEDED"
@@ -794,8 +990,9 @@ export async function executeCapture(options: {
           ? "FAILED"
           : "UNKNOWN";
 
-    if (!existingOperation) {
-      await tx.insert(paymentOperations).values({
+    const [operation] = await tx
+      .insert(paymentOperations)
+      .values({
         id: newId("poper"),
         paymentId: payment.id,
         taskId: payment.taskId,
@@ -805,15 +1002,26 @@ export async function executeCapture(options: {
         currency: amount.currency,
         idempotencyKey: command.idempotencyKey,
         providerOperationId: result.captureId ?? null,
-        requestHash: hashObject({ authorizationId: payment.providerAuthorizationId, amount }),
+        requestHash: hashObject({
+          mode: payment.mode,
+          authorizationId: payment.providerAuthorizationId,
+          payeeMerchantId: payment.sellerMerchantIdSnapshot,
+          amount,
+          idempotencyKey: command.idempotencyKey,
+        }),
         rawResponse: result as unknown as Record<string, unknown>,
         errorCode: result.errorCode ?? null,
         errorMessage: result.errorMessage ?? null,
-      });
-    }
+      })
+      .onConflictDoNothing()
+      .returning({ id: paymentOperations.id });
+
+    // Another finalizer already owns this provider result. It alone may emit
+    // events or change financial state.
+    if (!operation) return;
 
     if (result.status === "SUCCESS") {
-      await tx
+      const [updatedPayment] = await tx
         .update(payments)
         .set({
           status: "CAPTURED",
@@ -822,11 +1030,16 @@ export async function executeCapture(options: {
           capturedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(payments.id, payment.id));
-      await tx
-        .update(paymentCommands)
-        .set({ consumed: true, consumedAt: new Date() })
-        .where(eq(paymentCommands.id, command.id));
+        .where(
+          and(
+            eq(payments.id, payment.id),
+            inArray(payments.status, ["CAPTURE_REQUESTED", "UNKNOWN"]),
+          ),
+        )
+        .returning({ id: payments.id });
+      if (!updatedPayment) {
+        throw conflict("Payment is no longer eligible for capture finalization.");
+      }
       await tx
         .update(commercialAgreements)
         .set({ status: "COMPLETED", updatedAt: new Date() })
@@ -842,23 +1055,38 @@ export async function executeCapture(options: {
           paymentId: payment.id,
           amount: { amountMinor: amount.amountMinor, currency: amount.currency },
           paypalCaptureId: result.captureId ?? null,
-          simulated: true,
+          simulated: payment.mode === "FAKE",
         },
       });
     } else if (result.status === "DECLINED") {
-      await appendEvent(tx, {
-        type: "PAYMENT_CAPTURE_FAILED",
-        aggregateId: payment.id,
-        taskId: payment.taskId,
-        actor: toEventActor(options.actor),
-        correlationId: options.correlationId,
-        payload: {
+      const [updatedPayment] = await tx
+        .update(payments)
+        .set({ status: "FAILED", updatedAt: new Date() })
+        .where(and(eq(payments.id, payment.id), eq(payments.status, "CAPTURE_REQUESTED")))
+        .returning({ id: payments.id });
+      if (updatedPayment) {
+        await appendEvent(tx, {
+          type: "PAYMENT_CAPTURE_FAILED",
+          aggregateId: payment.id,
           taskId: payment.taskId,
-          paymentId: payment.id,
-          reason: result.errorMessage ?? "declined",
-        },
-      });
+          actor: toEventActor(options.actor),
+          correlationId: options.correlationId,
+          payload: {
+            taskId: payment.taskId,
+            paymentId: payment.id,
+            reason: result.errorMessage ?? "declined",
+          },
+        });
+      }
     } else {
+      await tx
+        .update(payments)
+        .set({
+          status: "UNKNOWN",
+          ...(result.captureId ? { providerCaptureId: result.captureId } : {}),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(payments.id, payment.id), eq(payments.status, "CAPTURE_REQUESTED")));
       logger.warn(
         { paymentId: payment.id, captureCommandId: command.id },
         "capture returned UNKNOWN; reconciliation required",
@@ -867,6 +1095,57 @@ export async function executeCapture(options: {
   });
 
   return { status: result.status, ...(result.captureId ? { captureId: result.captureId } : {}) };
+}
+
+export async function executeCaptureAndComplete(options: {
+  captureCommandId: string;
+  actor: Actor;
+  correlationId: string;
+}) {
+  const result = await executeCapture(options);
+  if (result.status !== "SUCCESS") return result;
+  await withTransaction(async (tx) => {
+    const [command] = await tx
+      .select({ paymentId: paymentCommands.paymentId })
+      .from(paymentCommands)
+      .where(eq(paymentCommands.id, options.captureCommandId))
+      .limit(1);
+    if (!command) throw notFound("Capture command");
+    const [payment] = await tx
+      .select({ taskId: payments.taskId })
+      .from(payments)
+      .where(eq(payments.id, command.paymentId))
+      .limit(1);
+    if (!payment) throw notFound("Payment");
+    const [task] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, payment.taskId))
+      .for("update")
+      .limit(1);
+    if (!task || task.status === "COMPLETED") return;
+    if (task.status !== "PAYMENT_RELEASE") {
+      throw conflict("Captured payment cannot complete a task outside the release state.", {
+        taskStatus: task.status,
+      });
+    }
+    await transitionTask(tx, {
+      taskId: task.id,
+      to: "COMPLETED",
+      actor: options.actor,
+      correlationId: options.correlationId,
+      patch: { completedAt: new Date() },
+    });
+    await appendEvent(tx, {
+      type: "TASK_COMPLETED",
+      aggregateId: task.id,
+      taskId: task.id,
+      actor: toEventActor(options.actor),
+      correlationId: options.correlationId,
+      payload: { taskId: task.id },
+    });
+  });
+  return result;
 }
 
 /**
@@ -882,12 +1161,153 @@ export async function captureIfAllowed(options: {
   if (outcome.decision.result === "DENY" || !outcome.captureCommandId) {
     return { ...outcome, captured: false };
   }
-  const result = await executeCapture({
+  const result = await executeCaptureAndComplete({
     captureCommandId: outcome.captureCommandId,
     actor: options.actor,
     correlationId: options.correlationId,
   });
   return { ...outcome, captured: result.status === "SUCCESS" };
+}
+
+export async function approvePaymentReleaseForTask(options: {
+  taskId: string;
+  expectedPaymentId: string;
+  expectedAmountMinor: number;
+  expectedCurrency: "USD";
+  actor: Actor;
+  correlationId: string;
+}) {
+  return withTransaction(async (tx) => {
+    const [task] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, options.taskId))
+      .for("update")
+      .limit(1);
+    if (!task) throw notFound("Task");
+    if (options.actor.kind !== "USER" || options.actor.id !== task.userId) {
+      throw authorizationError("Only the client can approve payment release.");
+    }
+    if (!["REVIEW_ACCEPTED", "PAYMENT_RELEASE"].includes(task.status)) {
+      throw conflict("Final work acceptance is required before payment approval.");
+    }
+    const [payment] = await tx
+      .select()
+      .from(payments)
+      .where(eq(payments.taskId, task.id))
+      .for("update")
+      .limit(1);
+    if (!payment || payment.id !== options.expectedPaymentId) throw notFound("Payment");
+    if (
+      payment.amountMinor !== options.expectedAmountMinor ||
+      payment.currency !== options.expectedCurrency ||
+      payment.status !== "AUTHORIZED"
+    ) {
+      throw conflict("The authorized payment changed. Review the current amount before approving.");
+    }
+    const [review] = await tx
+      .select()
+      .from(workReviews)
+      .where(and(eq(workReviews.taskId, task.id), eq(workReviews.status, "FINAL_ACCEPTED")))
+      .orderBy(desc(workReviews.decidedAt))
+      .limit(1);
+    if (!review || review.decisionByUserId !== task.userId || review.decisionRole !== "CLIENT") {
+      throw conflict("A current client final-acceptance decision is required.");
+    }
+    const [agreement] = await tx
+      .select()
+      .from(commercialAgreements)
+      .where(eq(commercialAgreements.id, payment.agreementId))
+      .limit(1);
+    const [contract] = await tx
+      .select()
+      .from(workContracts)
+      .where(and(eq(workContracts.id, review.contractId), eq(workContracts.status, "ACTIVE")))
+      .limit(1);
+    if (
+      !agreement ||
+      !contract ||
+      agreement.contractVersion !== contract.version ||
+      review.contractVersion !== contract.version ||
+      review.contractHash !== contract.contractHash
+    ) {
+      throw conflict("The accepted review is bound to stale agreement terms.");
+    }
+    const [blockingCase] = await tx
+      .select({ id: cases.id })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.taskId, task.id),
+          eq(cases.blocksPaymentCapture, true),
+          inArray(cases.status, ["OPEN", "AWAITING_RESPONSE", "UNDER_REVIEW"]),
+        ),
+      )
+      .limit(1);
+    if (blockingCase) throw conflict("Resolve the blocking case before approving payment release.");
+    const approvalHash = hashObject({
+      paymentId: payment.id,
+      taskId: task.id,
+      reviewId: review.id,
+      buyerUserId: task.userId,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      contractVersion: contract.version,
+      contractHash: contract.contractHash,
+      statementVersion: "release-v1",
+    });
+    const [existing] = await tx
+      .select()
+      .from(paymentReleaseApprovals)
+      .where(eq(paymentReleaseApprovals.paymentId, payment.id))
+      .limit(1);
+    if (existing) {
+      if (existing.approvalHash !== approvalHash) {
+        throw conflict("A payment release approval already exists for different terms.");
+      }
+      return existing;
+    }
+    const [approval] = await tx
+      .insert(paymentReleaseApprovals)
+      .values({
+        id: newId("prelease"),
+        paymentId: payment.id,
+        taskId: task.id,
+        reviewId: review.id,
+        buyerUserId: task.userId,
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        contractVersion: contract.version,
+        contractHash: contract.contractHash,
+        approvalHash,
+      })
+      .returning();
+    if (!approval) throw new Error("Payment release approval insert returned no row.");
+    if (task.status === "REVIEW_ACCEPTED") {
+      await transitionTask(tx, {
+        taskId: task.id,
+        to: "PAYMENT_RELEASE",
+        actor: options.actor,
+        correlationId: options.correlationId,
+      });
+    }
+    await appendEvent(tx, {
+      type: "PAYMENT_RELEASE_APPROVED",
+      aggregateId: payment.id,
+      taskId: task.id,
+      actor: toEventActor(options.actor),
+      correlationId: options.correlationId,
+      payload: {
+        taskId: task.id,
+        paymentId: payment.id,
+        reviewId: review.id,
+        buyerUserId: task.userId,
+        amount: { amountMinor: payment.amountMinor, currency: payment.currency },
+        approvalHash,
+      },
+    });
+    return approval;
+  });
 }
 
 export async function releasePaymentForTask(options: {
@@ -907,12 +1327,42 @@ export async function releasePaymentForTask(options: {
     tx.select().from(payments).where(eq(payments.taskId, options.taskId)).limit(1),
   );
   if (!payment) throw notFound("Payment");
+  await withTransaction(async (tx) => {
+    const participants = await resolvePaymentParticipants(tx, payment.taskId, payment.agreementId);
+    const classMatchesPersistedMode =
+      payment.mode === "FAKE"
+        ? participants.mode === "FAKE"
+        : isPayPalMode(payment.mode) && isPayPalMode(participants.mode);
+    if (
+      !classMatchesPersistedMode ||
+      participants.buyer.id !== payment.buyerUserId ||
+      participants.provider.id !== payment.providerId
+    ) {
+      throw policyDenied(
+        "payment.binding_current",
+        "The payment no longer matches the current account classes or participants.",
+      );
+    }
+  });
 
   if (!["PAYMENT_RELEASE", "REVIEW_ACCEPTED"].includes(task.status)) {
     throw conflict("Payment release is only allowed after the approval gate is reached.", {
       taskStatus: task.status,
       paymentStatus: payment.status,
     });
+  }
+  const [releaseApproval] = await withTransaction((tx) =>
+    tx
+      .select()
+      .from(paymentReleaseApprovals)
+      .where(eq(paymentReleaseApprovals.paymentId, payment.id))
+      .limit(1),
+  );
+  if (!releaseApproval) {
+    throw policyDenied(
+      "payment_release.client_approved",
+      "Approve the current payment release before capture.",
+    );
   }
 
   if (task.status === "REVIEW_ACCEPTED") {
@@ -1019,30 +1469,13 @@ export async function releasePaymentForTask(options: {
     captureCommandId = outcome.captureCommandId;
   }
 
-  const result = await executeCapture({
+  const result = await executeCaptureAndComplete({
     captureCommandId,
     actor: options.actor,
     correlationId: options.correlationId,
   });
 
   if (result.status === "SUCCESS") {
-    await withTransaction(async (tx) => {
-      await transitionTask(tx, {
-        taskId: task.id,
-        to: "COMPLETED",
-        actor: options.actor,
-        correlationId: options.correlationId,
-        patch: { completedAt: new Date() },
-      });
-      await appendEvent(tx, {
-        type: "TASK_COMPLETED",
-        aggregateId: task.id,
-        taskId: task.id,
-        actor: toEventActor(options.actor),
-        correlationId: options.correlationId,
-        payload: { taskId: task.id },
-      });
-    });
     return { paymentId: payment.id, status: "CAPTURED", captured: true };
   }
 

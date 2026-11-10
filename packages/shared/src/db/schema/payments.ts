@@ -27,13 +27,17 @@ import {
 import {
   paymentDecisionActionEnum,
   paymentDecisionResultEnum,
+  paymentModeEnum,
   paymentOperationActionEnum,
   paymentOperationStatusEnum,
   paymentStatusEnum,
   policyCheckResultEnum,
 } from "../enums";
 import { commercialAgreements } from "./negotiation";
+import { providers } from "./providers";
 import { tasks } from "./tasks";
+import { users } from "./identity";
+import { workReviews } from "./work-reviews";
 
 export const payments = pgTable(
   "payments",
@@ -45,6 +49,15 @@ export const payments = pgTable(
     agreementId: varchar("agreement_id", { length: 64 })
       .notNull()
       .references(() => commercialAgreements.id, { onDelete: "restrict" }),
+    mode: paymentModeEnum("mode").notNull().default("FAKE"),
+    buyerUserId: varchar("buyer_user_id", { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    providerId: varchar("provider_id", { length: 64 })
+      .notNull()
+      .references(() => providers.id, { onDelete: "restrict" }),
+    payerIdSnapshot: varchar("payer_id_snapshot", { length: 128 }),
+    sellerMerchantIdSnapshot: varchar("seller_merchant_id_snapshot", { length: 128 }),
     /** Amount is copied from the agreement, never from the request body. */
     amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
@@ -57,6 +70,7 @@ export const payments = pgTable(
     providerCaptureId: varchar("provider_capture_id", { length: 128 }),
     capturedAmountMinor: bigint("captured_amount_minor", { mode: "number" }),
     authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+    authorizationExpiresAt: timestamp("authorization_expires_at", { withTimezone: true }),
     capturedAt: timestamp("captured_at", { withTimezone: true }),
     voidedAt: timestamp("voided_at", { withTimezone: true }),
     refundedAt: timestamp("refunded_at", { withTimezone: true }),
@@ -71,6 +85,86 @@ export const payments = pgTable(
       "payments_captured_nonnegative",
       sql`${t.capturedAmountMinor} is null or ${t.capturedAmountMinor} >= 0`,
     ),
+    modeBindingCheck: check(
+      "payments_mode_binding_valid",
+      sql`(${t.mode} = 'FAKE' and ${t.payerIdSnapshot} is null and ${t.sellerMerchantIdSnapshot} is null) or (${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and ${t.payerIdSnapshot} is not null and ${t.sellerMerchantIdSnapshot} is not null)`,
+    ),
+  }),
+);
+
+export const paymentOrders = pgTable(
+  "payment_orders",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    paymentId: varchar("payment_id", { length: 64 })
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    mode: paymentModeEnum("mode").notNull(),
+    generation: integer("generation").notNull().default(1),
+    requestId: varchar("request_id", { length: 128 }).notNull(),
+    externalOrderId: varchar("external_order_id", { length: 128 }),
+    approvalStateHash: varchar("approval_state_hash", { length: 64 }).notNull(),
+    approvalUrl: text("approval_url"),
+    payerIdSnapshot: varchar("payer_id_snapshot", { length: 128 }).notNull(),
+    sellerMerchantIdSnapshot: varchar("seller_merchant_id_snapshot", { length: 128 }).notNull(),
+    amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    status: varchar("status", { length: 32 }).notNull().default("CREATE_REQUESTED"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    paymentGenerationIdx: uniqueIndex("payment_orders_payment_generation_unique").on(
+      t.paymentId,
+      t.generation,
+    ),
+    requestIdx: uniqueIndex("payment_orders_request_unique").on(t.requestId),
+    externalIdx: uniqueIndex("payment_orders_external_unique").on(t.mode, t.externalOrderId),
+    approvalStateIdx: uniqueIndex("payment_orders_approval_state_unique").on(t.approvalStateHash),
+    amountCheck: check("payment_orders_amount_nonnegative", sql`${t.amountMinor} >= 0`),
+    statusCheck: check(
+      "payment_orders_status_valid",
+      sql`${t.status} in ('CREATE_REQUESTED', 'AWAITING_APPROVAL', 'APPROVED', 'AUTHORIZATION_REQUESTED', 'AUTHORIZED', 'CANCELLED', 'FAILED', 'UNKNOWN')`,
+    ),
+    paypalModeCheck: check(
+      "payment_orders_paypal_mode_only",
+      sql`${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE')`,
+    ),
+  }),
+);
+
+/** Explicit buyer consent to capture after accepting the final review. */
+export const paymentReleaseApprovals = pgTable(
+  "payment_release_approvals",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    paymentId: varchar("payment_id", { length: 64 })
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    taskId: varchar("task_id", { length: 64 })
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    reviewId: varchar("review_id", { length: 64 })
+      .notNull()
+      .references(() => workReviews.id, { onDelete: "restrict" }),
+    buyerUserId: varchar("buyer_user_id", { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    contractVersion: integer("contract_version").notNull(),
+    contractHash: varchar("contract_hash", { length: 64 }).notNull(),
+    approvalHash: varchar("approval_hash", { length: 64 }).notNull(),
+    statementVersion: varchar("statement_version", { length: 32 }).notNull().default("release-v1"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    paymentIdx: uniqueIndex("payment_release_approvals_payment_unique").on(t.paymentId),
+    reviewIdx: uniqueIndex("payment_release_approvals_review_unique").on(t.reviewId),
+    amountCheck: check("payment_release_approvals_amount_nonnegative", sql`${t.amountMinor} >= 0`),
   }),
 );
 
@@ -196,6 +290,11 @@ export const paymentOperations = pgTable(
     singleSuccessfulCapture: uniqueIndex("payment_operations_single_capture")
       .on(t.paymentId)
       .where(sql`${t.action} = 'CAPTURE' and ${t.status} = 'SUCCEEDED'`),
+    uniqueSuccessfulAuthorization: uniqueIndex("payment_operations_authorization_id_unique")
+      .on(t.providerOperationId)
+      .where(
+        sql`${t.action} = 'AUTHORIZE' and ${t.status} = 'SUCCEEDED' and ${t.providerOperationId} is not null`,
+      ),
     amountCheck: check("payment_operations_amount_nonnegative", sql`${t.amountMinor} >= 0`),
   }),
 );
@@ -209,17 +308,31 @@ export const webhookEvents = pgTable(
   {
     id: varchar("id", { length: 64 }).primaryKey(),
     provider: varchar("provider", { length: 32 }).notNull(),
+    mode: paymentModeEnum("mode").notNull().default("FAKE"),
+    paymentId: varchar("payment_id", { length: 64 }).references(() => payments.id, {
+      onDelete: "set null",
+    }),
     /** Gateway event id, unique to dedupe redeliveries. */
     externalEventId: varchar("external_event_id", { length: 128 }).notNull(),
     eventType: varchar("event_type", { length: 128 }).notNull(),
     /** Signature verification outcome. */
     verified: boolean("verified").notNull().default(false),
+    bodyHash: varchar("body_hash", { length: 64 }).notNull(),
+    processingStatus: varchar("processing_status", { length: 24 }).notNull().default("RECEIVED"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
     payload: jsonb("payload").notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    externalIdx: uniqueIndex("webhook_events_external_unique").on(t.provider, t.externalEventId),
+    externalIdx: uniqueIndex("webhook_events_external_unique").on(
+      t.provider,
+      t.mode,
+      t.externalEventId,
+    ),
+    processingIdx: index("webhook_events_processing_idx").on(t.processingStatus, t.createdAt),
+    attemptsCheck: check("webhook_events_attempts_nonnegative", sql`${t.attempts} >= 0`),
   }),
 );
 
@@ -231,6 +344,11 @@ export const paymentsRelations = relations(payments, ({ one, many }) => ({
   }),
   decisions: many(paymentDecisions),
   operations: many(paymentOperations),
+  orders: many(paymentOrders),
+}));
+
+export const paymentOrdersRelations = relations(paymentOrders, ({ one }) => ({
+  payment: one(payments, { fields: [paymentOrders.paymentId], references: [payments.id] }),
 }));
 
 export const paymentDecisionsRelations = relations(paymentDecisions, ({ one, many }) => ({

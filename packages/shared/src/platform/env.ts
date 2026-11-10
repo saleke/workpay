@@ -79,11 +79,19 @@ export const envSchema = z
     AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
     AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
 
-    PAYMENT_GATEWAY: z.enum(["fake", "paypal"]).default("fake"),
-    PAYPAL_ENV: z.enum(["sandbox", "live"]).default("sandbox"),
-    PAYPAL_CLIENT_ID: optionalString,
-    PAYPAL_CLIENT_SECRET: optionalString,
-    PAYPAL_WEBHOOK_ID: optionalString,
+    PAYPAL_NEW_PAYMENT_MODE: z.enum(["PAYPAL_SANDBOX", "PAYPAL_LIVE"]).default("PAYPAL_SANDBOX"),
+    PAYPAL_LIVE_ENABLED: booleanish.default(false),
+    PAYPAL_SANDBOX_CLIENT_ID: optionalString,
+    PAYPAL_SANDBOX_CLIENT_SECRET: optionalString,
+    PAYPAL_SANDBOX_WEBHOOK_ID: optionalString,
+    PAYPAL_SANDBOX_PARTNER_MERCHANT_ID: optionalString,
+    PAYPAL_SANDBOX_BN_CODE: optionalString,
+    PAYPAL_LIVE_CLIENT_ID: optionalString,
+    PAYPAL_LIVE_CLIENT_SECRET: optionalString,
+    PAYPAL_LIVE_WEBHOOK_ID: optionalString,
+    PAYPAL_LIVE_PARTNER_MERCHANT_ID: optionalString,
+    PAYPAL_LIVE_BN_CODE: optionalString,
+    PAYPAL_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(15_000),
     SYSTEM_PAYMENT_PAUSE: booleanish.default(false),
 
     STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
@@ -120,13 +128,30 @@ export const envSchema = z
     PERSONA_WEBHOOK_SECRET: optionalString,
   })
   .superRefine((env, ctx) => {
-    if (env.PAYMENT_GATEWAY === "paypal") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["PAYMENT_GATEWAY"],
-        message:
-          "Live payments are disabled while the user-led lifecycle is being validated. Use PAYMENT_GATEWAY=fake.",
-      });
+    if (env.PAYPAL_NEW_PAYMENT_MODE === "PAYPAL_LIVE") {
+      if (!env.PAYPAL_LIVE_ENABLED) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["PAYPAL_LIVE_ENABLED"],
+          message: "PAYPAL_LIVE_ENABLED must be true before selecting live payments.",
+        });
+      }
+      const requiredLive = [
+        ["PAYPAL_LIVE_CLIENT_ID", env.PAYPAL_LIVE_CLIENT_ID],
+        ["PAYPAL_LIVE_CLIENT_SECRET", env.PAYPAL_LIVE_CLIENT_SECRET],
+        ["PAYPAL_LIVE_WEBHOOK_ID", env.PAYPAL_LIVE_WEBHOOK_ID],
+        ["PAYPAL_LIVE_PARTNER_MERCHANT_ID", env.PAYPAL_LIVE_PARTNER_MERCHANT_ID],
+        ["PAYPAL_LIVE_BN_CODE", env.PAYPAL_LIVE_BN_CODE],
+      ] as const;
+      for (const [key, value] of requiredLive) {
+        if (!value) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required for live PayPal payments.`,
+          });
+        }
+      }
     }
     if (env.AI_PROVIDER === "openai" && !env.OPENAI_API_KEY) {
       ctx.addIssue({

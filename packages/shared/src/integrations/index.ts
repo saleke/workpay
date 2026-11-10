@@ -11,11 +11,7 @@ export * as payments from "./payments/index.js";
 export * as persona from "./persona/index.js";
 export * as storage from "./storage/index.js";
 
-export {
-  getPersonaClient,
-  setPersonaClient,
-  PersonaClient,
-} from "./persona/index.js";
+export { getPersonaClient, setPersonaClient, PersonaClient } from "./persona/index.js";
 export type {
   PersonaDocumentType,
   PersonaInquiryStatus,
@@ -49,7 +45,14 @@ export type {
 export {
   getPaymentGateway,
   setPaymentGateway,
+  resetPaymentGateways,
+  getPayPalClient,
   getPayPalOAuthClient,
+  getConfiguredNewPaymentMode,
+  getPayPalConfig,
+  paypalModeConfigured,
+  isPayPalMode,
+  paymentModeEnvironment,
   FakePayPal,
   SandboxPayPal,
 } from "./payments/index.js";
@@ -66,6 +69,17 @@ export type {
   RefundResult,
   WebhookVerificationInput,
   WebhookVerificationResult,
+  PaymentMode,
+  PayPalPaymentMode,
+  PayPalEnvironment,
+  PayPalConfig,
+  CreatePayPalOrderRequest,
+  CreatePayPalOrderResult,
+  PayPalOrderDetails,
+  PayPalResourceDetails,
+  PartnerReferralRequest,
+  PartnerReferralResult,
+  MerchantIntegrationStatus,
 } from "./payments/index.js";
 
 export {

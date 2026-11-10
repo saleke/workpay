@@ -1,0 +1,2 @@
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_paypal_mode_only" CHECK ("payment_orders"."mode" in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE'));--> statement-breakpoint
+ALTER TABLE "payments" ADD CONSTRAINT "payments_mode_binding_valid" CHECK (("payments"."mode" = 'FAKE' and "payments"."payer_id_snapshot" is null and "payments"."seller_merchant_id_snapshot" is null) or ("payments"."mode" in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and "payments"."payer_id_snapshot" is not null and "payments"."seller_merchant_id_snapshot" is not null));

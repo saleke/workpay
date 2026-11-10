@@ -1,4 +1,5 @@
 export interface ReviewerCandidate {
+  providerId: string;
   userId: string;
   username: string | null;
   displayName: string;
@@ -8,6 +9,8 @@ export interface ReviewerCandidate {
   currency: string;
   languages: string[];
   typicalTurnaroundDays: number | null;
+  feeMode: "PAYPAL" | "DIRECT";
+  paymentReady: boolean;
   conflictDisclosureConfirmed: boolean;
   expertise: Array<{
     domainTag: string;
@@ -28,6 +31,7 @@ export interface ReviewerCandidate {
 }
 
 export interface ReviewerRecommendation {
+  providerId: string;
   userId: string;
   username: string | null;
   displayName: string;
@@ -37,6 +41,8 @@ export interface ReviewerRecommendation {
   currency: string;
   languages: string[];
   typicalTurnaroundDays: number | null;
+  feeMode: "PAYPAL" | "DIRECT";
+  paymentReady: boolean;
   matchedDomains: string[];
   matchingExpertise: ReviewerCandidate["expertise"];
   evidence: ReviewerCandidate["evidence"];
@@ -70,7 +76,8 @@ export function recommendReviewers(input: RecommendReviewersInput): ReviewerReco
     if (
       excluded.has(candidate.userId) ||
       candidate.conflictedUserIds.some((userId) => excluded.has(userId)) ||
-      !candidate.conflictDisclosureConfirmed
+      !candidate.conflictDisclosureConfirmed ||
+      (candidate.feeMode === "PAYPAL" && !candidate.paymentReady)
     ) {
       continue;
     }
@@ -88,12 +95,13 @@ export function recommendReviewers(input: RecommendReviewersInput): ReviewerReco
     const rationale = [
       `Matches ${matchedDomains.length} of ${requiredDomains.length} requested review domain${requiredDomains.length === 1 ? "" : "s"}.`,
       evidenceCount > 0
-        ? `${evidenceCount} evidence item${evidenceCount === 1 ? "" : "s"} supplied by the reviewer; WorkPay has not independently verified them.`
+        ? `${evidenceCount} supporting profile item${evidenceCount === 1 ? "" : "s"}.`
         : "No supporting evidence has been supplied on this profile.",
       "Confirm task-specific conflicts and reviewer fit directly before engagement.",
     ];
 
     ranked.push({
+      providerId: candidate.providerId,
       userId: candidate.userId,
       username: candidate.username,
       displayName: candidate.displayName,
@@ -103,6 +111,8 @@ export function recommendReviewers(input: RecommendReviewersInput): ReviewerReco
       currency: candidate.currency,
       languages: candidate.languages,
       typicalTurnaroundDays: candidate.typicalTurnaroundDays,
+      feeMode: candidate.feeMode,
+      paymentReady: candidate.paymentReady,
       matchedDomains,
       matchingExpertise,
       evidence: candidate.evidence,

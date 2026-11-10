@@ -11,7 +11,9 @@
     "./integrations": "./src/integrations/index.ts",
     "./schemas": "./src/schemas/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./testing": "./src/testing/index.ts",
+    "./money": "./src/platform/money.ts",
+    "./provider-relevance": "./src/domain/providers/relevance.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

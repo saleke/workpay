@@ -1,14 +1,9 @@
 /**
- * Verification service (Component 8).
+ * Legacy automated-observation service. Runtime invocation is retired.
  *
- * Runs checks for a submission's contract and persists advisory evidence. The
- * rules of the game:
- *
- *  - A failed deterministic check forces the whole outcome to FAIL. A semantic
- *    or human rule can never overturn it.
- *  - Uncertainty escalates to human review; it never authorizes payment.
- *  - Verification never records acceptance or authorizes payment. A separate
- *    buyer review is bound to the exact submission and contract.
+ * Retained only to read historical tasks and support migration tests. New work
+ * uses human-led review cycles with notes, links, and optional files. The
+ * worker and active UI never call this service.
  *
  * Reading the submission from object storage is I/O, so it happens outside any
  * transaction; the results are written in one transaction afterwards.

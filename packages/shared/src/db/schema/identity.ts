@@ -5,9 +5,9 @@
  * extends `users` with a role. The database is the authority for identity:
  * `authorize()` reads roles from here, never from the session token payload.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
-  boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -17,7 +17,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
-import { userRoleEnum } from "../enums";
+import { accountClassEnum, userRoleEnum } from "../enums";
 
 export const users = pgTable(
   "users",
@@ -32,20 +32,17 @@ export const users = pgTable(
     image: text("image"),
     passwordHash: text("password_hash"),
     role: userRoleEnum("role").notNull().default("buyer"),
+    accountClass: accountClassEnum("account_class").notNull().default("UNCLASSIFIED"),
     // Step 2: Developer verification (GitHub profile)
     githubUsername: text("github_username"),
     githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
     // Persona-reported identity verification outcome and source.
-    idVerificationStatus: varchar("id_verification_status", { length: 32 }).notNull().default("UNVERIFIED"),
+    idVerificationStatus: varchar("id_verification_status", { length: 32 })
+      .notNull()
+      .default("UNVERIFIED"),
     idVerificationProvider: varchar("id_verification_provider", { length: 32 }),
     idVerifiedAt: timestamp("id_verified_at", { withTimezone: true }),
     idDocumentType: varchar("id_document_type", { length: 32 }),
-    // PayPal Account Linking and Binding
-    paypalPayerId: text("paypal_payer_id"),
-    paypalPayoutEmail: text("paypal_payout_email"),
-    paypalLinkedAt: timestamp("paypal_linked_at", { withTimezone: true }),
-    paypalVerified: boolean("paypal_verified").notNull().default(false),
-    paypalAutoHoldEnabled: boolean("paypal_auto_hold_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -78,13 +75,49 @@ export const accounts = pgTable(
   }),
 );
 
-export const sessions = pgTable("sessions", {
-  sessionToken: text("session_token").primaryKey(),
-  userId: varchar("user_id", { length: 64 })
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expires: timestamp("expires", { withTimezone: true }).notNull(),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    sessionToken: text("session_token").primaryKey(),
+    userId: varchar("user_id", { length: 64 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+    handoffCodeHash: varchar("handoff_code_hash", { length: 64 }),
+    handoffTabNonceHash: varchar("handoff_tab_nonce_hash", { length: 64 }),
+    handoffExpiresAt: timestamp("handoff_expires_at", { withTimezone: true }),
+  },
+  (t) => ({
+    handoffCodeIdx: uniqueIndex("sessions_handoff_code_hash_unique").on(t.handoffCodeHash),
+  }),
+);
+
+export const oauthAttempts = pgTable(
+  "oauth_attempts",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    provider: varchar("provider", { length: 16 }).notNull(),
+    stateHash: varchar("state_hash", { length: 64 }).notNull(),
+    intent: varchar("intent", { length: 16 }).notNull(),
+    userId: varchar("user_id", { length: 64 }).references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    tabNonceHash: varchar("tab_nonce_hash", { length: 64 }).notNull(),
+    returnTo: text("return_to").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    stateIdx: uniqueIndex("oauth_attempts_state_hash_unique").on(t.stateHash),
+    userIdx: index("oauth_attempts_user_idx").on(t.userId, t.createdAt),
+    providerCheck: check(
+      "oauth_attempts_provider_valid",
+      sql`${t.provider} in ('GOOGLE', 'GITHUB')`,
+    ),
+    intentCheck: check("oauth_attempts_intent_valid", sql`${t.intent} in ('SIGN_IN', 'LINK')`),
+  }),
+);
 
 export const verificationTokens = pgTable(
   "verification_tokens",

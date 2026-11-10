@@ -7,6 +7,7 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 // Identity
 export const userRoleEnum = pgEnum("user_role", ["buyer", "provider", "admin_reviewer"]);
+export const accountClassEnum = pgEnum("account_class", ["UNCLASSIFIED", "DEMO_FIXTURE", "MEMBER"]);
 
 // Tasks
 export const taskStatusEnum = pgEnum("task_status", [
@@ -21,6 +22,7 @@ export const taskStatusEnum = pgEnum("task_status", [
   "AGREEMENT_READY",
   "PAYMENT_AUTHORIZATION",
   "WORK_IN_PROGRESS",
+  "REVIEW_REQUESTED",
   "SUBMITTED",
   "VERIFYING",
   "AWAITING_CLIENT_REVIEW",
@@ -87,6 +89,16 @@ export const taskConversationStatusEnum = pgEnum("task_conversation_status", [
   "CLOSED",
 ]);
 
+export const workCommitmentStatusEnum = pgEnum("work_commitment_status", [
+  "AWAITING_PROVIDER",
+  "AWAITING_CLIENT",
+  "CONFIRMED",
+  "PROVIDER_DECLINED",
+  "BUYER_WITHDRAWN",
+  "NOT_SELECTED",
+  "SUPERSEDED",
+]);
+
 // Negotiation and agreement
 export const negotiationStatusEnum = pgEnum("negotiation_status", [
   "INITIATED",
@@ -126,6 +138,9 @@ export const agreementStatusEnum = pgEnum("agreement_status", [
 // Payments
 export const paymentStatusEnum = pgEnum("payment_status", [
   "PENDING",
+  "ORDER_CREATE_REQUESTED",
+  "AWAITING_BUYER_APPROVAL",
+  "ORDER_APPROVED",
   "AUTHORIZATION_REQUESTED",
   "AUTHORIZED",
   "CAPTURE_REQUESTED",
@@ -135,6 +150,8 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "FAILED",
   "UNKNOWN",
 ]);
+
+export const paymentModeEnum = pgEnum("payment_mode", ["FAKE", "PAYPAL_SANDBOX", "PAYPAL_LIVE"]);
 
 export const paymentOperationActionEnum = pgEnum("payment_operation_action", [
   "AUTHORIZE",
@@ -170,10 +187,35 @@ export const executionStatusEnum = pgEnum("execution_status", [
   "ASSIGNED",
   "ACCEPTED",
   "IN_PROGRESS",
+  "REVIEW_REQUESTED",
+  "UNDER_REVIEW",
   "SUBMITTED",
   "REVISION_REQUESTED",
   "COMPLETED",
   "CANCELLED",
+]);
+
+export const workReviewKindEnum = pgEnum("work_review_kind", ["CHECKPOINT", "FINAL"]);
+export const workReviewStatusEnum = pgEnum("work_review_status", [
+  "REQUESTED",
+  "PREPARING",
+  "CLARIFICATION_REQUESTED",
+  "READY_FOR_REVIEW",
+  "REFERRED",
+  "DISSATISFIED",
+  "CLIENT_RESPONSE_OVERDUE",
+  "CHECKPOINT_ACCEPTED",
+  "FINAL_ACCEPTED",
+  "CHANGES_REQUESTED",
+  "CANCELLED",
+]);
+export const workReviewItemTypeEnum = pgEnum("work_review_item_type", ["NOTE", "LINK", "FILE"]);
+export const workReviewAssessmentStatusEnum = pgEnum("work_review_assessment_status", [
+  "MET",
+  "PARTIAL",
+  "NOT_MET",
+  "UNCLEAR",
+  "NOT_APPLICABLE",
 ]);
 
 export const submissionStatusEnum = pgEnum("submission_status", [

@@ -9,7 +9,12 @@ import { newId } from "../platform/ids.js";
 
 export async function createUser(
   db: Database,
-  overrides: { role?: "buyer" | "provider" | "admin_reviewer"; name?: string; email?: string } = {},
+  overrides: {
+    role?: "buyer" | "provider" | "admin_reviewer";
+    name?: string;
+    email?: string;
+    accountClass?: "UNCLASSIFIED" | "DEMO_FIXTURE" | "MEMBER";
+  } = {},
 ) {
   const id = newId("user");
   const [user] = await db
@@ -19,6 +24,7 @@ export async function createUser(
       name: overrides.name ?? "Test Buyer",
       email: overrides.email ?? `${id}@example.test`,
       role: overrides.role ?? "buyer",
+      accountClass: overrides.accountClass ?? "DEMO_FIXTURE",
     })
     .returning();
   if (!user) throw new Error("failed to create user");

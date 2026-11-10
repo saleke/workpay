@@ -13,6 +13,7 @@ import {
 import { tasks } from "../../db/schema/tasks.js";
 import { workExecutions, workSubmissions } from "../../db/schema/execution.js";
 import { taskConversations } from "../../db/schema/conversations.js";
+import { workCommitments } from "../../db/schema/work-commitments.js";
 import { appendEvent } from "../../events/outbox.js";
 import { getPaymentGateway } from "../../integrations/payments/index.js";
 import { paypalRequestId } from "../../integrations/payments/idempotency.js";
@@ -25,6 +26,7 @@ import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
 import { canTransition } from "../tasks/state.js";
 import { transitionTask } from "../tasks/service.js";
+import { resolvePaymentParticipants } from "../payments/mode.js";
 import {
   applyContractChange,
   contractChangePatchSchema,
@@ -530,13 +532,9 @@ async function finalizeContractChangeRequest(
       "A work assignment already exists for another professional. It cannot be reassigned through a discussion; resolve the assignment before contacting someone else.",
     );
   }
-  if (
-    providerChanged &&
-    payment &&
-    !["PENDING", "FAILED", "VOIDED"].includes(payment.status)
-  ) {
+  if (providerChanged && payment) {
     throw conflict(
-      "Payment authorization has already started for another professional. The assignment cannot be switched through this discussion.",
+      "A payment is already bound to another professional. Reassignment requires cancelling that payment workflow first.",
     );
   }
   if ((agreement || payment) && targetPrice === null) {
@@ -636,6 +634,32 @@ async function finalizeContractChangeRequest(
     .update(workContracts)
     .set({ status: "EXPIRED", updatedAt: now })
     .where(eq(workContracts.id, baseContract.id));
+  const supersededCommitments = await tx
+    .update(workCommitments)
+    .set({ status: "SUPERSEDED", closedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(workCommitments.taskId, task.id),
+        inArray(workCommitments.status, ["AWAITING_PROVIDER", "AWAITING_CLIENT"]),
+      ),
+    )
+    .returning();
+  for (const commitment of supersededCommitments) {
+    await appendEvent(tx, {
+      type: "WORK_COMMITMENT_CLOSED",
+      aggregateId: commitment.id,
+      taskId: task.id,
+      actor: toEventActor(input.actor),
+      correlationId: input.correlationId,
+      payload: {
+        taskId: task.id,
+        conversationId: commitment.conversationId,
+        commitmentId: commitment.id,
+        providerUserId: commitment.providerUserId,
+        reason: "TERMS_CHANGED",
+      },
+    });
+  }
 
   let baseAgreementSnapshot: Record<string, unknown> | null = null;
   let activatedAgreement = agreement;
@@ -682,42 +706,57 @@ async function finalizeContractChangeRequest(
       status: preAuthorizationState ? "PENDING_AUTHORIZATION" : agreement.status,
       updatedAt: now,
     };
-  } else if (terms.agreedPriceMinor !== null) {
-    const agreementId = newId("agreement");
-    const agreementHash = hashObject({
-      agreementId,
-      taskId: task.id,
-      contractId,
-      contractVersion: nextVersion,
-      contractHash: compiled.contractHash,
-      providerId: conversation.providerId,
-      agreedPriceMinor: terms.agreedPriceMinor,
-      currency: terms.budget.currency,
-      deliveryDeadline: terms.deadline,
-      paymentTerms: "FULL_ON_ACCEPTANCE",
-      sourceConversationId: conversation.id,
-    });
-    const [createdAgreement] = await tx
-      .insert(commercialAgreements)
-      .values({
-        id: agreementId,
-        taskId: task.id,
-        contractId,
-        sourceConversationId: conversation.id,
-        providerId: conversation.providerId,
-        contractVersion: nextVersion,
-        status: "PENDING_AUTHORIZATION",
-        agreedPriceMinor: terms.agreedPriceMinor,
-        currency: terms.budget.currency,
-        deliveryDeadline: terms.deadline ? new Date(terms.deadline) : null,
-        paymentTerms: "FULL_ON_ACCEPTANCE",
-        agreementHash,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
-    if (!createdAgreement) throw new Error("Commercial agreement insert returned no row.");
-    activatedAgreement = createdAgreement;
+    if (agreement.workCommitmentId) {
+      const commitmentTerms = {
+        id: contractId,
+        version: nextVersion,
+        hash: compiled.contractHash,
+        title: terms.title,
+        summary: terms.summary,
+        requirements: terms.requirements,
+        included: terms.included,
+        excluded: terms.excluded,
+        acceptanceRules: terms.acceptanceRules,
+        budget: terms.budget,
+        agreedPrice: { amountMinor: targetPrice, currency: terms.budget.currency },
+        deadline: terms.deadline,
+      };
+      await tx
+        .update(workCommitments)
+        .set({
+          contractId,
+          contractVersion: nextVersion,
+          contractHash: compiled.contractHash,
+          amountMinor: targetPrice,
+          currency: terms.budget.currency,
+          deliveryDeadline: terms.deadline ? new Date(terms.deadline) : null,
+          termsSnapshot: commitmentTerms,
+          termsHash: hashObject({
+            commitmentId: agreement.workCommitmentId,
+            previousTermsHash: (
+              await tx
+                .select({ termsHash: workCommitments.termsHash })
+                .from(workCommitments)
+                .where(eq(workCommitments.id, agreement.workCommitmentId))
+                .limit(1)
+            )[0]?.termsHash,
+            contractId,
+            contractVersion: nextVersion,
+            contractHash: compiled.contractHash,
+            amountMinor: targetPrice,
+            currency: terms.budget.currency,
+            deliveryDeadline: terms.deadline,
+            terms: commitmentTerms,
+          }),
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(workCommitments.id, agreement.workCommitmentId),
+            eq(workCommitments.status, "CONFIRMED"),
+          ),
+        );
+    }
   }
   if (payment && targetPrice !== null) {
     await tx
@@ -1201,6 +1240,20 @@ export async function activateContractChangeRequest(input: {
     if (!payment.providerAuthorizationId || targetPrice === 0) {
       throw conflict("The current PayPal authorization cannot be safely replaced.");
     }
+    if (payment.mode !== "FAKE") {
+      throw conflict(
+        "An authorized PayPal agreement change requires a new buyer-approved PayPal order before activation.",
+        { paymentMode: payment.mode, paymentAdjustmentAction: adjustment.action },
+      );
+    }
+    const participants = await resolvePaymentParticipants(tx, payment.taskId, payment.agreementId);
+    if (
+      participants.mode !== "FAKE" ||
+      participants.buyer.id !== payment.buyerUserId ||
+      participants.provider.id !== payment.providerId
+    ) {
+      throw conflict("Only persisted evaluator accounts may use simulated reauthorization.");
+    }
 
     const authorizeKey = paypalRequestId("contract-change-authorize", request.id);
     const now = new Date();
@@ -1217,21 +1270,6 @@ export async function activateContractChangeRequest(input: {
           eq(contractChangeRequests.status, "ACCEPTED_PENDING_ACTIVATION"),
         ),
       );
-    await tx.insert(paymentOperations).values({
-      id: newId("poper"),
-      paymentId: payment.id,
-      taskId: payment.taskId,
-      action: "AUTHORIZE",
-      status: "PENDING",
-      amountMinor: targetPrice,
-      currency: terms.budget.currency,
-      idempotencyKey: authorizeKey,
-      requestHash: hashObject({
-        orderId: `amendment:${request.id}`,
-        amount: money(targetPrice, terms.budget.currency as Money["currency"]),
-        idempotencyKey: authorizeKey,
-      }),
-    });
     return {
       kind: "reauthorize" as const,
       requestId: request.id,
@@ -1243,6 +1281,7 @@ export async function activateContractChangeRequest(input: {
       currency: terms.budget.currency as Money["currency"],
       authorizeKey,
       orderId: `amendment:${request.id}`,
+      mode: payment.mode,
     };
   });
 
@@ -1251,7 +1290,7 @@ export async function activateContractChangeRequest(input: {
     return finishReauthorization(input, prepared.plan, prepared.authorization);
   }
 
-  const gateway = getPaymentGateway();
+  const gateway = getPaymentGateway(prepared.mode);
   const targetAmount = money(prepared.targetAmountMinor, prepared.currency);
   let authorization: Awaited<ReturnType<typeof gateway.authorize>>;
   try {
@@ -1277,16 +1316,25 @@ export async function activateContractChangeRequest(input: {
         ? "FAILED"
         : "UNKNOWN";
   await withTransaction(async (tx) => {
-    await tx
-      .update(paymentOperations)
-      .set({
-        status: authorizationStatus,
-        providerOperationId: authorizationId ?? null,
-        rawResponse: authorization as unknown as Record<string, unknown>,
-        errorCode: authorization.errorCode ?? null,
-        errorMessage: authorization.errorMessage ?? null,
-      })
-      .where(eq(paymentOperations.idempotencyKey, prepared.authorizeKey));
+    await tx.insert(paymentOperations).values({
+      id: newId("poper"),
+      paymentId: prepared.paymentId,
+      taskId: prepared.taskId,
+      action: "AUTHORIZE",
+      status: authorizationStatus,
+      amountMinor: prepared.targetAmountMinor,
+      currency: prepared.currency,
+      idempotencyKey: prepared.authorizeKey,
+      requestHash: hashObject({
+        orderId: prepared.orderId,
+        amount: targetAmount,
+        idempotencyKey: prepared.authorizeKey,
+      }),
+      providerOperationId: authorizationId ?? null,
+      rawResponse: authorization as unknown as Record<string, unknown>,
+      errorCode: authorization.errorCode ?? null,
+      errorMessage: authorization.errorMessage ?? null,
+    });
   });
   if (authorizationStatus !== "SUCCEEDED" || !authorizationId) {
     return setActivationFailure(
@@ -1300,22 +1348,6 @@ export async function activateContractChangeRequest(input: {
   }
 
   const voidKey = paypalRequestId("contract-change-void", prepared.requestId);
-  await withTransaction(async (tx) => {
-    await tx.insert(paymentOperations).values({
-      id: newId("poper"),
-      paymentId: prepared.paymentId,
-      taskId: prepared.taskId,
-      action: "VOID",
-      status: "PENDING",
-      amountMinor: prepared.oldAmountMinor,
-      currency: prepared.currency,
-      idempotencyKey: voidKey,
-      requestHash: hashObject({
-        authorizationId: prepared.oldAuthorizationId,
-        idempotencyKey: voidKey,
-      }),
-    });
-  });
   let voidResult: Awaited<ReturnType<typeof gateway.void>>;
   try {
     voidResult = await gateway.void({
@@ -1330,21 +1362,29 @@ export async function activateContractChangeRequest(input: {
     voidResult = { status: "UNKNOWN", errorMessage: "Void outcome unknown" };
   }
   await withTransaction(async (tx) => {
-    await tx
-      .update(paymentOperations)
-      .set({
-        status:
-          voidResult.status === "SUCCESS"
-            ? "SUCCEEDED"
-            : voidResult.status === "DECLINED"
-              ? "FAILED"
-              : "UNKNOWN",
-        providerOperationId: prepared.oldAuthorizationId,
-        rawResponse: voidResult as unknown as Record<string, unknown>,
-        errorCode: voidResult.errorCode ?? null,
-        errorMessage: voidResult.errorMessage ?? null,
-      })
-      .where(eq(paymentOperations.idempotencyKey, voidKey));
+    await tx.insert(paymentOperations).values({
+      id: newId("poper"),
+      paymentId: prepared.paymentId,
+      taskId: prepared.taskId,
+      action: "VOID",
+      status:
+        voidResult.status === "SUCCESS"
+          ? "SUCCEEDED"
+          : voidResult.status === "DECLINED"
+            ? "FAILED"
+            : "UNKNOWN",
+      amountMinor: prepared.oldAmountMinor,
+      currency: prepared.currency,
+      idempotencyKey: voidKey,
+      requestHash: hashObject({
+        authorizationId: prepared.oldAuthorizationId,
+        idempotencyKey: voidKey,
+      }),
+      providerOperationId: prepared.oldAuthorizationId,
+      rawResponse: voidResult as unknown as Record<string, unknown>,
+      errorCode: voidResult.errorCode ?? null,
+      errorMessage: voidResult.errorMessage ?? null,
+    });
   });
   if (voidResult.status !== "SUCCESS") {
     return setActivationFailure(

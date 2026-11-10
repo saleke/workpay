@@ -1,0 +1,4 @@
+ALTER TABLE "provider_paypal_accounts" ADD COLUMN "onboarding_state_hash" varchar(64);--> statement-breakpoint
+ALTER TABLE "provider_paypal_accounts" ADD COLUMN "onboarding_expires_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "provider_paypal_accounts" ADD COLUMN "onboarding_consumed_at" timestamp with time zone;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_operations_authorization_id_unique" ON "payment_operations" USING btree ("provider_operation_id") WHERE "payment_operations"."action" = 'AUTHORIZE' and "payment_operations"."status" = 'SUCCEEDED' and "payment_operations"."provider_operation_id" is not null;

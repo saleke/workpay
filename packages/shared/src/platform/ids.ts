@@ -7,13 +7,18 @@
  * newId("task") -> "task_0192f3c1-..." (v7 => lexicographically time-sortable)
  */
 
+import nodeCrypto from "node:crypto";
+
 const HEX = "0123456789abcdef";
 
 function randomBytes(n: number): Uint8Array {
   const bytes = new Uint8Array(n);
-  const cryptoApi = globalThis.crypto;
-  if (!cryptoApi) throw new Error("The Web Crypto API is required to generate identifiers.");
-  cryptoApi.getRandomValues(bytes);
+  const cryptoApi = globalThis.crypto ?? nodeCrypto.webcrypto;
+  if (cryptoApi?.getRandomValues) {
+    cryptoApi.getRandomValues(bytes);
+    return bytes;
+  }
+  nodeCrypto.randomFillSync(bytes);
   return bytes;
 }
 
@@ -58,6 +63,8 @@ export type IdPrefix =
   | "reviewer"
   | "irev"
   | "irpt"
+  | "rfee"
+  | "rfop"
   | "rex"
   | "revd"
   | "rconf"
@@ -69,6 +76,11 @@ export type IdPrefix =
   | "offer"
   | "agreement"
   | "pay"
+  | "plink"
+  | "poauth"
+  | "ppacct"
+  | "porder"
+  | "prelease"
   | "pdec"
   | "pcheck"
   | "pcmd"
@@ -78,11 +90,15 @@ export type IdPrefix =
   | "sub"
   | "sart"
   | "rpk"
+  | "wreview"
+  | "writem"
+  | "wrassess"
   | "vrun"
   | "vres"
   | "adec"
   | "case"
   | "conv"
+  | "wcommit"
   | "chg"
   | "cmsg"
   | "catt"
@@ -99,6 +115,8 @@ export type IdPrefix =
   | "corr"
   | "user"
   | "session"
+  | "oauth"
+  | "photo"
   | "source"
   | "intakever"
   | "notif"

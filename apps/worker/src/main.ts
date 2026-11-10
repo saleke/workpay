@@ -4,32 +4,35 @@
  * Runs long-lived background jobs:
  * 1. Transactional outbox event consumption and dispatch (Component 12).
  * 2. Automated notification generation (in-app notifications projection).
- * 3. Asynchronous deliverable verification and conditional payment capture.
+ * 3. Payment command execution and reconciliation.
  * 4. Graceful termination on SIGINT/SIGTERM.
  */
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { createServer, type Server } from "node:http";
 import { getDb, withTransaction } from "@workpay/shared/db/client";
 import { events, notifications, outboxEvents } from "@workpay/shared/db/schema/infra";
-import { verificationRuns } from "@workpay/shared/db/schema/verification";
 import { tasks } from "@workpay/shared/db/schema/tasks";
+import { payments, webhookEvents } from "@workpay/shared/db/schema/payments";
+import { reviewFeePayments } from "@workpay/shared/db/schema/review-fees";
 import {
   claimOutboxBatch,
   markOutboxPublished,
   markOutboxFailed,
 } from "@workpay/shared/events/outbox";
 import {
-  agentVerifySubmission,
-  executeVerification,
-  ensureAgent,
-  handoffSubmissionToBuyerReview,
+  executeCaptureAndComplete,
+  markOverdueWorkReviews,
   projectConversationNotification,
+  reconcileReviewFeePayment,
+  reconcilePayPalPayment,
+  systemActor,
 } from "@workpay/shared/domain";
 import { newId } from "@workpay/shared/platform";
 import { logger } from "@workpay/shared/platform";
 
 let isRunning = true;
 let healthServer: Server | null = null;
+let lastPayPalReconciliationAt = 0;
 
 async function startHealthServer(): Promise<Server> {
   const port = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
@@ -120,37 +123,22 @@ function getNotificationContent(
     case "COMMERCIAL_AGREEMENT_CREATED":
       return {
         title: "Agreement reached",
-        body: `Terms agreed for "${taskTitle}". Simulated authorization is the next policy step.`,
+        body: `Terms agreed for "${taskTitle}". Payment authorization is the next step.`,
       };
     case "PAYMENT_AUTHORIZED":
-      return {
-        title: "Simulated authorization recorded",
-        body: `Payment policy recorded authorization for "${taskTitle}". No funds were held or moved.`,
-      };
+      return payload.simulated === true
+        ? {
+            title: "Simulated authorization recorded",
+            body: `Payment policy recorded authorization for "${taskTitle}". No funds were held or moved.`,
+          }
+        : {
+            title: "PayPal authorization active",
+            body: `The buyer approved a PayPal authorization for "${taskTitle}". Capture remains blocked until buyer acceptance.`,
+          };
     case "WORK_STARTED":
       return {
         title: "Work in progress",
         body: `The specialist has started working on "${taskTitle}".`,
-      };
-    case "SUBMISSION_SUBMITTED":
-      return {
-        title: "Deliverable submitted",
-        body: `Specialist submitted work for "${taskTitle}". Automated verification against Definition of Done has commenced.`,
-      };
-    case "VERIFICATION_PASSED":
-      return {
-        title: "Evidence checks passed",
-        body: `Automated evidence checks passed for "${taskTitle}". Review the submitted work and record your own decision.`,
-      };
-    case "VERIFICATION_FAILED":
-      return {
-        title: "Evidence check failed",
-        body: `A deterministic evidence check failed for "${taskTitle}". Buyer review is still required and simulated release remains blocked.`,
-      };
-    case "VERIFICATION_UNCERTAIN":
-      return {
-        title: "Evidence needs review",
-        body: `Automated checks were inconclusive for "${taskTitle}". Review the evidence or use an agreed independent reviewer.`,
       };
     case "BUYER_REVIEW_DECISION_RECORDED":
       return {
@@ -162,14 +150,19 @@ function getNotificationContent(
           .toLowerCase()}. ${String(payload.reason ?? "")}`.trim(),
       };
     case "PAYMENT_CAPTURED":
-      return {
-        title: "Simulated capture recorded",
-        body: `Payment policy recorded a simulated capture for "${taskTitle}". No funds were charged or paid.`,
-      };
+      return payload.simulated === true
+        ? {
+            title: "Simulated capture recorded",
+            body: `Payment policy recorded a simulated capture for "${taskTitle}". No funds were charged or paid.`,
+          }
+        : {
+            title: "PayPal capture completed",
+            body: `PayPal captured the buyer-approved amount for "${taskTitle}" to the onboarded professional.`,
+          };
     case "TASK_COMPLETED":
       return {
         title: "Task completed",
-        body: `Task "${taskTitle}" is complete. Payment states in this environment were simulated.`,
+        body: `Task "${taskTitle}" is complete. Review and payment records remain available.`,
       };
     case "CASE_OPENED":
       return {
@@ -249,63 +242,27 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
           }
         }
 
-        // 5. Handle event-specific workflows
-        if (ev.type === "SUBMISSION_SUBMITTED" && task) {
-          const submissionId = String(payload.submissionId || "");
-          if (submissionId) {
-            const existingRuns = await db
-              .select()
-              .from(verificationRuns)
-              .where(eq(verificationRuns.submissionId, submissionId))
-              .orderBy(desc(verificationRuns.startedAt))
-              .limit(1);
-
-            const { actor: agentActor } = await ensureAgent({
-              taskId: task.id,
-              userId: task.userId,
+        // 5. Handle event-specific workflows. Review decisions remain human-only;
+        // the worker never evaluates or accepts work.
+        if (ev.type === "PAYPAL_WEBHOOK_RECEIVED") {
+          const paymentId = String(payload.paymentId ?? "");
+          const webhookReceiptId = String(payload.webhookReceiptId ?? "");
+          if (paymentId && webhookReceiptId) {
+            await reconcilePayPalPayment({
+              paymentId,
+              webhookReceiptId,
+              correlationId: ev.correlationId,
             });
-            let verificationOutcome = existingRuns[0]?.outcome ?? null;
-            if (existingRuns.length === 0) {
-              logger.info(
-                { taskId: task.id, submissionId },
-                "Triggering async verification for submission",
-              );
-              const verResult = await agentVerifySubmission({
-                taskId: task.id,
-                submissionId,
-                actor: agentActor,
-                correlationId: ev.correlationId,
-              });
-              verificationOutcome = verResult.outcome;
-            } else if (existingRuns[0]?.status === "RUNNING") {
-              const verResult = await executeVerification({
-                verificationRunId: existingRuns[0].id,
-                actor: agentActor,
-                correlationId: ev.correlationId,
-              });
-              verificationOutcome = verResult.outcome;
-              await handoffSubmissionToBuyerReview({
-                taskId: task.id,
-                submissionId,
-                actor: agentActor,
-                correlationId: ev.correlationId,
-              });
-            } else if (existingRuns[0]?.status === "COMPLETED") {
-              await handoffSubmissionToBuyerReview({
-                taskId: task.id,
-                submissionId,
-                actor: agentActor,
-                correlationId: ev.correlationId,
-              });
-            } else {
-              throw new Error("Verification run failed and requires operator review.");
-            }
-            if (verificationOutcome) {
-              logger.info(
-                { taskId: task.id, submissionId, verificationOutcome },
-                "Verification evidence is ready for explicit buyer review",
-              );
-            }
+          }
+        }
+        if (ev.type === "CAPTURE_COMMAND_CREATED") {
+          const captureCommandId = String(payload.captureCommandId ?? "");
+          if (captureCommandId) {
+            await executeCaptureAndComplete({
+              captureCommandId,
+              actor: systemActor(),
+              correlationId: ev.correlationId,
+            });
           }
         }
       }
@@ -323,6 +280,85 @@ export async function processOutboxBatch(batchSize = 25): Promise<number> {
   }
 
   return claimed.length;
+}
+
+async function processPayPalReconciliationBatch(): Promise<number> {
+  const db = getDb();
+  const receipts = await db
+    .select({ id: webhookEvents.id, paymentId: webhookEvents.paymentId })
+    .from(webhookEvents)
+    .where(
+      and(
+        eq(webhookEvents.provider, "PAYPAL"),
+        eq(webhookEvents.verified, true),
+        inArray(webhookEvents.processingStatus, ["RECEIVED", "PENDING_RECONCILIATION"]),
+      ),
+    )
+    .orderBy(webhookEvents.createdAt)
+    .limit(10);
+  const scheduled = new Set(
+    receipts.flatMap((receipt) => (receipt.paymentId ? [receipt.paymentId] : [])),
+  );
+  const unresolved = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(
+      and(
+        inArray(payments.mode, ["PAYPAL_SANDBOX", "PAYPAL_LIVE"]),
+        inArray(payments.status, ["AUTHORIZATION_REQUESTED", "CAPTURE_REQUESTED", "UNKNOWN"]),
+        lt(payments.updatedAt, new Date(Date.now() - 15_000)),
+      ),
+    )
+    .orderBy(payments.updatedAt)
+    .limit(10);
+  for (const payment of unresolved) scheduled.add(payment.id);
+
+  let processed = 0;
+  for (const paymentId of scheduled) {
+    const receipt = receipts.find((candidate) => candidate.paymentId === paymentId);
+    try {
+      await reconcilePayPalPayment({
+        paymentId,
+        ...(receipt ? { webhookReceiptId: receipt.id } : {}),
+        correlationId: newId("corr"),
+      });
+      processed += 1;
+    } catch (error) {
+      logger.warn({ paymentId, err: String(error) }, "PayPal reconciliation remains unresolved");
+    }
+  }
+  const unresolvedReviewFees = await db
+    .select({ id: reviewFeePayments.id })
+    .from(reviewFeePayments)
+    .where(
+      and(
+        inArray(reviewFeePayments.mode, ["PAYPAL_SANDBOX", "PAYPAL_LIVE"]),
+        inArray(reviewFeePayments.status, [
+          "AUTHORIZATION_REQUESTED",
+          "CAPTURE_REQUESTED",
+          "UNKNOWN",
+        ]),
+        lt(reviewFeePayments.updatedAt, new Date(Date.now() - 15_000)),
+      ),
+    )
+    .orderBy(reviewFeePayments.updatedAt)
+    .limit(10);
+  for (const reviewFee of unresolvedReviewFees) {
+    try {
+      await reconcileReviewFeePayment({
+        reviewFeePaymentId: reviewFee.id,
+        actor: systemActor(),
+        correlationId: newId("corr"),
+      });
+      processed += 1;
+    } catch (error) {
+      logger.warn(
+        { reviewFeePaymentId: reviewFee.id, err: String(error) },
+        "Review fee reconciliation remains unresolved",
+      );
+    }
+  }
+  return processed;
 }
 
 /**
@@ -343,6 +379,11 @@ async function main(): Promise<void> {
   while (isRunning) {
     try {
       const processed = await processOutboxBatch();
+      if (Date.now() - lastPayPalReconciliationAt >= 30_000) {
+        lastPayPalReconciliationAt = Date.now();
+        await withTransaction((tx) => markOverdueWorkReviews(tx));
+        await processPayPalReconciliationBatch();
+      }
       if (processed === 0) {
         // Sleep 1s when queue is idle
         await new Promise((resolve) => setTimeout(resolve, 1000));

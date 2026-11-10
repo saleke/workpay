@@ -7,6 +7,7 @@ import {
 
 function reviewer(overrides: Partial<ReviewerCandidate> = {}): ReviewerCandidate {
   return {
+    providerId: "provider-reviewer-1",
     userId: "reviewer-1",
     username: "reviewer",
     displayName: "Independent reviewer",
@@ -16,6 +17,8 @@ function reviewer(overrides: Partial<ReviewerCandidate> = {}): ReviewerCandidate
     currency: "USD",
     languages: ["English"],
     typicalTurnaroundDays: 3,
+    feeMode: "PAYPAL",
+    paymentReady: true,
     conflictDisclosureConfirmed: true,
     expertise: [
       {
@@ -72,7 +75,7 @@ describe("recommendReviewers", () => {
 
     expect(result.map((item) => item.userId)).toEqual(["complete", "partial"]);
     expect(result[0]?.rationale[0]).toContain("2 of 2");
-    expect(result[1]?.rationale[1]).toContain("not independently verified");
+    expect(result[1]?.rationale[1]).toContain("supporting profile item");
   });
 
   it("excludes task participants and declared conflicts", () => {

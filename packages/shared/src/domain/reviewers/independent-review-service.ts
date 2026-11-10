@@ -5,8 +5,8 @@ import {
   independentReviewEngagements,
   independentReviewReports,
 } from "../../db/schema/independent-reviews.js";
-import { reviewerConflicts, reviewerProfiles } from "../../db/schema/reviewers.js";
 import { taskConversations } from "../../db/schema/conversations.js";
+import { users } from "../../db/schema/identity.js";
 import {
   acceptanceRules,
   contractRequirements,
@@ -14,6 +14,9 @@ import {
   workContracts,
 } from "../../db/schema/contracts.js";
 import { submissionArtifacts, workExecutions, workSubmissions } from "../../db/schema/execution.js";
+import { providers } from "../../db/schema/providers.js";
+import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
+import { reviewFeePayments } from "../../db/schema/review-fees.js";
 import { verificationResults, verificationRuns } from "../../db/schema/verification.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
@@ -22,17 +25,46 @@ import { newId } from "../../platform/ids.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
 import { transitionTask } from "../tasks/service.js";
+import { readStoredReviewService } from "./work-profile.js";
+import { normalizeReviewerDomain } from "./recommendation.js";
+import {
+  getConfiguredNewPaymentMode,
+  paymentModeEnvironment,
+  type PaymentMode,
+} from "../../integrations/payments/config.js";
 
-const proposalSchema = z.object({
-  reviewerUserId: z.string().min(1).max(64),
-  expectedContractVersion: z.number().int().positive(),
-  expectedContractHash: z.string().length(64),
-  requirementKeys: z.array(z.string().trim().min(1).max(128)).min(1).max(100),
-  domains: z.array(z.string().trim().min(2).max(128)).min(1).max(20),
-  feeMinor: z.number().int().safe().nonnegative().nullable(),
-  feeCurrency: z.literal("USD").default("USD"),
-  feePayer: z.enum(["BUYER", "PROVIDER", "SHARED", "DIRECT"]),
-});
+const proposalSchema = z
+  .object({
+    reviewerUserId: z.string().min(1).max(64),
+    expectedContractVersion: z.number().int().positive(),
+    expectedContractHash: z.string().length(64),
+    requirementKeys: z.array(z.string().trim().min(1).max(128)).min(1).max(100),
+    domains: z.array(z.string().trim().min(2).max(128)).min(1).max(20),
+    brief: z.string().trim().min(20).max(4_000),
+    feeMinor: z.number().int().safe().nonnegative().nullable(),
+    feeCurrency: z.literal("USD").default("USD"),
+    feePayer: z.enum(["BUYER", "PROVIDER", "SHARED", "DIRECT"]),
+    feeMode: z.enum(["PAYPAL", "DIRECT"]),
+  })
+  .superRefine((value, context) => {
+    if (value.feeMode === "DIRECT" && value.feePayer !== "DIRECT") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["feePayer"],
+        message: "Direct review fees must be arranged directly.",
+      });
+    }
+    if (
+      value.feeMode === "PAYPAL" &&
+      (!value.feeMinor || value.feeMinor <= 0 || value.feePayer === "DIRECT")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["feeMinor"],
+        message: "PayPal review fees need a positive amount and an in-platform payer.",
+      });
+    }
+  });
 
 const reportSchema = z.object({
   submissionId: z.string().min(1).max(64),
@@ -66,6 +98,130 @@ const reportSchema = z.object({
     .min(1)
     .max(100),
 });
+
+async function prepareReviewFeePayments(
+  tx: Database,
+  engagement: typeof independentReviewEngagements.$inferSelect,
+) {
+  if (
+    engagement.feeMode === "DIRECT" ||
+    engagement.feePayer === "DIRECT" ||
+    !engagement.feeMinor ||
+    engagement.feeMinor <= 0
+  ) {
+    const [updated] = await tx
+      .update(independentReviewEngagements)
+      .set({ status: "ENGAGED", feeStatus: "NOT_REQUIRED", updatedAt: new Date() })
+      .where(eq(independentReviewEngagements.id, engagement.id))
+      .returning();
+    if (!updated) throw conflict("The review engagement changed during acceptance.");
+    return {
+      engagement: updated,
+      payerShares: [] as Array<{ userId: string; amountMinor: number }>,
+    };
+  }
+  if (!engagement.reviewerProviderId) {
+    throw conflict("The reviewer Work Profile is missing its payment identity.");
+  }
+  const payerShares =
+    engagement.feePayer === "BUYER"
+      ? [{ userId: engagement.buyerUserId, amountMinor: engagement.feeMinor }]
+      : engagement.feePayer === "PROVIDER"
+        ? [{ userId: engagement.providerUserId, amountMinor: engagement.feeMinor }]
+        : [
+            { userId: engagement.buyerUserId, amountMinor: Math.ceil(engagement.feeMinor / 2) },
+            { userId: engagement.providerUserId, amountMinor: Math.floor(engagement.feeMinor / 2) },
+          ].filter((share) => share.amountMinor > 0);
+  const accountRows = await tx
+    .select({ id: users.id, accountClass: users.accountClass })
+    .from(users)
+    .where(
+      inArray(users.id, [...payerShares.map((share) => share.userId), engagement.reviewerUserId]),
+    );
+  const accountClassById = new Map(accountRows.map((row) => [row.id, row.accountClass]));
+  const classes = new Set(accountRows.map((row) => row.accountClass));
+  if (
+    accountRows.length !==
+      new Set([...payerShares.map((share) => share.userId), engagement.reviewerUserId]).size ||
+    classes.size !== 1 ||
+    classes.has("UNCLASSIFIED")
+  ) {
+    throw conflict("Review fee participants must use compatible account environments.");
+  }
+  const accountClass = accountClassById.get(engagement.reviewerUserId);
+  const mode: PaymentMode =
+    accountClass === "DEMO_FIXTURE" ? "FAKE" : getConfiguredNewPaymentMode();
+  let sellerMerchantId: string | null = null;
+  const payerIds = new Map<string, string>();
+  if (mode !== "FAKE") {
+    const environment = paymentModeEnvironment(mode);
+    const [seller] = await tx
+      .select()
+      .from(providerPaypalAccounts)
+      .where(
+        and(
+          eq(providerPaypalAccounts.providerId, engagement.reviewerProviderId),
+          eq(providerPaypalAccounts.environment, environment),
+          eq(providerPaypalAccounts.status, "ACTIVE"),
+        ),
+      )
+      .limit(1);
+    if (
+      !seller?.merchantId ||
+      !seller.paymentsReceivable ||
+      !seller.primaryEmailConfirmed ||
+      !seller.consentStatus
+    ) {
+      throw conflict("The reviewer must complete PayPal seller onboarding before accepting.");
+    }
+    sellerMerchantId = seller.merchantId;
+    for (const share of payerShares) {
+      const [payer] = await tx
+        .select()
+        .from(paypalIdentityLinks)
+        .where(
+          and(
+            eq(paypalIdentityLinks.userId, share.userId),
+            eq(paypalIdentityLinks.environment, environment),
+            eq(paypalIdentityLinks.status, "LINKED"),
+          ),
+        )
+        .limit(1);
+      if (!payer?.accountVerified || !payer.emailVerified) {
+        throw conflict("Each review-fee payer must link a verified PayPal account.");
+      }
+      if (payer.payerId === sellerMerchantId) {
+        throw conflict("A reviewer cannot fund their own review fee.");
+      }
+      payerIds.set(share.userId, payer.payerId);
+    }
+  }
+  await tx.insert(reviewFeePayments).values(
+    payerShares.map((share) => ({
+      id: newId("rfee"),
+      engagementId: engagement.id,
+      payerUserId: share.userId,
+      reviewerProviderId: engagement.reviewerProviderId!,
+      mode,
+      amountMinor: share.amountMinor,
+      currency: engagement.feeCurrency,
+      status: "PENDING",
+      payerIdSnapshot: payerIds.get(share.userId) ?? null,
+      sellerMerchantIdSnapshot: sellerMerchantId,
+    })),
+  );
+  const [updated] = await tx
+    .update(independentReviewEngagements)
+    .set({
+      status: "AWAITING_FEE_AUTHORIZATION",
+      feeStatus: "PENDING",
+      updatedAt: new Date(),
+    })
+    .where(eq(independentReviewEngagements.id, engagement.id))
+    .returning();
+  if (!updated) throw conflict("The review engagement changed during fee setup.");
+  return { engagement: updated, payerShares };
+}
 
 export async function proposeIndependentReview(
   tx: Database,
@@ -149,36 +305,93 @@ export async function proposeIndependentReview(
     );
   }
 
-  const [profile] = await tx
+  const [reviewerProvider] = await tx
     .select()
-    .from(reviewerProfiles)
-    .where(eq(reviewerProfiles.userId, proposal.reviewerUserId))
+    .from(providers)
+    .where(eq(providers.userId, proposal.reviewerUserId))
     .limit(1);
+  const reviewService = readStoredReviewService(reviewerProvider?.workPreferences);
+  const accountRows = await tx
+    .select({ id: users.id, accountClass: users.accountClass })
+    .from(users)
+    .where(
+      inArray(users.id, [
+        conversation.buyerUserId,
+        conversation.providerUserId,
+        proposal.reviewerUserId,
+      ]),
+    );
+  const accountClasses = new Set(accountRows.map((row) => row.accountClass));
   if (
-    !profile ||
-    !profile.isListed ||
-    !profile.available ||
-    !profile.offersReview ||
-    profile.reviewAvailability !== "AVAILABLE" ||
-    !profile.conflictDisclosureConfirmed ||
+    !reviewerProvider ||
+    reviewerProvider.status !== "ACTIVE" ||
+    !reviewService?.enabled ||
+    !reviewService.listed ||
+    reviewService.availability !== "AVAILABLE" ||
+    !reviewService.conflictDisclosureConfirmed ||
+    proposal.feeMode !== reviewService.feeMode ||
+    !proposal.domains.every((domain) =>
+      reviewService.domains.some(
+        (reviewDomain) => reviewDomain.domainTag === normalizeReviewerDomain(domain),
+      ),
+    ) ||
+    accountRows.length !== 3 ||
+    accountClasses.size !== 1 ||
+    accountClasses.has("UNCLASSIFIED") ||
     proposal.reviewerUserId === conversation.buyerUserId ||
     proposal.reviewerUserId === conversation.providerUserId
   ) {
     throw validationError("Choose a listed, available reviewer who is not a task participant.");
   }
-  const conflicts = await tx
-    .select({ conflictedUserId: reviewerConflicts.conflictedUserId })
-    .from(reviewerConflicts)
-    .where(
-      and(
-        eq(reviewerConflicts.profileId, profile.id),
-        inArray(reviewerConflicts.conflictedUserId, [
-          conversation.buyerUserId,
-          conversation.providerUserId,
-        ]),
-      ),
-    );
-  if (conflicts.length > 0) {
+  if (proposal.feeMode === "PAYPAL" && accountRows[0]?.accountClass === "MEMBER") {
+    const environment = paymentModeEnvironment(getConfiguredNewPaymentMode());
+    const [seller] = await tx
+      .select()
+      .from(providerPaypalAccounts)
+      .where(
+        and(
+          eq(providerPaypalAccounts.providerId, reviewerProvider.id),
+          eq(providerPaypalAccounts.environment, environment),
+          eq(providerPaypalAccounts.status, "ACTIVE"),
+        ),
+      )
+      .limit(1);
+    if (
+      !seller?.merchantId ||
+      !seller.paymentsReceivable ||
+      !seller.primaryEmailConfirmed ||
+      !seller.consentStatus
+    ) {
+      throw validationError("Choose a reviewer whose PayPal review payments are ready.");
+    }
+    const payerUserIds =
+      proposal.feePayer === "BUYER"
+        ? [conversation.buyerUserId]
+        : proposal.feePayer === "PROVIDER"
+          ? [conversation.providerUserId]
+          : [conversation.buyerUserId, conversation.providerUserId];
+    const payerLinks = await tx
+      .select()
+      .from(paypalIdentityLinks)
+      .where(
+        and(
+          inArray(paypalIdentityLinks.userId, payerUserIds),
+          eq(paypalIdentityLinks.environment, environment),
+          eq(paypalIdentityLinks.status, "LINKED"),
+        ),
+      );
+    if (
+      payerLinks.length !== new Set(payerUserIds).size ||
+      payerLinks.some((link) => !link.accountVerified || !link.emailVerified)
+    ) {
+      throw validationError("Every review-fee payer must link a verified PayPal account first.");
+    }
+  }
+  if (
+    reviewService.conflictUserIds.some((userId) =>
+      [conversation.buyerUserId, conversation.providerUserId].includes(userId),
+    )
+  ) {
     throw validationError(
       "The selected reviewer has disclosed a conflict with a task participant.",
     );
@@ -189,7 +402,12 @@ export async function proposeIndependentReview(
     .where(
       and(
         eq(independentReviewEngagements.taskId, task.id),
-        inArray(independentReviewEngagements.status, ["PROPOSED", "AWAITING_REVIEWER", "ENGAGED"]),
+        inArray(independentReviewEngagements.status, [
+          "PROPOSED",
+          "AWAITING_REVIEWER",
+          "AWAITING_FEE_AUTHORIZATION",
+          "ENGAGED",
+        ]),
       ),
     )
     .limit(1);
@@ -208,13 +426,17 @@ export async function proposeIndependentReview(
       buyerUserId: conversation.buyerUserId,
       providerUserId: conversation.providerUserId,
       reviewerUserId: proposal.reviewerUserId,
+      reviewerProviderId: reviewerProvider.id,
       proposerUserId: input.actor.id,
       requirementKeys: proposalKeys,
       domains: [...new Set(proposal.domains.map((domain) => domain.toLowerCase()))],
+      brief: proposal.brief,
       authority: "ADVISORY",
       feeMinor: proposal.feeMinor,
       feeCurrency: proposal.feeCurrency,
       feePayer: proposal.feePayer,
+      feeMode: proposal.feeMode,
+      feeStatus: proposal.feeMode === "DIRECT" || !proposal.feeMinor ? "NOT_REQUIRED" : "PENDING",
       status: "PROPOSED",
       buyerAcceptedAt: proposerIsBuyer ? new Date() : null,
       providerAcceptedAt: proposerIsBuyer ? null : new Date(),
@@ -345,40 +567,32 @@ export async function decideIndependentReviewEngagement(
     if (input.confirmNoConflict !== true) {
       throw validationError("The reviewer must confirm there is no undisclosed conflict.");
     }
-    const [profile] = await tx
+    const [reviewerProvider] = await tx
       .select()
-      .from(reviewerProfiles)
-      .where(eq(reviewerProfiles.userId, engagement.reviewerUserId))
+      .from(providers)
+      .where(eq(providers.userId, engagement.reviewerUserId))
       .limit(1);
+    const reviewService = readStoredReviewService(reviewerProvider?.workPreferences);
     if (
-      !profile ||
-      !profile.isListed ||
-      !profile.available ||
-      !profile.offersReview ||
-      profile.reviewAvailability !== "AVAILABLE" ||
-      !profile.conflictDisclosureConfirmed
+      !reviewerProvider ||
+      reviewerProvider.status !== "ACTIVE" ||
+      !reviewService?.enabled ||
+      !reviewService.listed ||
+      reviewService.availability !== "AVAILABLE" ||
+      !reviewService.conflictDisclosureConfirmed
     ) {
       throw conflict("The reviewer profile is no longer eligible for this engagement.");
     }
-    const conflicts = await tx
-      .select({ conflictedUserId: reviewerConflicts.conflictedUserId })
-      .from(reviewerConflicts)
-      .where(
-        and(
-          eq(reviewerConflicts.profileId, profile.id),
-          inArray(reviewerConflicts.conflictedUserId, [
-            engagement.buyerUserId,
-            engagement.providerUserId,
-          ]),
-        ),
-      );
-    if (conflicts.length > 0) {
+    if (
+      reviewService.conflictUserIds.some((userId) =>
+        [engagement.buyerUserId, engagement.providerUserId].includes(userId),
+      )
+    ) {
       throw conflict("A disclosed conflict now prevents accepting this review engagement.");
     }
     const [updated] = await tx
       .update(independentReviewEngagements)
       .set({
-        status: "ENGAGED",
         reviewerAcceptedAt: now,
         reviewerConflictConfirmed: true,
         updatedAt: now,
@@ -386,20 +600,40 @@ export async function decideIndependentReviewEngagement(
       .where(eq(independentReviewEngagements.id, engagement.id))
       .returning();
     if (!updated) throw conflict("The review engagement changed concurrently.");
-    await appendEvent(tx, {
-      type: "INDEPENDENT_REVIEW_ENGAGED",
-      aggregateId: updated.id,
-      taskId: updated.taskId,
-      actor: toEventActor(input.actor),
-      correlationId: input.correlationId,
-      payload: {
+    const feePreparation = await prepareReviewFeePayments(tx, updated);
+    if (feePreparation.engagement.status === "ENGAGED") {
+      await appendEvent(tx, {
+        type: "INDEPENDENT_REVIEW_ENGAGED",
+        aggregateId: updated.id,
         taskId: updated.taskId,
-        engagementId: updated.id,
-        contractVersion: updated.contractVersion,
-        reviewerUserId: updated.reviewerUserId,
-      },
-    });
-    return updated;
+        actor: toEventActor(input.actor),
+        correlationId: input.correlationId,
+        payload: {
+          taskId: updated.taskId,
+          engagementId: updated.id,
+          contractVersion: updated.contractVersion,
+          reviewerUserId: updated.reviewerUserId,
+        },
+      });
+    } else {
+      for (const share of feePreparation.payerShares) {
+        await appendEvent(tx, {
+          type: "REVIEW_FEE_AUTHORIZATION_REQUESTED",
+          aggregateId: updated.id,
+          taskId: updated.taskId,
+          actor: toEventActor(input.actor),
+          correlationId: input.correlationId,
+          payload: {
+            taskId: updated.taskId,
+            engagementId: updated.id,
+            reviewerUserId: updated.reviewerUserId,
+            payerUserId: share.userId,
+            amount: { amountMinor: share.amountMinor, currency: updated.feeCurrency },
+          },
+        });
+      }
+    }
+    return feePreparation.engagement;
   }
 
   if (![engagement.buyerUserId, engagement.providerUserId].includes(input.actor.id)) {
@@ -673,17 +907,6 @@ export async function listReviewerEngagements(db: Database, userId: string) {
     .from(independentReviewEngagements)
     .where(eq(independentReviewEngagements.reviewerUserId, userId))
     .orderBy(desc(independentReviewEngagements.createdAt));
-  const reports = engagements.length
-    ? await db
-        .select()
-        .from(independentReviewReports)
-        .where(
-          inArray(
-            independentReviewReports.engagementId,
-            engagements.map((engagement) => engagement.id),
-          ),
-        )
-    : [];
   const contracts = engagements.length
     ? await db
         .select({
@@ -748,60 +971,8 @@ export async function listReviewerEngagements(db: Database, userId: string) {
           ),
         )
     : [];
-  const submissions = engagements.length
-    ? await db
-        .select({
-          id: workSubmissions.id,
-          taskId: workSubmissions.taskId,
-          contractVersion: workSubmissions.contractVersion,
-          contractHash: workSubmissions.contractHash,
-          status: workSubmissions.status,
-          submittedAt: workSubmissions.submittedAt,
-          notes: workSubmissions.notes,
-          submissionHash: workSubmissions.submissionHash,
-        })
-        .from(workSubmissions)
-        .where(
-          and(
-            inArray(
-              workSubmissions.taskId,
-              engagements.map((engagement) => engagement.taskId),
-            ),
-            inArray(workSubmissions.status, ["SUBMITTED", "UNDER_REVIEW"]),
-          ),
-        )
-        .orderBy(desc(workSubmissions.submittedAt))
-    : [];
-  const matchingSubmissions = engagements.flatMap((engagement) => {
-    const submission = submissions.find(
-      (candidate) =>
-        candidate.taskId === engagement.taskId &&
-        candidate.contractVersion === engagement.contractVersion &&
-        candidate.contractHash === engagement.contractHash,
-    );
-    return submission ? [submission] : [];
-  });
-  const artifacts = matchingSubmissions.length
-    ? await db
-        .select({
-          id: submissionArtifacts.id,
-          submissionId: submissionArtifacts.submissionId,
-          type: submissionArtifacts.type,
-          filename: submissionArtifacts.filename,
-          contentType: submissionArtifacts.contentType,
-          sizeBytes: submissionArtifacts.sizeBytes,
-        })
-        .from(submissionArtifacts)
-        .where(
-          inArray(
-            submissionArtifacts.submissionId,
-            matchingSubmissions.map((submission) => submission.id),
-          ),
-        )
-    : [];
   return engagements.map((engagement) => ({
     ...engagement,
-    reports: reports.filter((report) => report.engagementId === engagement.id),
     contractContext: (() => {
       const contract = contracts.find((row) => row.id === engagement.contractId);
       if (!contract) throw notFound("Review contract");
@@ -834,19 +1005,6 @@ export async function listReviewerEngagements(db: Database, userId: string) {
         excluded: scope
           .filter((item) => item.contractId === engagement.contractId && item.type === "EXCLUDED")
           .map((item) => item.statement),
-      };
-    })(),
-    latestSubmission: (() => {
-      const submission = submissions.find(
-        (candidate) =>
-          candidate.taskId === engagement.taskId &&
-          candidate.contractVersion === engagement.contractVersion &&
-          candidate.contractHash === engagement.contractHash,
-      );
-      if (!submission) return null;
-      return {
-        ...submission,
-        artifacts: artifacts.filter((artifact) => artifact.submissionId === submission.id),
       };
     })(),
   }));

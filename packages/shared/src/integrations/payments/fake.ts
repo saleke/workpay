@@ -15,8 +15,6 @@ import type {
   CaptureRequest,
   CaptureResult,
   PaymentGateway,
-  PayoutRequest,
-  PayoutResult,
   RefundRequest,
   RefundResult,
   VoidRequest,
@@ -86,7 +84,14 @@ export class FakePayPal implements PaymentGateway {
 
     const result: CaptureResult =
       outcome === "SUCCESS"
-        ? { status: "SUCCESS", captureId: deterministicId("fake_cap", request.idempotencyKey) }
+        ? {
+            status: "SUCCESS",
+            captureId: deterministicId("fake_cap", request.idempotencyKey),
+            providerStatus: "COMPLETED",
+            amount: request.amount,
+            authorizationId: request.authorizationId,
+            ...(request.payeeMerchantId ? { payeeMerchantId: request.payeeMerchantId } : {}),
+          }
         : outcome === "DECLINED"
           ? { status: "DECLINED", errorCode: "CAPTURE_DECLINED", errorMessage: "Declined" }
           : { status: "UNKNOWN", errorMessage: "Simulated timeout" };
@@ -103,26 +108,19 @@ export class FakePayPal implements PaymentGateway {
     return { status: "SUCCESS", refundId: deterministicId("fake_ref", request.idempotencyKey) };
   }
 
-  async payout(request: PayoutRequest): Promise<PayoutResult> {
-    return {
-      status: "SUCCESS",
-      payoutBatchId: deterministicId("fake_batch", request.idempotencyKey),
-      payoutItemId: deterministicId("fake_item", request.idempotencyKey),
-    };
-  }
-
   async verifyWebhook(input: WebhookVerificationInput): Promise<WebhookVerificationResult> {
     if (!this.webhookVerified) {
-      return { verified: false, reason: "signature verification failed" };
+      return { status: "INVALID", verified: false, reason: "signature verification failed" };
     }
     let payload: unknown;
     try {
       payload = JSON.parse(input.rawBody);
     } catch {
-      return { verified: false, reason: "invalid json" };
+      return { status: "INVALID", verified: false, reason: "invalid json" };
     }
     const event = payload as { id?: string; event_type?: string };
     return {
+      status: "VERIFIED",
       verified: true,
       eventId: event.id ?? "fake_evt",
       eventType: event.event_type ?? "UNKNOWN",

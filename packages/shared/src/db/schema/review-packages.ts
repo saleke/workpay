@@ -1,7 +1,6 @@
 /**
- * Review packages are structured work summaries assembled by the provider when
- * a task is ready for client review. They are intentionally separate from the
- * task conversation and from payment; acceptance is still a human decision.
+ * Legacy submission-bound review packages retained for historical tasks. New
+ * work uses human-led review cycles and does not require a provider upload.
  */
 import { sql } from "drizzle-orm";
 import {

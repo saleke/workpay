@@ -65,61 +65,67 @@ describe("Appendix D: Architectural Invariants", () => {
 
     const basePayment = {
       id: "pay_test_1",
+      mode: "FAKE" as const,
       status: "AUTHORIZED" as const,
       amount: money(45000, "USD"),
       capturedAmountMinor: null,
       providerAuthorizationId: "auth_paypal_123",
+      payerIdSnapshot: null,
+      sellerMerchantIdSnapshot: null,
+      authorizationValid: true,
     };
     const baseTask = { status: "PAYMENT_RELEASE", ownerUserId: "buyer_1" };
-    const baseSubmission = {
-      id: "sub_current",
-      version: 1,
-      submissionHash: "submission_hash_current",
+    const finalReview = (status = "FINAL_ACCEPTED") => ({
+      id: "wreview_current",
+      kind: "FINAL" as const,
+      status,
+      contractVersion: 1,
+      contractHash: "hash_v1_approved",
+      decisionByUserId: baseTask.ownerUserId,
+      decisionRole: "CLIENT" as const,
+      requirementCount: 2,
+      assessmentCount: 2,
+    });
+    const releaseApproval = {
+      reviewId: "wreview_current",
+      buyerUserId: baseTask.ownerUserId,
+      amount: money(45000, "USD"),
       contractVersion: 1,
       contractHash: "hash_v1_approved",
     };
-    const reviewDecision = (outcome: "PASS" | "FAIL" | "UNCERTAIN") => ({
-      submissionId: baseSubmission.id,
-      submissionVersion: baseSubmission.version,
-      submissionHash: baseSubmission.submissionHash,
-      reviewPackageId: "rpk_current",
-      contractVersion: 1,
-      contractHash: "hash_v1_approved",
-      outcome,
-      reviewedBy: baseTask.ownerUserId,
-      hasDeterministicFailure: outcome === "FAIL",
-    });
 
-    it("DENIES capture with FAIL verdict", () => {
+    it("DENIES capture without final acceptance", () => {
       const decision = evaluatePaymentPolicy({
         action: "CAPTURE",
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
+        paymentAccounts: null,
         task: baseTask,
-        currentSubmission: baseSubmission,
-        acceptanceDecision: reviewDecision("FAIL"),
+        workReviewDecision: finalReview("CHANGES_REQUESTED"),
+        releaseApproval,
       });
 
       expect(decision.result).toBe("DENY");
-      expect(decision.reasonCode).toBe("buyer_review.passed");
-      const verCheck = decision.checks.find((c) => c.checkId === "buyer_review.passed");
+      expect(decision.reasonCode).toBe("human_review.final_accepted");
+      const verCheck = decision.checks.find((c) => c.checkId === "human_review.final_accepted");
       expect(verCheck?.result).toBe("FAIL");
     });
 
-    it("DENIES capture with UNCERTAIN verdict", () => {
+    it("DENIES capture without a final review", () => {
       const decision = evaluatePaymentPolicy({
         action: "CAPTURE",
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
+        paymentAccounts: null,
         task: baseTask,
-        currentSubmission: baseSubmission,
-        acceptanceDecision: reviewDecision("UNCERTAIN"),
+        workReviewDecision: null,
+        releaseApproval,
       });
 
       expect(decision.result).toBe("DENY");
-      const verCheck = decision.checks.find((c) => c.checkId === "buyer_review.passed");
+      const verCheck = decision.checks.find((c) => c.checkId === "human_review.present");
       expect(verCheck?.result).toBe("FAIL");
     });
 
@@ -129,9 +135,10 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
+        paymentAccounts: null,
         task: baseTask,
-        currentSubmission: baseSubmission,
-        acceptanceDecision: reviewDecision("PASS"),
+        workReviewDecision: finalReview(),
+        releaseApproval,
         blockingCase: {
           id: "case_dispute_1",
           category: "WORK_DISPUTE",
@@ -153,18 +160,17 @@ describe("Appendix D: Architectural Invariants", () => {
         },
         agreement: baseAgreement,
         payment: basePayment,
+        paymentAccounts: null,
         task: baseTask,
-        currentSubmission: baseSubmission,
-        acceptanceDecision: reviewDecision("PASS"),
+        workReviewDecision: finalReview(),
+        releaseApproval,
       });
 
       expect(decision.result).toBe("DENY");
       const versionCheck = decision.checks.find(
-        (c) => c.checkId === "buyer_review.contract_current",
+        (c) => c.checkId === "human_review.contract_current",
       );
       expect(versionCheck?.result).toBe("FAIL");
-      const hashCheck = decision.checks.find((c) => c.checkId === "buyer_review.hash_matches");
-      expect(hashCheck?.result).toBe("FAIL");
     });
 
     it("DENIES capture if SYSTEM_PAYMENT_PAUSE is true", () => {
@@ -173,10 +179,11 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         payment: basePayment,
+        paymentAccounts: null,
         task: baseTask,
-        currentSubmission: baseSubmission,
+        workReviewDecision: finalReview(),
+        releaseApproval,
         systemPaymentPaused: true,
-        acceptanceDecision: reviewDecision("PASS"),
       });
 
       expect(decision.result).toBe("DENY");
@@ -190,15 +197,18 @@ describe("Appendix D: Architectural Invariants", () => {
         contract: baseContract,
         agreement: baseAgreement,
         task: baseTask,
-        currentSubmission: null,
-        acceptanceDecision: null,
         payment: {
           id: "pay_test_mismatch",
+          mode: "FAKE",
           status: "PENDING",
           amount: money(46000, "USD"), // Mismatched!
           capturedAmountMinor: null,
           providerAuthorizationId: null,
+          payerIdSnapshot: null,
+          sellerMerchantIdSnapshot: null,
+          authorizationValid: false,
         },
+        paymentAccounts: null,
       });
 
       expect(decision.result).toBe("DENY");

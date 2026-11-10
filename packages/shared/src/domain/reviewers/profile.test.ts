@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { reviewerProfileInputSchema } from "./service.js";
+import {
+  readStoredReviewService,
+  reviewServiceInputSchema,
+  storeReviewService,
+} from "./work-profile.js";
 
-const validProfile = {
-  isListed: true,
-  available: true,
-  offersWork: true,
-  offersReview: true,
-  acceptsReviewOnly: false,
-  reviewAvailability: "AVAILABLE",
-  reviewNotice: "I review analytical work for accuracy and reproducibility.",
-  displayName: "Independent reviewer",
-  publicContactUrl: "https://example.com/contact",
+const validService = {
+  enabled: true,
+  listed: true,
+  availability: "AVAILABLE" as const,
+  notice: null,
   summary: "I review analytical work for accuracy and reproducibility.",
-  languages: ["English"],
-  feeMinor: 12000,
+  publicContactUrl: "https://example.com/reviews",
+  feeMinor: 12_000,
   typicalTurnaroundDays: 3,
   conflictDisclosureConfirmed: true,
   conflictUsernames: [],
-  expertise: [
+  domains: [
     {
       domainTag: "data-analysis",
       scope: "Statistical analysis and reporting",
@@ -27,85 +26,42 @@ const validProfile = {
     },
   ],
   evidence: [],
+  feeMode: "PAYPAL" as const,
 };
 
-describe("reviewerProfileInputSchema", () => {
-  it("accepts a complete profile with conflict disclosure", () => {
-    expect(reviewerProfileInputSchema.safeParse(validProfile).success).toBe(true);
+describe("reviewServiceInputSchema", () => {
+  it("accepts review-only service settings", () => {
+    expect(reviewServiceInputSchema.safeParse(validService).success).toBe(true);
   });
 
-  it("requires conflict disclosure before listing", () => {
+  it("requires conflicts disclosure before marketplace listing", () => {
     expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
+      reviewServiceInputSchema.safeParse({
+        ...validService,
         conflictDisclosureConfirmed: false,
       }).success,
     ).toBe(false);
   });
 
-  it("rejects duplicate domains after normalization", () => {
+  it("rejects duplicate normalized review domains", () => {
     expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        expertise: [
-          ...validProfile.expertise,
-          { ...validProfile.expertise[0], domainTag: "Data Analysis" },
+      reviewServiceInputSchema.safeParse({
+        ...validService,
+        domains: [
+          ...validService.domains,
+          { ...validService.domains[0]!, domainTag: "Data Analysis" },
         ],
       }).success,
     ).toBe(false);
   });
 
-  it("accepts work-plus-review capability and review availability state", () => {
-    expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        offersWork: true,
-        offersReview: true,
-        acceptsReviewOnly: true,
-        reviewAvailability: "BUSY",
-        reviewNotice: "Open to review-only UX and QA work on a limited basis.",
-      }).success,
-    ).toBe(true);
-  });
-
-  it("rejects unsupported review availability values", () => {
-    expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        reviewAvailability: "ON_HOLD",
-      }).success,
-    ).toBe(false);
-  });
-
-  it("rejects non-HTTPS contact and evidence URLs", () => {
-    expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        publicContactUrl: "http://example.com/contact",
-      }).success,
-    ).toBe(false);
-    expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        evidence: [
-          {
-            kind: "PORTFOLIO",
-            title: "Work sample",
-            description: "A sample project I completed.",
-            url: "http://example.com/work",
-            issuer: null,
-          },
-        ],
-      }).success,
-    ).toBe(false);
-  });
-
-  it("rejects fees that cannot be represented safely in JavaScript", () => {
-    expect(
-      reviewerProfileInputSchema.safeParse({
-        ...validProfile,
-        feeMinor: Number.MAX_SAFE_INTEGER + 1,
-      }).success,
-    ).toBe(false);
+  it("stores conflict ids without duplicating a second public profile", () => {
+    const parsed = reviewServiceInputSchema.parse(validService);
+    const stored = storeReviewService(parsed, ["user-conflict", "user-conflict"]);
+    expect(readStoredReviewService({ reviewService: stored })).toMatchObject({
+      enabled: true,
+      listed: true,
+      conflictUserIds: ["user-conflict"],
+    });
   });
 });

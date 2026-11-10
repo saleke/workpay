@@ -16,7 +16,6 @@ import { eq } from "drizzle-orm";
 import { getDb, closeDb, type Database } from "./client.js";
 import { users } from "./schema/identity.js";
 import { availability, capabilities, providers, reputation } from "./schema/providers.js";
-import { reviewerEvidence, reviewerExpertise, reviewerProfiles } from "./schema/reviewers.js";
 import { logger } from "../platform/logger.js";
 import { newId } from "../platform/ids.js";
 import { hashPassword } from "../platform/password.js";
@@ -157,6 +156,7 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
   for (const account of demoAccounts) {
     const values = {
       ...account,
+      accountClass: "DEMO_FIXTURE" as const,
       ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
     };
     await db
@@ -170,6 +170,7 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
           username: account.username,
           email: account.email,
           role: account.role,
+          accountClass: "DEMO_FIXTURE",
           ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
           updatedAt: new Date(),
         },
@@ -340,59 +341,82 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
   ];
   for (const reviewer of reviewerSpecs) {
     const [existing] = await db
-      .select({ id: reviewerProfiles.id })
-      .from(reviewerProfiles)
-      .where(eq(reviewerProfiles.userId, reviewer.userId))
+      .select({ id: providers.id })
+      .from(providers)
+      .where(eq(providers.userId, reviewer.userId))
       .limit(1);
-    const profileId = existing?.id ?? newId("reviewer");
-    const profileValues = {
+    const providerId = existing?.id ?? newId("provider");
+    const workPreferences = {
+      workAcceptanceStatus: "UNAVAILABLE",
+      timezone: "UTC",
+      languages: ["English"],
+      reviewService: {
+        enabled: true,
+        listed: true,
+        availability: "AVAILABLE",
+        notice: null,
+        summary: reviewer.summary,
+        publicContactUrl: null,
+        feeMinor: reviewer.feeMinor,
+        typicalTurnaroundDays: 4,
+        conflictDisclosureConfirmed: true,
+        conflictUserIds: [],
+        domains: [
+          {
+            domainTag: reviewer.domainTag,
+            scope: reviewer.scope,
+            selfAssessedLevel: 4,
+            yearsExperience: 6,
+            methods: ["evidence review", "written findings"],
+          },
+        ],
+        evidence: [
+          {
+            kind: "EXPERIENCE",
+            title: "Review experience summary",
+            description: `Synthetic test profile for ${reviewer.domainTag}.`,
+            url: null,
+            issuer: null,
+          },
+        ],
+        feeMode: "DIRECT",
+      },
+    };
+    const providerValues = {
       userId: reviewer.userId,
       displayName: reviewer.displayName,
-      publicContactUrl: null,
-      isListed: true,
-      available: true,
-      offersWork: false,
-      offersReview: true,
-      acceptsReviewOnly: true,
-      reviewAvailability: "AVAILABLE",
-      summary: reviewer.summary,
-      languages: ["English"],
-      feeMinor: reviewer.feeMinor,
+      type: "HUMAN" as const,
+      status: "ACTIVE" as const,
+      bio: reviewer.summary,
+      hourlyRateMinor: null,
       currency: "USD",
-      typicalTurnaroundDays: 4,
-      conflictDisclosureConfirmed: true,
+      workPreferences,
       updatedAt: new Date(),
     };
     if (existing) {
-      await db
-        .update(reviewerProfiles)
-        .set(profileValues)
-        .where(eq(reviewerProfiles.id, profileId));
+      await db.update(providers).set(providerValues).where(eq(providers.id, providerId));
     } else {
-      await db.insert(reviewerProfiles).values({ id: profileId, ...profileValues });
+      await db.insert(providers).values({ id: providerId, ...providerValues });
     }
-
-    await db.delete(reviewerExpertise).where(eq(reviewerExpertise.profileId, profileId));
-    await db.delete(reviewerEvidence).where(eq(reviewerEvidence.profileId, profileId));
-    await db.insert(reviewerExpertise).values({
-      id: newId("rex"),
-      profileId,
-      domainTag: reviewer.domainTag,
-      scope: reviewer.scope,
-      selfAssessedLevel: 4,
-      yearsExperience: 6,
-      methods: ["evidence review", "written findings"],
-    });
-    await db.insert(reviewerEvidence).values({
-      id: newId("revd"),
-      profileId,
-      kind: "EXPERIENCE",
-      title: "Reviewer-supplied experience summary",
-      description: `Synthetic test profile for ${reviewer.domainTag}; this claim is not verified.`,
-      url: null,
-      issuer: null,
-      provenance: "REVIEWER_SUPPLIED",
-    });
+    const [existingAvailability] = await db
+      .select({ id: availability.id })
+      .from(availability)
+      .where(eq(availability.providerId, providerId))
+      .limit(1);
+    if (existingAvailability) {
+      await db
+        .update(availability)
+        .set({ available: false, capacity: 1, updatedAt: new Date() })
+        .where(eq(availability.id, existingAvailability.id));
+    } else {
+      await db.insert(availability).values({
+        id: newId("avail"),
+        providerId,
+        available: false,
+        capacity: 1,
+        activeAssignments: 0,
+      });
+    }
   }
 
   // 3. Demo CSV Fixtures

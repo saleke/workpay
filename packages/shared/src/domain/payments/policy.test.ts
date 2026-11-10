@@ -10,11 +10,16 @@ function validCaptureInput(): PaymentPolicyInput {
     task: { status: "PAYMENT_RELEASE", ownerUserId: "user_buyer" },
     payment: {
       id: "pay_1",
+      mode: "FAKE",
       status: "AUTHORIZED",
       amount: USD(10000),
       capturedAmountMinor: null,
       providerAuthorizationId: "fake_auth_1",
+      payerIdSnapshot: null,
+      sellerMerchantIdSnapshot: null,
+      authorizationValid: true,
     },
+    paymentAccounts: null,
     agreement: {
       id: "agreement_1",
       status: "ACTIVE",
@@ -28,21 +33,21 @@ function validCaptureInput(): PaymentPolicyInput {
       currentHash: "contracthash",
       budget: USD(15000),
     },
-    acceptanceDecision: {
-      submissionId: "sub_1",
-      submissionVersion: 1,
-      submissionHash: "submissionhash",
-      reviewPackageId: "rpk_1",
-      outcome: "PASS",
+    workReviewDecision: {
+      id: "wreview_1",
+      kind: "FINAL",
+      status: "FINAL_ACCEPTED",
       contractVersion: 1,
       contractHash: "contracthash",
-      reviewedBy: "user_buyer",
-      hasDeterministicFailure: false,
+      decisionByUserId: "user_buyer",
+      decisionRole: "CLIENT",
+      requirementCount: 3,
+      assessmentCount: 3,
     },
-    currentSubmission: {
-      id: "sub_1",
-      version: 1,
-      submissionHash: "submissionhash",
+    releaseApproval: {
+      reviewId: "wreview_1",
+      buyerUserId: "user_buyer",
+      amount: USD(10000),
       contractVersion: 1,
       contractHash: "contracthash",
     },
@@ -63,27 +68,17 @@ describe("payment policy (P1)", () => {
     expect(decision.checks.every((c) => c.result !== "FAIL")).toBe(true);
   });
 
-  it("DENYs when verification did not pass", () => {
+  it("DENYs when the final review was not accepted", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision = {
-      submissionId: "sub_1",
-      submissionVersion: 1,
-      submissionHash: "submissionhash",
-      reviewPackageId: "rpk_1",
-      outcome: "FAIL",
-      contractVersion: 1,
-      contractHash: "contracthash",
-      reviewedBy: "user_buyer",
-      hasDeterministicFailure: false,
-    };
+    input.workReviewDecision!.status = "CHANGES_REQUESTED";
     expect(evaluatePaymentPolicy(input).result).toBe("DENY");
-    expect(reasonFor(input)).toBe("buyer_review.passed");
+    expect(reasonFor(input)).toBe("human_review.final_accepted");
   });
 
-  it("DENYs when there is no acceptance decision", () => {
+  it("DENYs when there is no final review decision", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision = null;
-    expect(reasonFor(input)).toBe("buyer_review.present");
+    input.workReviewDecision = null;
+    expect(reasonFor(input)).toBe("human_review.present");
   });
 
   it("DENYs when the decision is bound to a stale contract version", () => {
@@ -94,44 +89,34 @@ describe("payment policy (P1)", () => {
     expect(reasonFor(input)).toBe("contract.agreement_current");
   });
 
-  it("DENYs when the decision is bound to a different contract hash", () => {
+  it("DENYs when the review is bound to a different contract hash", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision = {
-      submissionId: "sub_1",
-      submissionVersion: 1,
-      submissionHash: "submissionhash",
-      reviewPackageId: "rpk_1",
-      outcome: "PASS",
-      contractVersion: 1,
-      contractHash: "tampered",
-      reviewedBy: "user_buyer",
-      hasDeterministicFailure: false,
-    };
-    expect(reasonFor(input)).toBe("buyer_review.hash_matches");
+    input.workReviewDecision!.contractHash = "tampered";
+    expect(reasonFor(input)).toBe("human_review.contract_current");
   });
 
-  it("DENYs when approval was not recorded by the task owner", () => {
+  it("DENYs when a client review was not recorded by the task owner", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision!.reviewedBy = "user_other";
-    expect(reasonFor(input)).toBe("buyer_review.owner");
+    input.workReviewDecision!.decisionByUserId = "user_other";
+    expect(reasonFor(input)).toBe("human_review.authority");
   });
 
-  it("DENYs when approval refers to a stale submission", () => {
+  it("DENYs when not every selected constraint was assessed", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision!.submissionId = "sub_old";
-    expect(reasonFor(input)).toBe("buyer_review.submission_current");
+    input.workReviewDecision!.assessmentCount = 2;
+    expect(reasonFor(input)).toBe("human_review.constraints_assessed");
   });
 
-  it("DENYs when approval refers to different submission evidence", () => {
+  it("DENYs capture without explicit client payment-release approval", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision!.submissionHash = "different-submission-hash";
-    expect(reasonFor(input)).toBe("buyer_review.evidence_current");
+    input.releaseApproval = null;
+    expect(reasonFor(input)).toBe("payment_release.client_approved");
   });
 
-  it("DENYs when a deterministic check failed", () => {
+  it("DENYs capture when release approval is bound to another amount", () => {
     const input = validCaptureInput();
-    input.acceptanceDecision!.hasDeterministicFailure = true;
-    expect(reasonFor(input)).toBe("verification.no_deterministic_failure");
+    input.releaseApproval!.amount = USD(9_000);
+    expect(reasonFor(input)).toBe("payment_release.amount_current");
   });
 
   it("DENYs when an open case blocks capture", () => {
@@ -144,6 +129,28 @@ describe("payment policy (P1)", () => {
     const input = validCaptureInput();
     input.payment.status = "PENDING";
     expect(reasonFor(input)).toBe("payment.authorized");
+  });
+
+  it("DENYs capture when the authorization expired", () => {
+    const input = validCaptureInput();
+    input.payment.authorizationValid = false;
+    expect(reasonFor(input)).toBe("authorization.valid");
+  });
+
+  it("requires current linked PayPal accounts for PayPal captures", () => {
+    const input = validCaptureInput();
+    input.payment.mode = "PAYPAL_SANDBOX";
+    input.payment.payerIdSnapshot = "PAYER123";
+    input.payment.sellerMerchantIdSnapshot = "SELLER123";
+    input.paymentAccounts = {
+      payerLinked: true,
+      sellerReady: true,
+      payerIdCurrent: true,
+      sellerMerchantIdCurrent: true,
+    };
+    expect(evaluatePaymentPolicy(input).result).toBe("ALLOW");
+    input.paymentAccounts.sellerReady = false;
+    expect(reasonFor(input)).toBe("paypal.accounts_current");
   });
 
   it("DENYs when a successful capture already exists", () => {
@@ -180,19 +187,19 @@ describe("payment policy (P1)", () => {
     expect(a.inputsHash).not.toBe(b.inputsHash);
   });
 
-  it("hashes the authorization and exact evidence bindings", () => {
+  it("hashes the authorization and exact review bindings", () => {
     const baseline = evaluatePaymentPolicy(validCaptureInput()).inputsHash;
     const changedAuthorization = validCaptureInput();
     changedAuthorization.payment.providerAuthorizationId = "fake_auth_2";
-    const changedEvidence = validCaptureInput();
-    changedEvidence.acceptanceDecision!.submissionHash = "other-evidence";
+    const changedReview = validCaptureInput();
+    changedReview.workReviewDecision!.id = "wreview_2";
     const changedAgreementCurrency = validCaptureInput();
     changedAgreementCurrency.agreement.amount = {
       amountMinor: changedAgreementCurrency.agreement.amount.amountMinor,
       currency: "EUR" as any,
     };
     expect(evaluatePaymentPolicy(changedAuthorization).inputsHash).not.toBe(baseline);
-    expect(evaluatePaymentPolicy(changedEvidence).inputsHash).not.toBe(baseline);
+    expect(evaluatePaymentPolicy(changedReview).inputsHash).not.toBe(baseline);
     expect(evaluatePaymentPolicy(changedAgreementCurrency).inputsHash).not.toBe(baseline);
   });
 
