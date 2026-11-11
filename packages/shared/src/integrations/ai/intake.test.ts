@@ -14,7 +14,9 @@ import {
   normalizeCloudflareIntentFamiliarity,
   normalizeCloudflareResponseEnvelope,
   normalizeCloudflareScopeBudget,
+  normalizeGroundedScopeBudget,
   organizeProfessionalBrief,
+  repairGroundingEvidence,
 } from "./intake.js";
 import { zodToJsonSchema } from "./openai.js";
 
@@ -33,7 +35,7 @@ describe("intake output JSON schemas", () => {
     expect(
       firstContactMessageOutputSchema.parse({
         message:
-          "Hi Alex, I’m looking for help with the task described in the approved agreement. The full scope and acceptance details are included with this request. Would you be interested and available to discuss it? Thanks, Sam",
+          "Hi Alex, I’m looking for help preparing a usability report for our product. The key outcome is a clear set of findings we can act on. Would you be interested and available to discuss the work?",
       }),
     ).toMatchObject({ message: expect.stringMatching(/^Hi Alex/) });
     expect(
@@ -45,6 +47,41 @@ describe("intake output JSON schemas", () => {
       firstContactMessageOutputSchema.safeParse({
         message: "Hi Alex, I would like to discuss the approved task scope with you.",
         inventedFact: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message:
+          "Hey! I have approved the contract for a product video and would like you to review it.",
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message:
+          "Hi Alex, the work involves reviewing a signed agreement template for unclear clauses. Would you be available to discuss it?",
+      }).success,
+    ).toBe(true);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message:
+          "Hi Alex, the contract was approved and I would like you to begin the requested work.",
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message:
+          "Hi Alex, I’ve approved the contract and our team signed the agreement. Can you begin?",
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message:
+          "Hi Alex, I’ve already approved the contract and the agreement is now approved. Can you begin?",
+      }).success,
+    ).toBe(false);
+    expect(
+      firstContactMessageOutputSchema.safeParse({
+        message: "Hi Alex, the contract’s been approved. Would you be available to begin the work?",
       }).success,
     ).toBe(false);
   });
@@ -109,6 +146,53 @@ describe("intake output JSON schemas", () => {
         sources,
       ),
     ).toEqual(["facts.0.evidence.0", "facts.0.evidence.1"]);
+  });
+
+  it("repairs only citations that map to one exact normalized source span", () => {
+    const sources = [
+      {
+        id: "source_original",
+        kind: "original_request" as const,
+        content: "🚀 My target budget is USD 1,000.\nDelivery should be next week.",
+      },
+      {
+        id: "source_attachment",
+        kind: "attachment" as const,
+        content: "Budget USD 2,000",
+      },
+    ];
+    const repaired = repairGroundingEvidence(
+      {
+        budget: {
+          evidence: [
+            {
+              sourceId: "invented_source",
+              quote: "my target budget is USD 1,000. delivery should be next week.",
+            },
+          ],
+        },
+      },
+      sources,
+    );
+    expect(repaired).toEqual({
+      budget: {
+        evidence: [
+          {
+            sourceId: "source_original",
+            quote: "My target budget is USD 1,000.\nDelivery should be next week.",
+          },
+        ],
+      },
+    });
+    expect(findCloudflareGroundingIssues(repaired, sources)).toEqual([]);
+
+    const paraphrase = {
+      budget: {
+        evidence: [{ sourceId: "source_original", quote: "The budget is one thousand dollars." }],
+      },
+    };
+    expect(repairGroundingEvidence(paraphrase, sources)).toEqual(paraphrase);
+    expect(findCloudflareGroundingIssues(paraphrase, sources)).toEqual(["budget.evidence.0"]);
   });
 
   it("requires every supplied clarification answer to be represented in the brief", () => {
@@ -488,6 +572,60 @@ describe("intake output JSON schemas", () => {
     expect(scopeAssessmentOutputSchema.parse(result).budget.meaning).toEqual({
       state: "ceiling",
       amount: { amountMinor: 50000, currency: "USD" },
+    });
+  });
+
+  it("converts explicit major-unit budget evidence into minor units", () => {
+    const sources = [
+      {
+        id: "source_original",
+        kind: "original_request" as const,
+        content: "My target budget is 1500 dollars.",
+      },
+    ];
+    const result = normalizeGroundedScopeBudget(
+      {
+        budget: {
+          meaning: {
+            state: "target",
+            amount: { amountMinor: 1500, currency: "USD" },
+          },
+          evidence: [{ sourceId: "source_original", quote: "My target budget is 1500 dollars." }],
+        },
+        criticalUnknowns: [],
+      },
+      sources,
+    );
+    expect(scopeAssessmentOutputSchema.parse(result).budget.meaning).toEqual({
+      state: "target",
+      amount: { amountMinor: 150000, currency: "USD" },
+    });
+  });
+
+  it("does not multiply an amount that is already expressed in minor units", () => {
+    const sources = [
+      {
+        id: "source_original",
+        kind: "original_request" as const,
+        content: "My budget is 15 dollars.",
+      },
+    ];
+    const result = normalizeGroundedScopeBudget(
+      {
+        budget: {
+          meaning: {
+            state: "ceiling",
+            amount: { amountMinor: 1500, currency: "USD" },
+          },
+          evidence: [{ sourceId: "source_original", quote: "My budget is 15 dollars." }],
+        },
+        criticalUnknowns: [],
+      },
+      sources,
+    );
+    expect(scopeAssessmentOutputSchema.parse(result).budget.meaning).toEqual({
+      state: "ceiling",
+      amount: { amountMinor: 1500, currency: "USD" },
     });
   });
 });

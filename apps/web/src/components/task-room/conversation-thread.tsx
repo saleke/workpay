@@ -1,7 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { FileAudio2, FileText, Mic, Paperclip, Square, X } from "lucide-react";
+import {
+  AudioLines,
+  FileAudio2,
+  FileText,
+  Mic,
+  Paperclip,
+  SendHorizontal,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IndependentReviewPanel } from "@/components/task-room/independent-review-panel";
 import {
@@ -10,11 +20,15 @@ import {
   getTaskConversationMessages,
   listContractChangeRequests,
   proposeContractChange,
+  rewriteConversationDraft,
   sendTaskConversationMessage,
+  simplifyConversationMessage,
 } from "@/lib/api/endpoints";
+import type { ConversationMessageExplanation } from "@/lib/api/endpoints";
 import type { ContractChangeRequestDto, TaskConversationDto } from "@/lib/api/types";
 import { parseMoneyInput } from "@workpay/shared/money";
 import { formatMinorMoney } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   conversationAttachmentKind,
   formatFileSize,
@@ -68,6 +82,13 @@ export function ConversationThread({
   const [draftRestored, setDraftRestored] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [rewritingDraft, setRewritingDraft] = useState(false);
+  const [draftAssistMessage, setDraftAssistMessage] = useState<string | null>(null);
+  const [explainingMessageId, setExplainingMessageId] = useState<string | null>(null);
+  const [messageExplanations, setMessageExplanations] = useState<
+    Record<string, ConversationMessageExplanation>
+  >({});
+  const [visibleExplanationIds, setVisibleExplanationIds] = useState<Set<string>>(new Set());
   const [attachments, setAttachments] = useState<File[]>([]);
   const [rejectedFiles, setRejectedFiles] = useState<string[]>([]);
   const [recordedVoice, setRecordedVoice] = useState<File | null>(null);
@@ -76,6 +97,7 @@ export function ConversationThread({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordedVoiceUrl, setRecordedVoiceUrl] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const [changeRequests, setChangeRequests] = useState<ContractChangeRequestDto[]>([]);
   const [changeReason, setChangeReason] = useState("");
   const [changeSummary, setChangeSummary] = useState(conversation.currentContractSnapshot.summary);
@@ -107,6 +129,8 @@ export function ConversationThread({
   const recordingStartedAtRef = useRef(0);
   const recordingRequestRef = useRef(0);
   const pendingMessageRef = useRef<{ id: string; fingerprint: string } | null>(null);
+  const draftRef = useRef(draft);
+  const sendingRef = useRef(sending);
   const lastSequenceRef = useRef(messages.at(-1)?.sequence ?? 0);
   const queuedAttachments = [...attachments, ...(recordedVoice ? [recordedVoice] : [])];
 
@@ -143,6 +167,14 @@ export function ConversationThread({
   }, [conversation.id, draft, draftStorageKey]);
 
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
+
+  useEffect(() => {
     setMessages(conversation.messages);
     setHasOlderMessages(conversation.hasMoreMessages ?? false);
     lastSequenceRef.current = conversation.messages.at(-1)?.sequence ?? 0;
@@ -153,6 +185,10 @@ export function ConversationThread({
     setRecordedVoice(null);
     setRecordingSeconds(0);
     setAttachmentError(null);
+    setDraftAssistMessage(null);
+    setMessageExplanations({});
+    setVisibleExplanationIds(new Set());
+    setDragActive(false);
     pendingMessageRef.current = null;
   }, [conversation.id]);
 
@@ -256,7 +292,13 @@ export function ConversationThread({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if ((!draft.trim() && queuedAttachments.length === 0) || sending) return;
+    if (
+      (!draft.trim() && queuedAttachments.length === 0) ||
+      sending ||
+      openingMicrophone ||
+      recordingVoice
+    )
+      return;
     const body =
       draft.trim() ||
       (recordedVoice
@@ -269,6 +311,7 @@ export function ConversationThread({
       pendingMessageRef.current = { id: clientMessageId(), fingerprint };
     }
     setSending(true);
+    sendingRef.current = true;
     setError(null);
     const result = await sendTaskConversationMessage(conversation.id, {
       clientMessageId: pendingMessageRef.current.id,
@@ -276,6 +319,7 @@ export function ConversationThread({
       attachments: queuedAttachments,
     });
     setSending(false);
+    sendingRef.current = false;
     if (result.error || !result.data) {
       setError(result.error?.message ?? "Your message could not be sent.");
       return;
@@ -290,6 +334,10 @@ export function ConversationThread({
   };
 
   const addFiles = (selectedFiles: File[]) => {
+    if (sending || recordingVoice || openingMicrophone) {
+      setAttachmentError("Finish the current send or recording before adding files.");
+      return;
+    }
     const validFiles: File[] = [];
     const rejected: string[] = [];
 
@@ -342,8 +390,55 @@ export function ConversationThread({
     setAttachmentError(null);
   };
 
+  const rewriteDraft = async () => {
+    if (!draft.trim() || rewritingDraft) return;
+    const draftAtRequest = draft;
+    setRewritingDraft(true);
+    setDraftAssistMessage(null);
+    const result = await rewriteConversationDraft(conversation.id, draft.trim());
+    setRewritingDraft(false);
+    if (result.error || !result.data?.message) {
+      setDraftAssistMessage(result.error?.message ?? "This draft could not be improved.");
+      return;
+    }
+    if (draftRef.current !== draftAtRequest) {
+      setDraftAssistMessage("Your draft changed while it was being polished. Run Polish again.");
+      return;
+    }
+    setDraft(result.data.message);
+    setDraftAssistMessage("Draft improved. Review it before sending.");
+  };
+
+  const explainMessage = async (messageId: string) => {
+    if (explainingMessageId) return;
+    if (messageExplanations[messageId]) {
+      setVisibleExplanationIds((current) => {
+        const next = new Set(current);
+        if (next.has(messageId)) next.delete(messageId);
+        else next.add(messageId);
+        return next;
+      });
+      return;
+    }
+    setExplainingMessageId(messageId);
+    setError(null);
+    const result = await simplifyConversationMessage(conversation.id, messageId);
+    setExplainingMessageId(null);
+    if (result.error || !result.data) {
+      setError(result.error?.message ?? "This message could not be explained.");
+      return;
+    }
+    setMessageExplanations((current) => ({ ...current, [messageId]: result.data! }));
+    setVisibleExplanationIds((current) => new Set(current).add(messageId));
+  };
+
   const startVoiceRecording = async () => {
-    if (openingMicrophone || recordingVoice || mediaRecorderRef.current?.state === "recording") {
+    if (
+      sendingRef.current ||
+      openingMicrophone ||
+      recordingVoice ||
+      mediaRecorderRef.current?.state === "recording"
+    ) {
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
@@ -356,7 +451,7 @@ export function ConversationThread({
     setOpeningMicrophone(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (recordingRequestRef.current !== requestId) {
+      if (recordingRequestRef.current !== requestId || sendingRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -610,61 +705,120 @@ export function ConversationThread({
           }`}
           aria-live="polite"
         >
-          {messages.map((message) => (
-            <li
-              key={message.id}
-              className={`max-w-[90%] rounded-lg p-3 text-sm ${
-                message.authorUserId === currentUserId
-                  ? "ml-auto bg-primary text-primary-foreground"
-                  : "bg-muted text-foreground"
-              }`}
-            >
-              <p className="whitespace-pre-wrap break-words">{message.body}</p>
-              {message.attachments?.map((attachment) => {
-                const attachmentUrl = `/api/v1/conversations/${encodeURIComponent(
-                  conversation.id,
-                )}/attachments/${encodeURIComponent(attachment.id)}`;
-                return attachment.kind === "AUDIO" ? (
-                  <div
-                    key={attachment.id}
-                    className="mt-2 max-w-full rounded-lg bg-background/80 p-2 text-foreground"
-                  >
-                    <p className="mb-1 flex items-center gap-1.5 text-xs font-medium">
-                      <FileAudio2 className="h-4 w-4" aria-hidden="true" />
-                      Voice note · {formatFileSize(attachment.sizeBytes)}
-                    </p>
-                    <audio
-                      controls
-                      preload="metadata"
-                      src={attachmentUrl}
-                      aria-label={`Voice note from ${
-                        message.authorUserId === currentUserId ? "you" : "the other participant"
-                      }`}
-                      className="max-w-full"
-                    />
-                  </div>
-                ) : (
-                  <a
-                    key={attachment.id}
-                    href={attachmentUrl}
-                    download={attachment.filename}
-                    className="mt-2 flex min-w-0 items-center gap-2 rounded-lg border border-current/15 bg-background/80 px-3 py-2 text-foreground hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {attachment.filename}
-                    </span>
-                    <span className="shrink-0 text-xs opacity-70">
-                      {formatFileSize(attachment.sizeBytes)}
-                    </span>
-                  </a>
-                );
-              })}
-              <time className="mt-1 block text-xs opacity-70" dateTime={message.createdAt}>
-                {new Date(message.createdAt).toLocaleString()}
-              </time>
-            </li>
-          ))}
+          {messages.map((message) => {
+            const mine = message.authorUserId === currentUserId;
+            const canExplain =
+              currentUserId === conversation.buyerUserId &&
+              message.authorUserId === conversation.providerUserId;
+            const cachedExplanation = messageExplanations[message.id];
+            const explanation = visibleExplanationIds.has(message.id)
+              ? cachedExplanation
+              : undefined;
+            return (
+              <li
+                key={message.id}
+                className={`max-w-[92%] rounded-2xl p-3.5 text-sm shadow-xs ${
+                  mine
+                    ? "ml-auto rounded-br-md bg-primary text-primary-foreground"
+                    : "rounded-bl-md border border-[var(--wp-border)] bg-white text-foreground"
+                }`}
+              >
+                <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>
+                {message.attachments?.map((attachment) => {
+                  const attachmentUrl = `/api/v1/conversations/${encodeURIComponent(
+                    conversation.id,
+                  )}/attachments/${encodeURIComponent(attachment.id)}`;
+                  return attachment.kind === "AUDIO" ? (
+                    <div
+                      key={attachment.id}
+                      className="mt-2 max-w-full rounded-xl bg-background/90 p-2.5 text-foreground"
+                    >
+                      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">
+                        <FileAudio2 className="h-4 w-4" aria-hidden="true" />
+                        Voice note · {formatFileSize(attachment.sizeBytes)}
+                      </p>
+                      <audio
+                        controls
+                        preload="metadata"
+                        src={attachmentUrl}
+                        aria-label={`Voice note from ${mine ? "you" : "the other participant"}`}
+                        className="max-w-full"
+                      />
+                    </div>
+                  ) : (
+                    <a
+                      key={attachment.id}
+                      href={attachmentUrl}
+                      download={attachment.filename}
+                      className="mt-2 flex min-w-0 items-center gap-2 rounded-xl border border-current/15 bg-background/90 px-3 py-2.5 text-foreground hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {attachment.filename}
+                      </span>
+                      <span className="shrink-0 text-xs opacity-70">
+                        {formatFileSize(attachment.sizeBytes)}
+                      </span>
+                    </a>
+                  );
+                })}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <time className="text-[10px] opacity-65" dateTime={message.createdAt}>
+                    {new Date(message.createdAt).toLocaleString()}
+                  </time>
+                  {canExplain ? (
+                    <button
+                      type="button"
+                      title="Use AI to create a separate plain-language view"
+                      disabled={Boolean(explainingMessageId)}
+                      onClick={() => void explainMessage(message.id)}
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 text-[11px] font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-60"
+                    >
+                      {explainingMessageId === message.id ? (
+                        <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                      ) : (
+                        <AudioLines className="h-3.5 w-3.5" />
+                      )}
+                      {explanation ? "Hide explanation" : "Explain simply"}
+                    </button>
+                  ) : null}
+                </div>
+                {explanation ? (
+                  <aside className="mt-3 space-y-3 rounded-xl border border-violet-200 bg-violet-50 p-3 text-violet-950">
+                    <div>
+                      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
+                        <Sparkles className="h-3.5 w-3.5" /> AI plain-language view
+                      </p>
+                      <p className="mt-1.5 text-sm leading-6">{explanation.summary}</p>
+                      <p className="mt-1 text-[10px] text-violet-700">
+                        The original message above remains authoritative.
+                      </p>
+                    </div>
+                    {explanation.terms.length > 0 ? (
+                      <dl className="space-y-2 border-t border-violet-200 pt-2 text-xs">
+                        {explanation.terms.map((term) => (
+                          <div key={`${term.term}:${term.meaning}`}>
+                            <dt className="font-semibold">{term.term}</dt>
+                            <dd className="mt-0.5 leading-5 text-violet-900">{term.meaning}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {explanation.suggestedQuestions.length > 0 ? (
+                      <div className="border-t border-violet-200 pt-2">
+                        <p className="text-[11px] font-semibold">Useful follow-up questions</p>
+                        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-5 text-violet-900">
+                          {explanation.suggestedQuestions.map((question) => (
+                            <li key={question}>{question}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </aside>
+                ) : null}
+              </li>
+            );
+          })}
           {messages.length === 0 ? (
             <li className="text-sm text-muted-foreground">No messages yet.</li>
           ) : null}
@@ -673,115 +827,192 @@ export function ConversationThread({
       {!hideMessages && conversation.status === "OPEN" ? (
         <form
           onSubmit={submit}
-          className="space-y-3 rounded-xl border border-border bg-background p-3 sm:p-4"
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (sending || recordingVoice || openingMicrophone) return;
+            setDragActive(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setDragActive(false);
+            }
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragActive(false);
+            if (sending || recordingVoice || openingMicrophone) return;
+            addFiles(Array.from(event.dataTransfer.files));
+          }}
+          className={cn(
+            "relative overflow-hidden rounded-2xl border bg-white shadow-[0_18px_45px_-35px_rgba(15,23,42,0.65)] transition",
+            dragActive
+              ? "border-[var(--wp-accent)] ring-4 ring-[var(--wp-accent)]/10"
+              : "border-[var(--wp-border-strong)]",
+          )}
         >
-          <label htmlFor={`message-${conversation.id}`} className="text-sm font-medium">
-            Write a message
-          </label>
-          <textarea
-            id={`message-${conversation.id}`}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            maxLength={10_000}
-            rows={3}
-            disabled={sending}
-            className="min-h-24 w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Write a message, attach a file, or record a voice note."
-          />
-
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
-              Question
-            </span>
-            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
-              Evidence
-            </span>
-            <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
-              Approval
-            </span>
-          </div>
-
-          {draftRestored ? (
-            <p className="text-xs text-[var(--wp-accent)]">
-              Draft restored from your previous message.
-            </p>
-          ) : null}
-
-          {attachments.length > 0 ? (
-            <ul className="space-y-2" aria-label="Files ready to send">
-              {attachments.map((file, index) => (
-                <li
-                  key={`${file.name}-${file.size}-${index}`}
-                  className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2"
-                >
-                  <Paperclip
-                    className="h-4 w-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
-                  </span>
-                  <button
-                    type="button"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() =>
-                      setAttachments((current) =>
-                        current.filter((_, fileIndex) => fileIndex !== index),
-                      )
-                    }
-                    disabled={sending || recordingVoice}
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {recordedVoice && recordedVoiceUrl ? (
-            <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  <FileAudio2 className="h-4 w-4" aria-hidden="true" />
-                  Voice note · {formatDuration(recordingSeconds)} ·{" "}
-                  {formatFileSize(recordedVoice.size)}
-                </p>
-                <button
-                  type="button"
-                  className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  onClick={() => {
-                    setRecordedVoice(null);
-                    setRecordingSeconds(0);
-                  }}
-                  disabled={sending}
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  Remove
-                </button>
+          {dragActive ? (
+            <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-white/92 backdrop-blur-sm">
+              <div className="rounded-2xl border border-dashed border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)] px-6 py-5 text-center text-sm font-semibold text-[var(--wp-accent)]">
+                <Paperclip className="mx-auto mb-2 h-5 w-5" /> Drop files to attach
               </div>
-              <audio
-                controls
-                preload="metadata"
-                src={recordedVoiceUrl}
-                aria-label="Preview your voice note"
-                className="w-full"
-              />
             </div>
           ) : null}
 
-          {recordingVoice ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-rose-950">
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-rose-600" />
-                <span aria-hidden="true">
-                  Recording · {formatDuration(recordingSeconds)} / 02:00
-                </span>
-                <span className="sr-only">Recording in progress. Maximum two minutes.</span>
+          <div className="space-y-3 p-3.5 sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor={`message-${conversation.id}`}
+                className="text-xs font-semibold text-[var(--wp-text-secondary)]"
+              >
+                Message{" "}
+                {currentUserId === conversation.buyerUserId
+                  ? (conversation.providerDisplayName ?? "professional")
+                  : "client"}
+              </label>
+              <span className="text-[10px] tabular-nums text-[var(--wp-text-muted)]">
+                {draft.length.toLocaleString()} / 10,000
               </span>
             </div>
-          ) : null}
+            <textarea
+              id={`message-${conversation.id}`}
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setDraftAssistMessage(null);
+              }}
+              maxLength={10_000}
+              rows={3}
+              disabled={sending}
+              className="min-h-24 w-full resize-y border-0 bg-transparent px-0 py-1 text-sm leading-6 text-[var(--wp-text-primary)] outline-none placeholder:text-[var(--wp-text-muted)]"
+              placeholder="Write naturally. You can polish the draft before sending."
+            />
+
+            {draftRestored ? (
+              <p className="text-xs text-[var(--wp-accent)]">
+                Draft restored for this conversation.
+              </p>
+            ) : null}
+            {draftAssistMessage ? (
+              <p
+                className={cn(
+                  "text-xs",
+                  draftAssistMessage.startsWith("Draft improved")
+                    ? "text-emerald-700"
+                    : "text-rose-700",
+                )}
+              >
+                {draftAssistMessage}
+              </p>
+            ) : null}
+            {currentUserId === conversation.buyerUserId ? (
+              <p className="flex items-center gap-1.5 text-[10px] leading-4 text-[var(--wp-text-muted)]">
+                <Sparkles className="h-3 w-3 shrink-0" /> AI tools send the selected text, this
+                task’s title and summary, and the professional’s display name to the configured AI
+                provider. Review every result; nothing is sent to the other person until you press
+                Send.
+              </p>
+            ) : null}
+
+            {attachments.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-2" aria-label="Files ready to send">
+                {attachments.map((file, index) => (
+                  <li
+                    key={`${file.name}-${file.size}-${index}`}
+                    className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-2"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-[var(--wp-accent)]">
+                      <FileText className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold">{file.name}</span>
+                      <span className="text-[10px] text-[var(--wp-text-secondary)]">
+                        {formatFileSize(file.size)}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[var(--wp-text-secondary)] hover:bg-white hover:text-rose-600"
+                      aria-label={`Remove ${file.name}`}
+                      onClick={() =>
+                        setAttachments((current) =>
+                          current.filter((_, fileIndex) => fileIndex !== index),
+                        )
+                      }
+                      disabled={sending || recordingVoice}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {recordedVoice && recordedVoiceUrl ? (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-xs font-semibold text-violet-950">
+                    <AudioLines className="h-4 w-4" /> Voice note ·{" "}
+                    {formatDuration(recordingSeconds)} · {formatFileSize(recordedVoice.size)}
+                  </p>
+                  <button
+                    type="button"
+                    className="grid h-8 w-8 place-items-center rounded-full text-violet-700 hover:bg-white hover:text-rose-600"
+                    onClick={() => {
+                      setRecordedVoice(null);
+                      setRecordingSeconds(0);
+                    }}
+                    disabled={sending}
+                    aria-label="Remove voice note"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <audio
+                  controls
+                  preload="metadata"
+                  src={recordedVoiceUrl}
+                  aria-label="Preview your voice note"
+                  className="h-9 w-full"
+                />
+              </div>
+            ) : null}
+
+            {recordingVoice ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-rose-950">
+                <span className="flex items-center gap-2 text-xs font-semibold">
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-rose-600" />
+                  Recording {formatDuration(recordingSeconds)} / 2:00
+                </span>
+                <button
+                  type="button"
+                  onClick={stopVoiceRecording}
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-rose-700 px-3 text-xs font-semibold text-white"
+                >
+                  <Square className="h-3 w-3 fill-current" /> Stop
+                </button>
+              </div>
+            ) : null}
+
+            {attachmentError ? (
+              <div className="space-y-1" role="alert">
+                <p className="text-xs text-destructive">{attachmentError}</p>
+                {rejectedFiles.length > 0 ? (
+                  <ul className="list-disc pl-5 text-[11px] text-muted-foreground">
+                    {rejectedFiles.slice(0, 3).map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+            {error ? (
+              <p className="text-xs text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
 
           <input
             ref={attachmentInputRef}
@@ -795,38 +1026,28 @@ export function ConversationThread({
               event.currentTarget.value = "";
             }}
           />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <Button
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/70 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <button
                 type="button"
-                variant="outline"
-                className="min-h-10"
+                title="Attach files"
+                aria-label="Attach files"
                 onClick={() => attachmentInputRef.current?.click()}
                 disabled={
                   sending ||
                   recordingVoice ||
                   queuedAttachments.length >= MAX_CONVERSATION_ATTACHMENTS
                 }
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold text-[var(--wp-text-secondary)] transition hover:bg-white hover:text-[var(--wp-text-primary)] disabled:opacity-50"
               >
-                <Paperclip className="mr-2 h-4 w-4" aria-hidden="true" />
-                Attach file
-              </Button>
-              {recordingVoice ? (
-                <Button
+                <Paperclip className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Attach</span>
+              </button>
+              {!recordingVoice ? (
+                <button
                   type="button"
-                  variant="outline"
-                  className="min-h-10"
-                  onClick={stopVoiceRecording}
-                  disabled={sending}
-                >
-                  <Square className="mr-2 h-4 w-4 fill-current" aria-hidden="true" />
-                  Stop recording
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-10"
+                  title="Record a voice note"
+                  aria-label="Record a voice note"
                   onClick={() => void startVoiceRecording()}
                   disabled={
                     sending ||
@@ -834,49 +1055,44 @@ export function ConversationThread({
                     Boolean(recordedVoice) ||
                     queuedAttachments.length >= MAX_CONVERSATION_ATTACHMENTS
                   }
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold text-[var(--wp-text-secondary)] transition hover:bg-white hover:text-[var(--wp-text-primary)] disabled:opacity-50"
                 >
-                  <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {openingMicrophone ? "Opening microphone…" : "Record voice note"}
-                </Button>
-              )}
+                  <Mic className={cn("h-4 w-4", openingMicrophone && "animate-pulse")} />
+                  <span className="hidden sm:inline">
+                    {openingMicrophone ? "Opening…" : "Voice"}
+                  </span>
+                </button>
+              ) : null}
+              {currentUserId === conversation.buyerUserId ? (
+                <button
+                  type="button"
+                  title="Improve clarity without changing your meaning"
+                  onClick={() => void rewriteDraft()}
+                  disabled={!draft.trim() || sending || rewritingDraft}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-50"
+                >
+                  <Sparkles className={cn("h-4 w-4", rewritingDraft && "animate-pulse")} />
+                  <span className="hidden sm:inline">
+                    {rewritingDraft ? "Polishing…" : "Polish"}
+                  </span>
+                </button>
+              ) : null}
             </div>
             <Button
               type="submit"
-              className="min-h-11 w-full sm:w-auto"
+              className="min-h-10 shrink-0 rounded-xl px-4 shadow-sm"
               disabled={
-                (!draft.trim() && queuedAttachments.length === 0) || sending || recordingVoice
+                (!draft.trim() && queuedAttachments.length === 0) ||
+                sending ||
+                recordingVoice ||
+                openingMicrophone ||
+                rewritingDraft
               }
             >
-              {sending
-                ? "Sending…"
-                : queuedAttachments.length > 0
-                  ? `Send message · ${queuedAttachments.length} attachment${queuedAttachments.length === 1 ? "" : "s"}`
-                  : "Send message"}
+              {sending ? "Sending…" : "Send"}
+              <SendHorizontal className="ml-2 h-4 w-4" />
             </Button>
           </div>
-
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Supported: images, PDFs, Office docs, spreadsheets, text files, and audio. Up to 5
-            files, 10 MB each and 15 MB total. Voice notes stop at 2 minutes and are visible only to
-            conversation participants.
-          </p>
-          {attachmentError ? (
-            <div className="space-y-1" role="alert">
-              <p className="text-sm text-destructive">{attachmentError}</p>
-              {rejectedFiles.length > 0 ? (
-                <ul className="list-disc pl-5 text-xs text-muted-foreground">
-                  {rejectedFiles.slice(0, 3).map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
         </form>
       ) : null}
       {!inboxMode && conversation.status === "OPEN" && conversation.hasWorkExecution ? (

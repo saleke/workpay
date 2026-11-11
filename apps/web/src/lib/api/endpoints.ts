@@ -415,6 +415,32 @@ export function getTaskConversationMessages(
   return apiFetch<TaskConversationDto>(`${BASE}/conversations/${conversationId}/messages${search}`);
 }
 
+export interface ConversationMessageExplanation {
+  summary: string;
+  terms: Array<{ term: string; meaning: string }>;
+  suggestedQuestions: string[];
+}
+
+export function rewriteConversationDraft(
+  conversationId: string,
+  draft: string,
+): Promise<ApiResponse<{ message: string }>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/assist`, {
+    method: "POST",
+    body: { action: "REWRITE_DRAFT", draft },
+  });
+}
+
+export function simplifyConversationMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<ApiResponse<ConversationMessageExplanation>> {
+  return apiFetch(`${BASE}/conversations/${conversationId}/assist`, {
+    method: "POST",
+    body: { action: "SIMPLIFY_MESSAGE", messageId },
+  });
+}
+
 export function getWorkCommitment(
   conversationId: string,
 ): Promise<ApiResponse<WorkCommitmentDto | null>> {
