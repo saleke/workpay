@@ -71,12 +71,12 @@ cat > "$S3_POLICY" <<EOF
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Action": ["s3:ListBucket", "s3:ListBucketVersions", "s3:GetBucketLocation"],
       "Resource": "arn:aws:s3:::$S3_BUCKET"
     },
     {
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion"],
       "Resource": "arn:aws:s3:::$S3_BUCKET/*"
     }
   ]
