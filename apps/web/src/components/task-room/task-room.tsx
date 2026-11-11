@@ -499,7 +499,7 @@ export function TaskRoom({ taskId }: { taskId: string }) {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-16">
+    <div className="w-full space-y-6 pb-16">
       <nav aria-label="Breadcrumb" className="text-sm">
         <Link
           href="/tasks"
@@ -513,8 +513,8 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         <span className="font-medium text-[var(--charcoal)]">Task workspace</span>
       </nav>
 
-      <header className="workpay-card overflow-hidden">
-        <div className="space-y-6 p-5 sm:p-7 lg:p-8">
+      <header className="border-b border-[var(--wp-border)] pb-6">
+        <div className="space-y-6">
           <div className="min-w-0 flex-1 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] px-3 py-1 text-xs font-medium text-[var(--wp-text-secondary)]">

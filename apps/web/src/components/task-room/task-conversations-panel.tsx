@@ -222,10 +222,7 @@ export function TaskConversationsPanel({
   };
 
   return (
-    <section
-      className="workpay-card space-y-6 p-5 sm:p-6"
-      aria-labelledby={`conversation-heading-${taskId}`}
-    >
+    <section className="space-y-6" aria-labelledby={`conversation-heading-${taskId}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--wp-accent)]">
@@ -329,7 +326,7 @@ export function TaskConversationsPanel({
                       setDraftError(null);
                     }}
                     disabled={drafting || sending}
-                    className={`flex w-full cursor-pointer items-start gap-3 rounded-2xl border p-3 text-left transition-all sm:gap-4 sm:p-4 ${
+                    className={`flex w-full cursor-pointer flex-col gap-3 rounded-2xl border p-3 text-left transition-all sm:flex-row sm:items-start sm:gap-4 sm:p-4 ${
                       isSelected
                         ? "border-[var(--wp-accent)] bg-[var(--wp-accent-subtle)]/45 shadow-sm"
                         : "border-[var(--wp-border)] bg-white hover:border-[var(--wp-border-strong)] hover:bg-[var(--wp-surface-subtle)]"
@@ -341,77 +338,80 @@ export function TaskConversationsPanel({
                         : `Select ${candidate.displayName}`
                     }
                   >
-                    <ProviderAvatar
-                      displayName={candidate.displayName}
-                      image={candidate.image}
-                      className="h-12 w-12 shrink-0 sm:h-14 sm:w-14"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 break-words text-base font-semibold leading-snug text-[var(--wp-text-primary)]">
+                    <div className="flex w-full min-w-0 items-start gap-3 sm:flex-1 sm:gap-4">
+                      <ProviderAvatar
+                        displayName={candidate.displayName}
+                        image={candidate.image}
+                        className="h-12 w-12 shrink-0 sm:h-14 sm:w-14"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <span className="block w-full text-base font-semibold leading-snug text-[var(--wp-text-primary)]">
                           {candidate.displayName}
                         </span>
-                        {candidate.evaluationProfile ? (
-                          <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800">
-                            Evaluation profile
-                          </span>
-                        ) : null}
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            requestState === "CONTACT_PENDING"
-                              ? "bg-amber-100 text-amber-900"
-                              : requestState === "OPEN"
-                                ? "bg-sky-100 text-sky-900"
-                                : requestState
-                                  ? "bg-slate-100 text-slate-800"
-                                  : "bg-emerald-100 text-emerald-900"
-                          }`}
-                        >
-                          {requestState === "CONTACT_PENDING"
-                            ? "Awaiting response"
-                            : requestState === "OPEN"
-                              ? "Conversation open"
-                              : requestState === "DECLINED"
-                                ? "Contact declined"
-                                : requestState === "WITHDRAWN"
-                                  ? "Withdrawn"
-                                  : requestState === "CLOSED"
-                                    ? "Closed"
-                                    : "Available"}
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-[var(--text-muted)]">
-                        {candidate.bio?.trim() || "This professional has not added a summary yet."}
-                      </p>
-                      {candidate.capabilities?.length ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {displayedCapabilities.map(({ tag }) => (
-                            <span
-                              key={tag}
-                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                                matchedCapabilities.has(tag)
-                                  ? "border-[var(--wp-accent)]/30 bg-[var(--wp-accent-subtle)] text-[var(--wp-accent)]"
-                                  : "border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[var(--wp-text-secondary)]"
-                              }`}
-                            >
-                              {formatCapability(tag)}
-                            </span>
-                          ))}
-                          {hiddenCapabilityCount > 0 ? (
-                            <span className="px-1 py-0.5 text-xs text-[var(--wp-text-secondary)]">
-                              +{hiddenCapabilityCount} more
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {candidate.evaluationProfile ? (
+                            <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800">
+                              Evaluation profile
                             </span>
                           ) : null}
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${
+                              requestState === "CONTACT_PENDING"
+                                ? "bg-amber-100 text-amber-900"
+                                : requestState === "OPEN"
+                                  ? "bg-sky-100 text-sky-900"
+                                  : requestState
+                                    ? "bg-slate-100 text-slate-800"
+                                    : "bg-emerald-100 text-emerald-900"
+                            }`}
+                          >
+                            {requestState === "CONTACT_PENDING"
+                              ? "Awaiting response"
+                              : requestState === "OPEN"
+                                ? "Conversation open"
+                                : requestState === "DECLINED"
+                                  ? "Contact declined"
+                                  : requestState === "WITHDRAWN"
+                                    ? "Withdrawn"
+                                    : requestState === "CLOSED"
+                                      ? "Closed"
+                                      : "Available"}
+                          </span>
                         </div>
-                      ) : null}
-                      {candidate.matchedCapabilities.length > 0 ? (
-                        <p className="mt-2 text-xs font-medium text-[var(--wp-accent)]">
-                          {candidate.matchedCapabilities.length} direct scope{" "}
-                          {candidate.matchedCapabilities.length === 1 ? "match" : "matches"}
+                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--text-muted)]">
+                          {candidate.bio?.trim() ||
+                            "This professional has not added a summary yet."}
                         </p>
-                      ) : null}
+                        {candidate.capabilities?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {displayedCapabilities.map(({ tag }) => (
+                              <span
+                                key={tag}
+                                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                  matchedCapabilities.has(tag)
+                                    ? "border-[var(--wp-accent)]/30 bg-[var(--wp-accent-subtle)] text-[var(--wp-accent)]"
+                                    : "border-[var(--wp-border)] bg-[var(--wp-surface-subtle)] text-[var(--wp-text-secondary)]"
+                                }`}
+                              >
+                                {formatCapability(tag)}
+                              </span>
+                            ))}
+                            {hiddenCapabilityCount > 0 ? (
+                              <span className="px-1 py-0.5 text-xs text-[var(--wp-text-secondary)]">
+                                +{hiddenCapabilityCount} more
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {candidate.matchedCapabilities.length > 0 ? (
+                          <p className="mt-2 text-xs font-medium text-[var(--wp-accent)]">
+                            {candidate.matchedCapabilities.length} direct scope{" "}
+                            {candidate.matchedCapabilities.length === 1 ? "match" : "matches"}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    <span className="inline-flex min-h-8 shrink-0 self-center items-center rounded-full border border-[var(--wp-border)] bg-white px-2 py-1 text-xs font-semibold text-[var(--wp-text-secondary)]">
+                    <span className="inline-flex min-h-8 shrink-0 self-end items-center rounded-full border border-[var(--wp-border)] bg-white px-3 py-1 text-xs font-semibold text-[var(--wp-text-secondary)] sm:self-center">
                       {candidateConversation
                         ? "Open inbox"
                         : isSelected

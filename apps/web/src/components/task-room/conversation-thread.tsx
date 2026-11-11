@@ -5,6 +5,7 @@ import {
   AudioLines,
   FileAudio2,
   FileText,
+  Loader2,
   Mic,
   Paperclip,
   SendHorizontal,
@@ -123,6 +124,7 @@ export function ConversationThread({
   const messageListRef = useRef<HTMLOListElement>(null);
   const scrollAnchorRef = useRef<{ height: number; top: number } | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
@@ -168,6 +170,11 @@ export function ConversationThread({
 
   useEffect(() => {
     draftRef.current = draft;
+    const input = messageInputRef.current;
+    if (input) {
+      input.style.height = "0px";
+      input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+    }
   }, [draft]);
 
   useEffect(() => {
@@ -846,7 +853,7 @@ export function ConversationThread({
             addFiles(Array.from(event.dataTransfer.files));
           }}
           className={cn(
-            "relative shrink-0 overflow-hidden rounded-2xl border bg-white shadow-[0_18px_45px_-35px_rgba(15,23,42,0.65)] transition",
+            "relative mx-auto w-full max-w-3xl shrink-0 overflow-hidden rounded-[1.35rem] border bg-white shadow-[0_14px_36px_-30px_rgba(15,23,42,0.7)] transition",
             dragActive
               ? "border-[var(--wp-accent)] ring-4 ring-[var(--wp-accent)]/10"
               : "border-[var(--wp-border-strong)]",
@@ -860,22 +867,20 @@ export function ConversationThread({
             </div>
           ) : null}
 
-          <div className="space-y-3 p-3.5 sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor={`message-${conversation.id}`}
-                className="text-xs font-semibold text-[var(--wp-text-secondary)]"
-              >
-                Message{" "}
-                {currentUserId === conversation.buyerUserId
-                  ? (conversation.providerDisplayName ?? "professional")
-                  : "client"}
-              </label>
-              <span className="text-[10px] tabular-nums text-[var(--wp-text-muted)]">
+          <div className="space-y-2 p-2.5 pb-1">
+            <label htmlFor={`message-${conversation.id}`} className="sr-only">
+              Message{" "}
+              {currentUserId === conversation.buyerUserId
+                ? (conversation.providerDisplayName ?? "professional")
+                : "client"}
+            </label>
+            {draft.length > 9_000 ? (
+              <span className="absolute right-4 top-1.5 text-[9px] tabular-nums text-[var(--wp-text-muted)]">
                 {draft.length.toLocaleString()} / 10,000
               </span>
-            </div>
+            ) : null}
             <textarea
+              ref={messageInputRef}
               id={`message-${conversation.id}`}
               value={draft}
               onChange={(event) => {
@@ -883,10 +888,10 @@ export function ConversationThread({
                 setDraftAssistMessage(null);
               }}
               maxLength={10_000}
-              rows={3}
+              rows={1}
               disabled={sending}
-              className="min-h-24 w-full resize-y border-0 bg-transparent px-0 py-1 text-sm leading-6 text-[var(--wp-text-primary)] outline-none placeholder:text-[var(--wp-text-muted)]"
-              placeholder="Write naturally. You can polish the draft before sending."
+              className="max-h-32 min-h-10 w-full resize-none overflow-y-auto rounded-2xl border-0 bg-[var(--wp-surface-subtle)] px-3 py-2 text-sm leading-6 text-[var(--wp-text-primary)] outline-none placeholder:text-[var(--wp-text-muted)]"
+              placeholder="Message"
             />
 
             {draftRestored ? (
@@ -1017,7 +1022,7 @@ export function ConversationThread({
               event.currentTarget.value = "";
             }}
           />
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2 bg-white px-2 pb-2 pt-1">
             <div className="flex min-w-0 items-center gap-1.5">
               <button
                 type="button"
@@ -1072,7 +1077,8 @@ export function ConversationThread({
             </div>
             <Button
               type="submit"
-              className="min-h-10 shrink-0 rounded-xl px-4 shadow-sm"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full shadow-sm"
               disabled={
                 (!draft.trim() && queuedAttachments.length === 0) ||
                 sending ||
@@ -1081,8 +1087,12 @@ export function ConversationThread({
                 rewritingDraft
               }
             >
-              {sending ? "Sending…" : "Send"}
-              <SendHorizontal className="ml-2 h-4 w-4" />
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <SendHorizontal className="h-4 w-4" />
+              )}
+              <span className="sr-only">{sending ? "Sending message" : "Send message"}</span>
             </Button>
           </div>
         </form>
