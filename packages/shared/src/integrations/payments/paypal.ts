@@ -599,13 +599,14 @@ export class SandboxPayPal implements PaymentGateway {
       this.options.env === "live" ? "https://www.paypal.com" : "https://www.sandbox.paypal.com";
     const scope = params.scope ?? "openid profile email";
     const search = new URLSearchParams({
+      flowEntry: "static",
       client_id: this.options.clientId,
       response_type: "code",
       scope,
       redirect_uri: params.redirectUri,
       state: params.state,
     });
-    return `${authBase}/signin/authorize?${search.toString()}`;
+    return `${authBase}/connect?${search.toString()}`;
   }
 
   async exchangeOAuthCodeForTokens(

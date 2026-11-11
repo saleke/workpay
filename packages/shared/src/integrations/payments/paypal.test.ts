@@ -21,6 +21,24 @@ function client(fetchImpl: typeof fetch) {
 }
 
 describe("PayPal Orders gateway", () => {
+  it("builds the current Log in with PayPal authorization URL", () => {
+    const paypal = client((async () => response(500, {})) as typeof fetch);
+    const authorizeUrl = new URL(
+      paypal.getOAuthAuthorizeUrl({
+        redirectUri: "https://tenfo.example/api/v1/user/paypal/callback",
+        state: "state-token",
+        scope: "openid profile email https://uri.paypal.com/services/paypalattributes",
+      }),
+    );
+    expect(authorizeUrl.origin).toBe("https://www.sandbox.paypal.com");
+    expect(authorizeUrl.pathname).toBe("/connect");
+    expect(authorizeUrl.searchParams.get("flowEntry")).toBe("static");
+    expect(authorizeUrl.searchParams.get("client_id")).toBe("client-id");
+    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
+      "https://tenfo.example/api/v1/user/paypal/callback",
+    );
+  });
+
   it("creates an AUTHORIZE order for the explicit seller and returns payer approval", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
