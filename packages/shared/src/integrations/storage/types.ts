@@ -21,6 +21,8 @@ export interface ObjectStorage {
   get(key: string): Promise<Uint8Array>;
   exists(key: string): Promise<boolean>;
   delete(key: string): Promise<void>;
+  /** Delete every object in the configured application storage location. */
+  clearAll(): Promise<number>;
   /**
    * A URL the browser can use to download the object. For the local driver
    * this is an application route; for S3 it is a presigned URL.

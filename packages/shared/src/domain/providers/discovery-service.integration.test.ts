@@ -173,4 +173,79 @@ describeDb("professional discovery (integration)", () => {
       .where(eq(payments.id, assignment.paymentId));
     expect(payment?.mode).toBe("FAKE");
   });
+
+  it("shows complete member profiles instead of evaluator fallback profiles", async () => {
+    const db = getDb();
+    const buyerUser = await createUser(db, { accountClass: "MEMBER", name: "Member Client" });
+    const memberUser = await createUser(db, {
+      accountClass: "MEMBER",
+      role: "provider",
+      name: "Published Member",
+    });
+    const fixtureUser = await createUser(db, {
+      accountClass: "DEMO_FIXTURE",
+      role: "provider",
+      name: "Evaluation Professional",
+    });
+    const memberProvider = await createProvider(db, { displayName: "Published Member" });
+    const fixtureProvider = await createProvider(db, { displayName: "Evaluation Professional" });
+    await db
+      .update(providers)
+      .set({
+        userId: memberUser.id,
+        bio: "A complete member Work Profile.",
+        workPreferences: { workAcceptanceStatus: "ACCEPTING", aiRecommendationAllowed: true },
+      })
+      .where(eq(providers.id, memberProvider.id));
+    await db
+      .update(providers)
+      .set({ userId: fixtureUser.id, bio: "An evaluator fallback profile." })
+      .where(eq(providers.id, fixtureProvider.id));
+
+    const actor = { kind: "USER", id: buyerUser.id, role: "buyer" } as const;
+    const correlationId = newCorrelationId();
+    const { task } = await withTransaction((tx) =>
+      createTask(tx, {
+        actor,
+        title: "Member discovery task",
+        rawRequest: "Find a published member professional.",
+        budget: money(20_000, "USD"),
+        correlationId,
+      }),
+    );
+    const contractId = newId("contract");
+    await db.insert(workContracts).values({
+      id: contractId,
+      taskId: task.id,
+      version: 1,
+      status: "ACTIVE",
+      title: "Member discovery task",
+      summary: "Find a published member professional.",
+      contractHash: "e".repeat(64),
+      budgetMinor: 20_000,
+      currency: "USD",
+      approvedBy: buyerUser.id,
+      approvedAt: new Date(),
+    });
+    await db.update(tasks).set({ status: "APPROVED" }).where(eq(tasks.id, task.id));
+
+    const selection = await withTransaction((tx) =>
+      discoverProviders(tx, {
+        taskId: task.id,
+        buyerUserId: buyerUser.id,
+        actor,
+        correlationId,
+      }),
+    );
+    const candidates = selection.candidates as Array<{
+      providerId: string;
+      evaluationProfile?: boolean;
+    }>;
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        providerId: memberProvider.id,
+        evaluationProfile: false,
+      }),
+    ]);
+  });
 });

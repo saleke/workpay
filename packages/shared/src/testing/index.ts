@@ -7,7 +7,8 @@
  * test a clean slate by truncating every table in one statement.
  */
 import { sql } from "drizzle-orm";
-import { getDb, getPool, type Database } from "../db/client.js";
+import { getDb, type Database } from "../db/client.js";
+import { truncateApplicationData } from "../db/reset.js";
 
 /**
  * True when integration tests should run. Requires both an explicit opt-in and
@@ -33,14 +34,7 @@ export function getTestDb(): Database {
  * table. Uses a single TRUNCATE ... CASCADE so foreign keys never block it.
  */
 export async function resetDatabase(): Promise<void> {
-  const pool = getPool();
-  const { rows } = await pool.query<{ tablename: string }>(
-    `SELECT tablename FROM pg_tables
-     WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'`,
-  );
-  if (rows.length === 0) return;
-  const tables = rows.map((r) => `"public"."${r.tablename}"`).join(", ");
-  await pool.query(`TRUNCATE ${tables} RESTART IDENTITY CASCADE`);
+  await truncateApplicationData();
 }
 
 /** Close the pool at the end of an integration suite. */

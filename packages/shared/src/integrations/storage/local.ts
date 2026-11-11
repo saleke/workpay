@@ -56,6 +56,12 @@ export class LocalObjectStorage implements ObjectStorage {
     await rm(this.pathFor(key), { force: true });
   }
 
+  async clearAll(): Promise<number> {
+    await rm(this.baseDir, { force: true, recursive: true });
+    await mkdir(this.baseDir, { recursive: true });
+    return 0;
+  }
+
   async presignGet(key: string): Promise<string> {
     // The local driver has no signing; the application route enforces access.
     return `${this.publicBaseUrl}/api/v1/storage/${encodeURIComponent(key)}`;

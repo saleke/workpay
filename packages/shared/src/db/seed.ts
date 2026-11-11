@@ -1,27 +1,11 @@
-/**
- * Database seed script (ENGINEERING_PLAN section 5.3.12).
- *
- * Populates:
- *  1. Demo users: buyer, provider, admin reviewer.
- *  2. Seeded provider profiles with capabilities, availability, and reputation.
- *  3. Demo dataset fixtures:
- *     - customers.csv: raw 5,000-row dataset for the demo task
- *     - customers-v1.csv: flawed submission with 7.2% duplicates (fails verification)
- *     - customers-v2.csv: clean submission with 0% duplicates (passes verification)
- */
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
+import { fileURLToPath } from "node:url";
 import { getDb, closeDb, type Database } from "./client.js";
 import { users } from "./schema/identity.js";
 import { availability, capabilities, providers, reputation } from "./schema/providers.js";
 import { logger } from "../platform/logger.js";
 import { newId } from "../platform/ids.js";
 import { hashPassword } from "../platform/password.js";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const fixturesDir = resolve(here, "../../fixtures");
 
 export interface SeedResult {
   buyerId: string;
@@ -30,145 +14,374 @@ export interface SeedResult {
   providerIds: string[];
 }
 
-export async function generateDemoCsvs(): Promise<{
-  rawPath: string;
-  v1Path: string;
-  v2Path: string;
-}> {
-  await mkdir(fixturesDir, { recursive: true });
+const BUYER_ID = "usr_buyer_alice";
+const PROVIDER_USER_ID = "usr_provider_bob";
+const REVIEWER_ID = "usr_admin_carol";
 
-  const rawPath = resolve(fixturesDir, "customers.csv");
-  const v1Path = resolve(fixturesDir, "customers-v1.csv");
-  const v2Path = resolve(fixturesDir, "customers-v2.csv");
+const demoAccounts = [
+  {
+    id: BUYER_ID,
+    name: "Maya Chen",
+    username: "maya_chen",
+    email: "maya@demo.tenfo.test",
+    role: "buyer" as const,
+  },
+  {
+    id: PROVIDER_USER_ID,
+    name: "Jordan Ellis",
+    username: "jordan_ellis",
+    email: "jordan@demo.tenfo.test",
+    role: "provider" as const,
+  },
+  {
+    id: REVIEWER_ID,
+    name: "Nadia Patel",
+    username: "nadia_patel",
+    email: "nadia@demo.tenfo.test",
+    role: "admin_reviewer" as const,
+  },
+  {
+    id: "usr_demo_amara",
+    name: "Amara Okafor",
+    username: "amara_okafor",
+    email: "amara@demo.tenfo.test",
+    role: "provider" as const,
+  },
+  {
+    id: "usr_demo_lucas",
+    name: "Lucas Martin",
+    username: "lucas_martin",
+    email: "lucas@demo.tenfo.test",
+    role: "provider" as const,
+  },
+  {
+    id: "usr_demo_sofia",
+    name: "Sofia Reyes",
+    username: "sofia_reyes",
+    email: "sofia@demo.tenfo.test",
+    role: "provider" as const,
+  },
+  {
+    id: "usr_demo_ethan",
+    name: "Ethan Brooks",
+    username: "ethan_brooks",
+    email: "ethan@demo.tenfo.test",
+    role: "provider" as const,
+  },
+];
 
-  const totalRows = 5000;
-  const rawRows: string[] = ["id,name,email,joined_at,status"];
-  const v1Rows: string[] = ["id,name,email,joined_at,status"];
-  const v2Rows: string[] = ["id,name,email,joined_at,status"];
+type ReviewService = {
+  enabled: boolean;
+  listed: boolean;
+  availability: "AVAILABLE" | "BUSY" | "OFFLINE";
+  notice: string | null;
+  summary: string;
+  publicContactUrl: null;
+  feeMinor: number | null;
+  typicalTurnaroundDays: number | null;
+  conflictDisclosureConfirmed: boolean;
+  conflictUserIds: string[];
+  domains: Array<{
+    domainTag: string;
+    scope: string;
+    selfAssessedLevel: number;
+    yearsExperience: number | null;
+    methods: string[];
+  }>;
+  evidence: Array<{
+    kind: "EXPERIENCE";
+    title: string;
+    description: string;
+    url: null;
+    issuer: null;
+  }>;
+  feeMode: "DIRECT";
+};
 
-  // Flawed duplicate rate for v1: 7.2% duplicates (360 duplicate rows out of 5,000)
-  const dupTarget = 360;
+const disabledReviewService: ReviewService = {
+  enabled: false,
+  listed: false,
+  availability: "OFFLINE",
+  notice: null,
+  summary: "",
+  publicContactUrl: null,
+  feeMinor: null,
+  typicalTurnaroundDays: null,
+  conflictDisclosureConfirmed: false,
+  conflictUserIds: [],
+  domains: [],
+  evidence: [],
+  feeMode: "DIRECT",
+};
 
-  for (let i = 1; i <= totalRows; i++) {
-    const id = `cust_${String(i).padStart(5, "0")}`;
-    const name = `Customer ${i}`;
-    const email = `customer${i}@example.com`;
-    const joinedAt = "2026-01-15";
-    const status = i % 10 === 0 ? "inactive" : "active";
+const providerSpecs = [
+  {
+    id: "pro_demo_jordan",
+    userId: PROVIDER_USER_ID,
+    displayName: "Jordan Ellis",
+    bio: "I help teams turn inconsistent spreadsheets and operational data into dependable, documented datasets and reports.",
+    hourlyRateMinor: 6500,
+    services: ["data-cleaning", "spreadsheet-automation", "data-validation", "reporting"],
+    tools: ["Python", "SQL", "Excel", "Google Sheets", "Pandas"],
+    acceptedCategories: ["data operations", "reporting", "spreadsheet workflows"],
+    deliveryFormat: "A clean working dataset, change summary, and practical handover notes.",
+    timezone: "Europe/London (GMT)",
+    schedule: "Monday to Friday, 9:00 AM to 5:00 PM GMT",
+    capacity: 3,
+    reviewService: disabledReviewService,
+  },
+  {
+    id: "pro_demo_amara",
+    userId: "usr_demo_amara",
+    displayName: "Amara Okafor",
+    bio: "I create clear visual identities, presentation systems, and campaign assets for growing products and organizations.",
+    hourlyRateMinor: 6000,
+    services: ["brand-identity", "presentation-design", "social-media-design", "visual-design"],
+    tools: ["Figma", "Adobe Illustrator", "Adobe Photoshop", "Canva"],
+    acceptedCategories: ["brand design", "presentations", "marketing design"],
+    deliveryFormat: "Editable source files, export-ready assets, and a concise usage guide.",
+    timezone: "UTC",
+    schedule: "Monday to Friday, 8:00 AM to 4:00 PM UTC",
+    capacity: 2,
+    reviewService: disabledReviewService,
+  },
+  {
+    id: "pro_demo_lucas",
+    userId: "usr_demo_lucas",
+    displayName: "Lucas Martin",
+    bio: "I organize bookkeeping records, reconcile accounts, and prepare straightforward financial summaries for small teams.",
+    hourlyRateMinor: 5500,
+    services: [
+      "bookkeeping",
+      "account-reconciliation",
+      "financial-reporting",
+      "spreadsheet-cleanup",
+    ],
+    tools: ["QuickBooks", "Xero", "Excel", "Google Sheets"],
+    acceptedCategories: ["bookkeeping", "reconciliation", "financial operations"],
+    deliveryFormat: "Reconciled records, exception notes, and an easy-to-review financial summary.",
+    timezone: "America/New_York (ET)",
+    schedule: "Monday to Friday, 9:00 AM to 5:00 PM ET",
+    capacity: 2,
+    reviewService: disabledReviewService,
+  },
+  {
+    id: "pro_demo_sofia",
+    userId: "usr_demo_sofia",
+    displayName: "Sofia Reyes",
+    bio: "I review digital products for accessibility and usability, then turn findings into prioritized, practical improvements.",
+    hourlyRateMinor: 7000,
+    services: ["accessibility-audit", "ux-review", "usability-testing", "web-design"],
+    tools: ["Figma", "axe DevTools", "WAVE", "NVDA", "VoiceOver"],
+    acceptedCategories: ["accessibility", "user experience", "product review"],
+    deliveryFormat:
+      "Prioritized findings, evidence, and remediation guidance mapped to the agreed scope.",
+    timezone: "Europe/Paris (CET)",
+    schedule: "Monday to Friday, 9:00 AM to 5:00 PM CET",
+    capacity: 2,
+    reviewService: {
+      enabled: true,
+      listed: true,
+      availability: "AVAILABLE",
+      notice: null,
+      summary: "Independent accessibility and usability review for digital products.",
+      publicContactUrl: null,
+      feeMinor: 18000,
+      typicalTurnaroundDays: 4,
+      conflictDisclosureConfirmed: true,
+      conflictUserIds: [],
+      domains: [
+        {
+          domainTag: "accessibility",
+          scope:
+            "Keyboard access, semantic structure, assistive-technology use, and documented remediation findings.",
+          selfAssessedLevel: 4,
+          yearsExperience: 6,
+          methods: ["evidence review", "manual walkthrough", "written findings"],
+        },
+        {
+          domainTag: "user-experience",
+          scope: "Task flow clarity, interaction friction, and usability evidence.",
+          selfAssessedLevel: 4,
+          yearsExperience: 6,
+          methods: ["heuristic review", "task walkthrough", "written findings"],
+        },
+      ],
+      evidence: [
+        {
+          kind: "EXPERIENCE",
+          title: "Evaluator profile experience summary",
+          description: "Synthetic experience information provided for testing the review workflow.",
+          url: null,
+          issuer: null,
+        },
+      ],
+      feeMode: "DIRECT",
+    },
+  },
+  {
+    id: "pro_demo_nadia",
+    userId: REVIEWER_ID,
+    displayName: "Nadia Patel",
+    bio: "I provide structured independent reviews of research, content quality, and user-facing project outcomes.",
+    hourlyRateMinor: null,
+    services: [],
+    tools: ["Notion", "Google Docs", "Figma"],
+    acceptedCategories: [],
+    deliveryFormat:
+      "Attributable findings with clear rationale against the agreed review criteria.",
+    timezone: "UTC",
+    schedule: "Review engagements by agreement",
+    capacity: 1,
+    reviewService: {
+      enabled: true,
+      listed: true,
+      availability: "AVAILABLE",
+      notice: null,
+      summary: "Independent review of research, content quality, and user-facing project outcomes.",
+      publicContactUrl: null,
+      feeMinor: 20000,
+      typicalTurnaroundDays: 3,
+      conflictDisclosureConfirmed: true,
+      conflictUserIds: [],
+      domains: [
+        {
+          domainTag: "content-quality",
+          scope: "Clarity, completeness, consistency, and alignment with agreed audience needs.",
+          selfAssessedLevel: 4,
+          yearsExperience: 7,
+          methods: ["evidence review", "criteria mapping", "written findings"],
+        },
+        {
+          domainTag: "research",
+          scope: "Research traceability, synthesis quality, and support for stated conclusions.",
+          selfAssessedLevel: 4,
+          yearsExperience: 7,
+          methods: ["source review", "traceability review", "written findings"],
+        },
+      ],
+      evidence: [
+        {
+          kind: "EXPERIENCE",
+          title: "Evaluator profile experience summary",
+          description: "Synthetic experience information provided for testing the review workflow.",
+          url: null,
+          issuer: null,
+        },
+      ],
+      feeMode: "DIRECT",
+    },
+  },
+  {
+    id: "pro_demo_ethan",
+    userId: "usr_demo_ethan",
+    displayName: "Ethan Brooks",
+    bio: "I independently review bookkeeping reconciliations, financial summaries, and the evidence behind reported figures.",
+    hourlyRateMinor: null,
+    services: [],
+    tools: ["Excel", "QuickBooks", "Xero"],
+    acceptedCategories: [],
+    deliveryFormat: "A concise findings report tied to the agreed financial review criteria.",
+    timezone: "America/Chicago (CT)",
+    schedule: "Review engagements by agreement",
+    capacity: 1,
+    reviewService: {
+      enabled: true,
+      listed: true,
+      availability: "AVAILABLE",
+      notice: null,
+      summary:
+        "Independent review of reconciliations, financial summaries, and supporting evidence.",
+      publicContactUrl: null,
+      feeMinor: 22000,
+      typicalTurnaroundDays: 4,
+      conflictDisclosureConfirmed: true,
+      conflictUserIds: [],
+      domains: [
+        {
+          domainTag: "bookkeeping",
+          scope:
+            "Reconciliation completeness, traceability, and consistency of financial summaries.",
+          selfAssessedLevel: 4,
+          yearsExperience: 8,
+          methods: ["reconciliation review", "source tracing", "written findings"],
+        },
+        {
+          domainTag: "financial-analysis",
+          scope: "Consistency of calculations, assumptions, and reported financial conclusions.",
+          selfAssessedLevel: 4,
+          yearsExperience: 8,
+          methods: ["calculation review", "assumption review", "written findings"],
+        },
+      ],
+      evidence: [
+        {
+          kind: "EXPERIENCE",
+          title: "Evaluator profile experience summary",
+          description: "Synthetic experience information provided for testing the review workflow.",
+          url: null,
+          issuer: null,
+        },
+      ],
+      feeMode: "DIRECT",
+    },
+  },
+] as const;
 
-    rawRows.push(`${id},${name},${email},${joinedAt},${status}`);
-    v2Rows.push(`${id},${name},${email},${joinedAt},${status}`);
-
-    if (i <= dupTarget) {
-      // Intentionally insert duplicate emails into v1 submission to fail duplicate_rate check
-      v1Rows.push(`${id},${name},customer_dup@example.com,${joinedAt},${status}`);
-    } else {
-      v1Rows.push(`${id},${name},${email},${joinedAt},${status}`);
-    }
-  }
-
-  await writeFile(rawPath, rawRows.join("\n"), "utf-8");
-  await writeFile(v1Path, v1Rows.join("\n"), "utf-8");
-  await writeFile(v2Path, v2Rows.join("\n"), "utf-8");
-
-  logger.info({ fixturesDir }, "generated demo CSV fixtures");
-  return { rawPath, v1Path, v2Path };
+function workPreferences(spec: (typeof providerSpecs)[number]) {
+  const acceptingProjectWork = spec.services.length > 0;
+  return {
+    workAcceptanceStatus: acceptingProjectWork ? ("ACCEPTING" as const) : ("UNAVAILABLE" as const),
+    timezone: spec.timezone,
+    availabilitySchedule: spec.schedule,
+    minNoticeHours: 12,
+    plannedUnavailability: null,
+    pricingModel: "BOTH" as const,
+    targetRateMinor: spec.hourlyRateMinor,
+    minCompensationMinor: spec.hourlyRateMinor,
+    minAssignmentSizeMinor: spec.hourlyRateMinor,
+    willingToNegotiate: true,
+    acceptedCategories: [...spec.acceptedCategories],
+    declinedCategories: [],
+    requireExplicitApproval: true,
+    aiRecommendationAllowed: acceptingProjectWork,
+    communicationPreference: "ASYNC" as const,
+    deliveryFormat: spec.deliveryFormat,
+    updateFrequency: "ON_MILESTONES" as const,
+    notifyOnVerificationFail: true,
+    notifyOnRevisionRequest: true,
+    reviewSpecBeforeAccept: true,
+    toolsAndTechnologies: [...spec.tools],
+    languages: ["English"],
+    reviewService: spec.reviewService,
+  };
 }
 
 export async function seed(db: Database = getDb()): Promise<SeedResult> {
-  logger.info("seeding database with initial users and providers...");
-
-  // 1. Users
-  const buyerId = "usr_buyer_alice";
-  const providerUserId = "usr_provider_bob";
-  const reviewerId = "usr_admin_carol";
-
+  logger.info("seeding fresh Tenfo evaluator identities and Work Profiles");
   const demoPasswordHash = process.env.WORKPAY_DEMO_PASSWORD
     ? hashPassword(process.env.WORKPAY_DEMO_PASSWORD)
     : undefined;
-  const demoAccounts = [
-    {
-      id: buyerId,
-      name: "Alice Buyer",
-      displayName: "Alice Buyer",
-      username: "alice_buyer",
-      email: "buyer@example.com",
-      role: "buyer" as const,
-    },
-    {
-      id: providerUserId,
-      name: "Bob DataClean",
-      displayName: "Bob DataClean",
-      username: "bob_dataclean",
-      email: "provider@example.com",
-      role: "provider" as const,
-    },
-    {
-      id: reviewerId,
-      name: "Carol Reviewer",
-      displayName: "Carol Reviewer",
-      username: "carol_reviewer",
-      email: "reviewer@example.com",
-      role: "admin_reviewer" as const,
-    },
-    {
-      id: "usr_provider_dee",
-      name: "Dee Accessibility",
-      displayName: "Dee Accessibility",
-      username: "dee_accessibility",
-      email: "dee@example.com",
-      role: "provider" as const,
-    },
-    {
-      id: "usr_provider_sam",
-      name: "Sam Design",
-      displayName: "Sam Design",
-      username: "sam_design",
-      email: "sam@example.com",
-      role: "provider" as const,
-    },
-    {
-      id: "usr_provider_taylor",
-      name: "Taylor Bookkeeping",
-      displayName: "Taylor Bookkeeping",
-      username: "taylor_books",
-      email: "taylor@example.com",
-      role: "provider" as const,
-    },
-    {
-      id: "usr_reviewer_jamie",
-      name: "Jamie Accessibility Reviewer",
-      displayName: "Jamie Accessibility Reviewer",
-      username: "jamie_review",
-      email: "jamie@example.com",
-      role: "provider" as const,
-    },
-    {
-      id: "usr_reviewer_morgan",
-      name: "Morgan Finance Reviewer",
-      displayName: "Morgan Finance Reviewer",
-      username: "morgan_review",
-      email: "morgan@example.com",
-      role: "provider" as const,
-    },
-  ];
+  const verifiedAt = new Date();
 
   for (const account of demoAccounts) {
-    const values = {
-      ...account,
-      accountClass: "DEMO_FIXTURE" as const,
-      ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
-    };
     await db
       .insert(users)
-      .values(values)
+      .values({
+        ...account,
+        displayName: account.name,
+        accountClass: "DEMO_FIXTURE",
+        emailVerified: verifiedAt,
+        ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
+      })
       .onConflictDoUpdate({
         target: users.id,
         set: {
           name: account.name,
-          displayName: account.displayName,
+          displayName: account.name,
           username: account.username,
           email: account.email,
+          emailVerified: verifiedAt,
           role: account.role,
           accountClass: "DEMO_FIXTURE",
           ...(demoPasswordHash ? { passwordHash: demoPasswordHash } : {}),
@@ -177,99 +390,20 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
       });
   }
 
-  // 2. Seeded Providers
-  const providerSpecs = [
-    {
-      id: "pro_dataclean_apex",
-      userId: providerUserId,
-      displayName: "Apex Data Solutions (Bob)",
-      payoutEmail: "provider@example.com",
-      bio: "Independent data specialist focused on careful cleaning, deduplication, and validation.",
-      hourlyRateMinor: 4500, // $45/hr
-      tags: [
-        "data_cleaning",
-        "dataset_cleaning",
-        "data_preprocessing",
-        "csv",
-        "csv_processing",
-        "data_validation",
-        "deduplication",
-        "email_validation",
-        "spreadsheet",
-      ],
-      capacity: 4,
-      activeAssignments: 1,
-      completedTasks: 42,
-      onTimeRatePct: 98.0,
-      firstPassAcceptancePct: 95.0,
-    },
-    {
-      id: "pro_datasweep_labs",
-      userId: "usr_provider_sam",
-      displayName: "Sam Design Studio",
-      payoutEmail: "sam@example.com",
-      bio: "Independent design professional specializing in clear, accessible digital experiences.",
-      hourlyRateMinor: 5000, // $50/hr
-      tags: ["web_design", "ui_design", "accessibility", "ux_research", "prototyping"],
-      capacity: 3,
-      activeAssignments: 0,
-      completedTasks: 28,
-      onTimeRatePct: 92.5,
-      firstPassAcceptancePct: 88.0,
-    },
-    {
-      id: "pro_quickclean_csv",
-      userId: "usr_provider_taylor",
-      displayName: "Taylor Bookkeeping",
-      payoutEmail: "taylor@example.com",
-      bio: "Independent bookkeeping specialist focused on reconciliations and clean financial records.",
-      hourlyRateMinor: 3500, // $35/hr
-      tags: ["bookkeeping", "financial_analysis", "reconciliation", "spreadsheet"],
-      capacity: 2,
-      activeAssignments: 0,
-      completedTasks: 15,
-      onTimeRatePct: 82.0,
-      firstPassAcceptancePct: 76.0,
-    },
-    {
-      id: "pro_accessibility_dee",
-      userId: "usr_provider_dee",
-      displayName: "Dee Accessibility Consulting",
-      payoutEmail: "dee@example.com",
-      bio: "Accessibility specialist focused on practical audits and standards-informed recommendations.",
-      hourlyRateMinor: 6000,
-      tags: ["accessibility", "wcag", "web_accessibility", "usability"],
-      capacity: 2,
-      activeAssignments: 0,
-      completedTasks: 19,
-      onTimeRatePct: 94.0,
-      firstPassAcceptancePct: 91.0,
-    },
-  ] satisfies Array<{
-    id: string;
-    userId: string;
-    displayName: string;
-    payoutEmail: string;
-    bio: string;
-    hourlyRateMinor: number;
-    tags: string[];
-    capacity: number;
-    activeAssignments: number;
-    completedTasks: number;
-    onTimeRatePct: number;
-    firstPassAcceptancePct: number;
-  }>;
-
+  const seededProviderIds: string[] = [];
   for (const spec of providerSpecs) {
-    const existing = await db
+    const preferences = workPreferences(spec);
+    const [existingProfile] = await db
       .select({ id: providers.id })
       .from(providers)
-      .where(eq(providers.id, spec.id))
+      .where(eq(providers.userId, spec.userId))
       .limit(1);
-
-    if (existing.length === 0) {
-      await db.insert(providers).values({
-        id: spec.id,
+    const providerId = existingProfile?.id ?? spec.id;
+    seededProviderIds.push(providerId);
+    await db
+      .insert(providers)
+      .values({
+        id: providerId,
         userId: spec.userId,
         displayName: spec.displayName,
         type: "HUMAN",
@@ -277,158 +411,74 @@ export async function seed(db: Database = getDb()): Promise<SeedResult> {
         bio: spec.bio,
         hourlyRateMinor: spec.hourlyRateMinor,
         currency: "USD",
-        payoutEmail: spec.payoutEmail,
-      });
-
-      await db.insert(capabilities).values(
-        spec.tags.map((tag) => ({
-          id: newId("cap"),
-          providerId: spec.id,
-          tag,
-          proficiency: 5,
-        })),
-      );
-
-      await db.insert(availability).values({
-        id: newId("avail"),
-        providerId: spec.id,
-        available: true,
-        capacity: spec.capacity,
-        activeAssignments: spec.activeAssignments,
-      });
-
-      await db.insert(reputation).values({
-        id: newId("rep"),
-        providerId: spec.id,
-        completedTasks: spec.completedTasks,
-        onTimeRatePct: spec.onTimeRatePct.toFixed(2),
-        firstPassAcceptancePct: spec.firstPassAcceptancePct.toFixed(2),
-        avgSettlementMinor: spec.hourlyRateMinor * 3,
-      });
-    } else {
-      await db
-        .update(providers)
-        .set({
+        payoutEmail: null,
+        workPreferences: preferences,
+      })
+      .onConflictDoUpdate({
+        target: providers.id,
+        set: {
           userId: spec.userId,
           displayName: spec.displayName,
+          status: "ACTIVE",
           bio: spec.bio,
           hourlyRateMinor: spec.hourlyRateMinor,
-          payoutEmail: spec.payoutEmail,
-          status: "ACTIVE",
+          payoutEmail: null,
+          workPreferences: preferences,
           updatedAt: new Date(),
-        })
-        .where(eq(providers.id, spec.id));
-    }
-  }
+        },
+      });
 
-  const reviewerSpecs = [
-    {
-      userId: "usr_reviewer_jamie",
-      displayName: "Jamie Accessibility Reviewer",
-      summary: "Independent review of web accessibility evidence and remediation plans.",
-      feeMinor: 18000,
-      domainTag: "accessibility",
-      scope: "Reviews keyboard access, semantic structure, and documented accessibility findings.",
-    },
-    {
-      userId: "usr_reviewer_morgan",
-      displayName: "Morgan Finance Reviewer",
-      summary: "Independent review of bookkeeping reconciliations and financial summaries.",
-      feeMinor: 22000,
-      domainTag: "bookkeeping",
-      scope: "Reviews reconciliations, traceability, and consistency of financial summaries.",
-    },
-  ];
-  for (const reviewer of reviewerSpecs) {
-    const [existing] = await db
-      .select({ id: providers.id })
-      .from(providers)
-      .where(eq(providers.userId, reviewer.userId))
-      .limit(1);
-    const providerId = existing?.id ?? newId("provider");
-    const workPreferences = {
-      workAcceptanceStatus: "UNAVAILABLE",
-      timezone: "UTC",
-      languages: ["English"],
-      reviewService: {
-        enabled: true,
-        listed: true,
-        availability: "AVAILABLE",
-        notice: null,
-        summary: reviewer.summary,
-        publicContactUrl: null,
-        feeMinor: reviewer.feeMinor,
-        typicalTurnaroundDays: 4,
-        conflictDisclosureConfirmed: true,
-        conflictUserIds: [],
-        domains: [
-          {
-            domainTag: reviewer.domainTag,
-            scope: reviewer.scope,
-            selfAssessedLevel: 4,
-            yearsExperience: 6,
-            methods: ["evidence review", "written findings"],
-          },
-        ],
-        evidence: [
-          {
-            kind: "EXPERIENCE",
-            title: "Review experience summary",
-            description: `Synthetic test profile for ${reviewer.domainTag}.`,
-            url: null,
-            issuer: null,
-          },
-        ],
-        feeMode: "DIRECT",
-      },
-    };
-    const providerValues = {
-      userId: reviewer.userId,
-      displayName: reviewer.displayName,
-      type: "HUMAN" as const,
-      status: "ACTIVE" as const,
-      bio: reviewer.summary,
-      hourlyRateMinor: null,
-      currency: "USD",
-      workPreferences,
-      updatedAt: new Date(),
-    };
-    if (existing) {
-      await db.update(providers).set(providerValues).where(eq(providers.id, providerId));
-    } else {
-      await db.insert(providers).values({ id: providerId, ...providerValues });
+    await db.delete(capabilities).where(eq(capabilities.providerId, providerId));
+    if (spec.services.length > 0) {
+      await db.insert(capabilities).values(
+        spec.services.map((tag) => ({
+          id: newId("cap"),
+          providerId,
+          tag,
+          proficiency: 4,
+        })),
+      );
     }
-    const [existingAvailability] = await db
-      .select({ id: availability.id })
-      .from(availability)
-      .where(eq(availability.providerId, providerId))
-      .limit(1);
-    if (existingAvailability) {
-      await db
-        .update(availability)
-        .set({ available: false, capacity: 1, updatedAt: new Date() })
-        .where(eq(availability.id, existingAvailability.id));
-    } else {
-      await db.insert(availability).values({
+
+    await db
+      .insert(availability)
+      .values({
         id: newId("avail"),
         providerId,
-        available: false,
-        capacity: 1,
+        available: spec.services.length > 0,
+        capacity: spec.capacity,
         activeAssignments: 0,
+      })
+      .onConflictDoUpdate({
+        target: availability.providerId,
+        set: {
+          available: spec.services.length > 0,
+          capacity: spec.capacity,
+          activeAssignments: 0,
+          updatedAt: new Date(),
+        },
       });
-    }
+
+    await db.delete(reputation).where(eq(reputation.providerId, providerId));
+    await db.insert(reputation).values({
+      id: newId("rep"),
+      providerId,
+      completedTasks: 0,
+      onTimeRatePct: null,
+      firstPassAcceptancePct: null,
+      avgSettlementMinor: null,
+    });
   }
 
-  // 3. Demo CSV Fixtures
-  await generateDemoCsvs();
-
-  logger.info("database seeding completed successfully");
-
+  logger.info(
+    { demoUsers: demoAccounts.length, workProfiles: providerSpecs.length },
+    "fresh Tenfo evaluator seed ready",
+  );
   return {
-    buyerId,
-    providerUserId,
-    reviewerId,
-    providerIds: providerSpecs.map((p) => p.id),
+    buyerId: BUYER_ID,
+    providerUserId: PROVIDER_USER_ID,
+    reviewerId: REVIEWER_ID,
+    providerIds: seededProviderIds,
   };
 }
 
@@ -436,14 +486,13 @@ async function main(): Promise<void> {
   try {
     await seed();
     await closeDb();
-  } catch (err) {
-    logger.error({ err: String(err) }, "seed failed");
+  } catch (error) {
+    logger.error({ err: String(error) }, "seed failed");
     await closeDb();
     process.exitCode = 1;
   }
 }
 
-// Run directly if invoked via CLI
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main();
+  void main();
 }

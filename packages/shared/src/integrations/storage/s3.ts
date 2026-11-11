@@ -4,8 +4,11 @@
  */
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectVersionsCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -81,6 +84,63 @@ export class S3ObjectStorage implements ObjectStorage {
 
   async delete(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  private async deleteBatch(objects: Array<{ Key: string; VersionId?: string }>): Promise<number> {
+    const response = await this.client.send(
+      new DeleteObjectsCommand({
+        Bucket: this.bucket,
+        Delete: { Objects: objects, Quiet: true },
+      }),
+    );
+    if ((response.Errors?.length ?? 0) > 0) {
+      throw new AppError("EXTERNAL_FAILURE", "Object storage rejected one or more deletions.", {
+        details: {
+          errors: response.Errors?.map(({ Key, VersionId, Code }) => ({ Key, VersionId, Code })),
+        },
+      });
+    }
+    return objects.length;
+  }
+
+  async clearAll(): Promise<number> {
+    let deleted = 0;
+    let passes = 0;
+    while (true) {
+      if (passes++ > 100_000) {
+        throw new AppError("EXTERNAL_FAILURE", "Object storage cleanup did not converge.");
+      }
+      const page = await this.client.send(
+        new ListObjectVersionsCommand({ Bucket: this.bucket, MaxKeys: 1000 }),
+      );
+      const objects = [
+        ...(page.Versions ?? []).flatMap(({ Key, VersionId }) =>
+          Key ? [{ Key, ...(VersionId ? { VersionId } : {}) }] : [],
+        ),
+        ...(page.DeleteMarkers ?? []).flatMap(({ Key, VersionId }) =>
+          Key ? [{ Key, ...(VersionId ? { VersionId } : {}) }] : [],
+        ),
+      ];
+      if (objects.length === 0) break;
+      deleted += await this.deleteBatch(objects);
+    }
+
+    passes = 0;
+    while (true) {
+      if (passes++ > 100_000) {
+        throw new AppError("EXTERNAL_FAILURE", "Object storage cleanup did not converge.");
+      }
+      const page = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          MaxKeys: 1000,
+        }),
+      );
+      const objects = (page.Contents ?? []).flatMap(({ Key }) => (Key ? [{ Key }] : []));
+      if (objects.length === 0) break;
+      deleted += await this.deleteBatch(objects);
+    }
+    return deleted;
   }
 
   async presignGet(key: string, expiresInSeconds = 300): Promise<string> {
