@@ -635,7 +635,7 @@ export function ConversationThread({
   return (
     <section
       aria-label="Private task conversation"
-      className={inboxMode ? "flex min-h-0 flex-col gap-3" : "space-y-4"}
+      className={inboxMode ? "flex h-full min-h-0 flex-col gap-3" : "space-y-4"}
     >
       {inboxMode && hasOlderMessages ? (
         <Button
@@ -700,8 +700,8 @@ export function ConversationThread({
       {!hideMessages ? (
         <ol
           ref={messageListRef}
-          className={`space-y-3 overflow-y-auto rounded-lg border border-border p-3 ${
-            inboxMode ? "min-h-64 flex-1 bg-[var(--wp-surface-subtle)]" : "max-h-96"
+          className={`touch-pan-y space-y-3 overflow-y-auto overscroll-contain rounded-xl border border-border p-3 [scrollbar-gutter:stable] ${
+            inboxMode ? "min-h-0 flex-1 bg-[var(--wp-surface-subtle)]" : "max-h-96"
           }`}
           aria-live="polite"
         >
@@ -769,7 +769,7 @@ export function ConversationThread({
                   {canExplain ? (
                     <button
                       type="button"
-                      title="Use AI to create a separate plain-language view"
+                      title="AI sends this message and the task title and summary to the configured provider, then returns a separate plain-language view."
                       disabled={Boolean(explainingMessageId)}
                       onClick={() => void explainMessage(message.id)}
                       className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 text-[11px] font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-60"
@@ -846,7 +846,7 @@ export function ConversationThread({
             addFiles(Array.from(event.dataTransfer.files));
           }}
           className={cn(
-            "relative overflow-hidden rounded-2xl border bg-white shadow-[0_18px_45px_-35px_rgba(15,23,42,0.65)] transition",
+            "relative shrink-0 overflow-hidden rounded-2xl border bg-white shadow-[0_18px_45px_-35px_rgba(15,23,42,0.65)] transition",
             dragActive
               ? "border-[var(--wp-accent)] ring-4 ring-[var(--wp-accent)]/10"
               : "border-[var(--wp-border-strong)]",
@@ -906,15 +906,6 @@ export function ConversationThread({
                 {draftAssistMessage}
               </p>
             ) : null}
-            {currentUserId === conversation.buyerUserId ? (
-              <p className="flex items-center gap-1.5 text-[10px] leading-4 text-[var(--wp-text-muted)]">
-                <Sparkles className="h-3 w-3 shrink-0" /> AI tools send the selected text, this
-                task’s title and summary, and the professional’s display name to the configured AI
-                provider. Review every result; nothing is sent to the other person until you press
-                Send.
-              </p>
-            ) : null}
-
             {attachments.length > 0 ? (
               <ul className="grid gap-2 sm:grid-cols-2" aria-label="Files ready to send">
                 {attachments.map((file, index) => (
@@ -1066,7 +1057,8 @@ export function ConversationThread({
               {currentUserId === conversation.buyerUserId ? (
                 <button
                   type="button"
-                  title="Improve clarity without changing your meaning"
+                  title="AI sends this draft, the task title and summary, and the professional’s display name to the configured provider. Nothing is sent to the professional until you press Send."
+                  aria-label="Polish draft with AI"
                   onClick={() => void rewriteDraft()}
                   disabled={!draft.trim() || sending || rewritingDraft}
                   className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 transition hover:bg-violet-100 disabled:opacity-50"

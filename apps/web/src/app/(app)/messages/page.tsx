@@ -17,7 +17,6 @@ import {
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { ConversationThread } from "@/components/task-room/conversation-thread";
 import { WorkCommitmentPanel } from "@/components/commitments/work-commitment-panel";
-import { ConversationCommitmentAction } from "@/components/commitments/conversation-commitment-action";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -336,28 +335,100 @@ function MessagesPageContent() {
     !["AWAITING_PROVIDER", "AWAITING_CLIENT", "CONFIRMED"].includes(
       selectedSummary.workCommitmentStatus ?? "",
     );
+  const selectedIsBuyer = selectedConversation?.buyerUserId === currentUserId;
+  const headerWorkAction = (() => {
+    if (!selectedSummary || !selectedConversation) return null;
+    if (selectedSummary.hasWorkExecution) {
+      return {
+        label: "Work context",
+        detail: "Terms and utilities",
+        tone: "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+      };
+    }
+    if (selectedSummary.status !== "OPEN") return null;
+    if (selectedSummary.workCommitmentStatus === "AWAITING_PROVIDER") {
+      return selectedIsBuyer
+        ? {
+            label: "Proposal sent",
+            detail: "Professional reviewing",
+            tone: "border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100",
+          }
+        : {
+            label: "Review proposal",
+            detail: "Your work decision",
+            tone: "border-amber-300 bg-amber-100 text-amber-950 hover:bg-amber-200",
+          };
+    }
+    if (selectedSummary.workCommitmentStatus === "AWAITING_CLIENT") {
+      return selectedIsBuyer
+        ? {
+            label: "Confirm work",
+            detail: "Professional accepted",
+            tone: "border-emerald-400 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700",
+          }
+        : {
+            label: "Work accepted",
+            detail: "Client confirming",
+            tone: "border-indigo-200 bg-indigo-50 text-indigo-950 hover:bg-indigo-100",
+          };
+    }
+    if (selectedSummary.workCommitmentStatus === "CONFIRMED") {
+      return {
+        label: "Work confirmed",
+        detail: "Mutual commitment",
+        tone: "border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100",
+      };
+    }
+    return selectedIsBuyer
+      ? {
+          label: "Propose work",
+          detail: "Set price and timing",
+          tone: "border-indigo-200 bg-indigo-50 text-indigo-950 hover:bg-indigo-100",
+        }
+      : {
+          label: "Work context",
+          detail: "View current terms",
+          tone: "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+        };
+  })();
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-col gap-3 border-b border-[var(--wp-border)] pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--wp-accent)]">
-            Tenfo · private communication
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[var(--wp-text-primary)]">
-            Messages
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--wp-text-secondary)]">
-            Keep each task conversation, proposal, and decision together.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--wp-text-secondary)]">
-          <ShieldCheck className="h-4 w-4 text-emerald-700" />
-          Private, task-scoped conversations
-        </div>
-      </header>
+    <div
+      className={cn(
+        "flex min-h-0 flex-col",
+        selectedId
+          ? "-mx-4 -my-5 h-[calc(100dvh-4rem)] gap-0 sm:-mx-6 sm:-my-7 md:mx-0 md:my-0 md:h-[calc(100dvh-3.5rem)]"
+          : "h-[calc(100dvh-6.5rem)] gap-5 md:h-[calc(100dvh-3.5rem)]",
+      )}
+    >
+      {!selectedId ? (
+        <header className="flex flex-col gap-3 border-b border-[var(--wp-border)] pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--wp-accent)]">
+              Tenfo · private communication
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[var(--wp-text-primary)]">
+              Messages
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-[var(--wp-text-secondary)]">
+              Keep each task conversation, proposal, and decision together.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[var(--wp-text-secondary)]">
+            <ShieldCheck className="h-4 w-4 text-emerald-700" />
+            Private, task-scoped conversations
+          </div>
+        </header>
+      ) : null}
 
-      <div className="grid h-[calc(100dvh-15.5rem)] min-h-[36rem] grid-cols-1 overflow-hidden rounded-2xl border border-[var(--wp-border)] bg-white shadow-sm lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 grid-cols-1 overflow-hidden bg-white lg:grid-cols-[18rem_minmax(0,1fr)]",
+          selectedId
+            ? "border-y border-[var(--wp-border)] shadow-none md:rounded-2xl md:border md:shadow-sm"
+            : "rounded-2xl border border-[var(--wp-border)] shadow-sm",
+        )}
+      >
         <aside
           className={cn(
             "min-h-0 flex-col border-r border-[var(--wp-border)] bg-white",
@@ -509,7 +580,7 @@ function MessagesPageContent() {
           aria-label="Selected conversation"
         >
           {selectedSummary ? (
-            <div className="flex min-h-[4.5rem] items-center gap-3 border-b border-[var(--wp-border)] bg-white px-4 py-3">
+            <div className="flex min-h-[4.5rem] flex-wrap items-center gap-3 border-b border-[var(--wp-border)] bg-white px-4 py-3">
               <button
                 type="button"
                 onClick={() => selectConversation(null)}
@@ -575,41 +646,33 @@ function MessagesPageContent() {
               </div>
               <span
                 className={cn(
-                  "hidden max-w-52 rounded-full px-2.5 py-1 text-[10px] font-medium sm:inline-flex",
+                  "hidden max-w-52 rounded-full px-2.5 py-1 text-[10px] font-medium lg:inline-flex",
                   conversationState(selectedSummary).tone,
                 )}
               >
                 {conversationState(selectedSummary).label}
               </span>
-              {selectedConversation ? (
-                <Button
+              {selectedConversation && headerWorkAction ? (
+                <button
                   type="button"
-                  variant={
-                    selectedSummary.workCommitmentStatus === "AWAITING_CLIENT" &&
-                    selectedConversation.buyerUserId === currentUserId
-                      ? "default"
-                      : "outline"
-                  }
-                  size="sm"
                   onClick={() => setWorkContextOpen(true)}
-                  className="shrink-0 gap-1.5 px-2.5"
+                  className={cn(
+                    "group flex min-h-11 w-full items-center gap-2.5 rounded-xl border px-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2 sm:w-auto",
+                    headerWorkAction.tone,
+                  )}
                 >
-                  <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">
-                    {selectedSummary.workCommitmentStatus === "AWAITING_CLIENT" &&
-                    selectedConversation.buyerUserId === currentUserId
-                      ? "Confirm professional"
-                      : selectedSummary.workCommitmentStatus === "AWAITING_PROVIDER" &&
-                          selectedConversation.providerUserId === currentUserId
-                        ? "Review work proposal"
-                        : !selectedSummary.workCommitmentStatus &&
-                            selectedSummary.status === "OPEN" &&
-                            selectedConversation.buyerUserId === currentUserId
-                          ? "Propose work"
-                          : "Work context"}
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/70 text-current shadow-xs">
+                    <BriefcaseBusiness className="h-3.5 w-3.5" aria-hidden="true" />
                   </span>
-                  <span className="sr-only sm:hidden">Open work context</span>
-                </Button>
+                  <span className="min-w-0 flex-1 sm:max-w-40">
+                    <span className="block truncate text-xs font-semibold">
+                      {headerWorkAction.label}
+                    </span>
+                    <span className="block truncate text-[10px] opacity-75">
+                      {headerWorkAction.detail}
+                    </span>
+                  </span>
+                </button>
               ) : null}
             </div>
           ) : selectedId ? (
@@ -699,25 +762,7 @@ function MessagesPageContent() {
             </div>
           ) : null}
 
-          {selectedSummary?.status === "OPEN" &&
-          !selectedSummary.hasWorkExecution &&
-          selectedConversation &&
-          currentUserId &&
-          (selectedConversation.buyerUserId === currentUserId ||
-            selectedSummary.workCommitmentStatus) ? (
-            <ConversationCommitmentAction
-              key={`commitment-action-${selectedConversation.id}`}
-              conversation={selectedConversation}
-              currentUserId={currentUserId}
-              onOpenContext={() => setWorkContextOpen(true)}
-              onChanged={() => {
-                setRefreshVersion((version) => version + 1);
-                void refreshInbox();
-              }}
-            />
-          ) : null}
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
+          <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-5">
             {conversationError ? (
               <p
                 role="alert"
