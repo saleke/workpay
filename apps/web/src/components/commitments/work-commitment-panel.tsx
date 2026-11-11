@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
   CalendarDays,
@@ -11,6 +11,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WorkProposalTerms } from "@/components/commitments/work-proposal-terms";
 import {
   decideWorkCommitment,
   getWorkCommitment,
@@ -103,14 +104,22 @@ export function WorkCommitmentPanel({
     localDateTimeValue(conversation.currentContractSnapshot.deadline),
   );
   const [acknowledged, setAcknowledged] = useState(false);
+  const [termsReviewed, setTermsReviewed] = useState(false);
   const [declineNote, setDeclineNote] = useState("");
+  const replacementModeRef = useRef(false);
 
   const refresh = async () => {
     const result = await getWorkCommitment(conversation.id);
     if (result.error) {
       setError(result.error.message);
     } else {
-      setCommitment(result.data ?? null);
+      const next = result.data ?? null;
+      const closed =
+        next && ["PROVIDER_DECLINED", "BUYER_WITHDRAWN", "SUPERSEDED"].includes(next.status);
+      if (!replacementModeRef.current || !closed) {
+        if (!closed) replacementModeRef.current = false;
+        setCommitment(next);
+      }
       setError(null);
     }
     setLoading(false);
@@ -118,10 +127,16 @@ export function WorkCommitmentPanel({
 
   useEffect(() => {
     setLoading(true);
+    replacementModeRef.current = false;
     void refresh();
     const timer = window.setInterval(() => void refresh(), 8_000);
     return () => window.clearInterval(timer);
   }, [conversation.id]);
+
+  useEffect(() => {
+    setTermsReviewed(false);
+    setAcknowledged(false);
+  }, [commitment?.id]);
 
   const finish = async (result: Awaited<ReturnType<typeof getWorkCommitment>>) => {
     setBusy(false);
@@ -130,6 +145,7 @@ export function WorkCommitmentPanel({
       return;
     }
     setCommitment(result.data ?? null);
+    replacementModeRef.current = false;
     setAcknowledged(false);
     setDeclineNote("");
     window.dispatchEvent(new Event("workpay_commitment_change"));
@@ -275,6 +291,11 @@ export function WorkCommitmentPanel({
                 </p>
               </div>
             </div>
+            <WorkProposalTerms
+              terms={commitment.terms}
+              contractVersion={commitment.contractVersion}
+              onReviewed={() => setTermsReviewed(true)}
+            />
             {commitment.status === "AWAITING_PROVIDER" && !isBuyer ? (
               <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <div>
@@ -288,10 +309,16 @@ export function WorkCommitmentPanel({
                     type="checkbox"
                     checked={acknowledged}
                     onChange={(event) => setAcknowledged(event.target.checked)}
+                    disabled={!termsReviewed}
                     className="mt-1 h-4 w-4 accent-emerald-700"
                   />
                   I reviewed the scope, acceptance rules, compensation, and delivery target.
                 </label>
+                {!termsReviewed ? (
+                  <p className="text-[11px] text-amber-800">
+                    Open “Review exact work terms” before accepting.
+                  </p>
+                ) : null}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button
                     disabled={busy || !acknowledged}
@@ -353,10 +380,16 @@ export function WorkCommitmentPanel({
                     type="checkbox"
                     checked={acknowledged}
                     onChange={(event) => setAcknowledged(event.target.checked)}
+                    disabled={!termsReviewed}
                     className="mt-1 h-4 w-4 accent-emerald-700"
                   />
                   I choose this professional and accept these exact terms as our work commitment.
                 </label>
+                {!termsReviewed ? (
+                  <p className="text-[11px] text-emerald-800">
+                    Open “Review exact work terms” before confirming.
+                  </p>
+                ) : null}
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                   <Button
                     disabled={busy || !acknowledged}
@@ -371,7 +404,7 @@ export function WorkCommitmentPanel({
                     disabled={busy}
                     onClick={() => void decide("BUYER_WITHDRAW")}
                   >
-                    Not now
+                    Withdraw proposal
                   </Button>
                 </div>
               </div>
@@ -409,7 +442,7 @@ export function WorkCommitmentPanel({
             commitment.status === "BUYER_WITHDRAWN" ||
             commitment.status === "NOT_SELECTED" ||
             commitment.status === "SUPERSEDED" ? (
-              <div className="rounded-xl border border-slate-300 bg-slate-50 p-3">
+              <div className="space-y-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
                 <p className="text-sm font-semibold text-slate-800">
                   {commitment.status === "PROVIDER_DECLINED"
                     ? "Professional declined"
@@ -425,6 +458,20 @@ export function WorkCommitmentPanel({
                     ? ` Note: ${commitment.providerResponseNote}`
                     : " You can keep the conversation for context."}
                 </p>
+                {isBuyer && commitment.status !== "NOT_SELECTED" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setAmount((commitment.amount.amountMinor / 100).toFixed(2));
+                      setDeadline(localDateTimeValue(commitment.deliveryDeadline));
+                      replacementModeRef.current = true;
+                      setCommitment(null);
+                    }}
+                  >
+                    Create a new proposal
+                  </Button>
+                ) : null}
               </div>
             ) : null}
           </div>

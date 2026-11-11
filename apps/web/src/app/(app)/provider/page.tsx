@@ -133,7 +133,11 @@ export default function ProviderPortalPage() {
       void reload();
     };
     window.addEventListener("workpay_commitment_change", refresh);
-    return () => window.removeEventListener("workpay_commitment_change", refresh);
+    const timer = window.setInterval(refresh, 8_000);
+    return () => {
+      window.removeEventListener("workpay_commitment_change", refresh);
+      window.clearInterval(timer);
+    };
   }, [proposalQuery.reload, reload]);
 
   useEffect(() => {
@@ -215,13 +219,13 @@ export default function ProviderPortalPage() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-slate-950">Proposed work</span>
+              <span className="text-sm font-semibold text-slate-950">Work proposals</span>
               <span className="rounded-full bg-indigo-700 px-2 py-0.5 text-xs font-bold text-white">
                 {activeProposals.length}
               </span>
             </span>
             <span className="mt-1 block text-xs leading-5 text-slate-600">
-              Exact terms awaiting your response or the client's final choice.
+              Terms awaiting your work acceptance or the client's final confirmation.
             </span>
           </span>
         </button>
@@ -253,14 +257,14 @@ export default function ProviderPortalPage() {
       </div>
 
       {category === "proposed" ? (
-        <section className="space-y-4" aria-label="Proposed work">
+        <section className="space-y-4" aria-label="Work proposals">
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-700">
-                Decision desk
+                Work acceptance
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
-                Proposed work
+                Work proposals
               </h2>
             </div>
             <p className="hidden max-w-md text-right text-xs leading-5 text-slate-500 sm:block">
@@ -286,8 +290,8 @@ export default function ProviderPortalPage() {
                 No proposals need action
               </h3>
               <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-slate-600">
-                Starting a discussion in Messages does not create proposed work. Exact scope,
-                compensation, and delivery terms appear here only when a client sends a proposal.
+                Work proposals appear here when a client sends scope, compensation, and delivery
+                terms for your decision.
               </p>
             </div>
           )}

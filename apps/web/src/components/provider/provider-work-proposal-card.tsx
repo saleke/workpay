@@ -11,6 +11,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WorkProposalTerms } from "@/components/commitments/work-proposal-terms";
 import { decideWorkCommitment } from "@/lib/api/endpoints";
 import type { WorkCommitmentDto } from "@/lib/api/types";
 import { formatMinorMoney } from "@/lib/format";
@@ -23,6 +24,7 @@ export function ProviderWorkProposalCard({
   onChanged: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const [termsReviewed, setTermsReviewed] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,13 +97,20 @@ export function ProviderWorkProposalCard({
               ))}
             </ul>
           ) : null}
+          <div className="mt-4">
+            <WorkProposalTerms
+              terms={proposal.terms}
+              contractVersion={proposal.contractVersion}
+              onReviewed={() => setTermsReviewed(true)}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col justify-between border-t border-slate-200 bg-slate-50 p-5 lg:border-l lg:border-t-0">
           {proposal.status === "AWAITING_PROVIDER" ? (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Commitment checkpoint
+                Work acceptance
               </p>
               <p className="text-xs leading-5 text-slate-600">
                 Your acceptance records these exact terms. The client must still choose you before
@@ -112,17 +121,23 @@ export function ProviderWorkProposalCard({
                   type="checkbox"
                   checked={acknowledged}
                   onChange={(event) => setAcknowledged(event.target.checked)}
+                  disabled={!termsReviewed}
                   className="mt-1 h-4 w-4 accent-emerald-700"
                 />
-                I reviewed scope, compensation, and delivery.
+                I reviewed the full work terms, compensation, and delivery target.
               </label>
+              {!termsReviewed ? (
+                <p className="text-[11px] text-amber-800">
+                  Open “Review exact work terms” before accepting.
+                </p>
+              ) : null}
               <Button
                 className="w-full bg-emerald-700 hover:bg-emerald-800"
                 disabled={busy || !acknowledged}
                 onClick={() => void respond("PROVIDER_ACCEPT")}
               >
                 <UserCheck className="mr-2 h-4 w-4" />
-                {busy ? "Recording…" : "Accept proposed work"}
+                {busy ? "Recording…" : "Accept work proposal"}
               </Button>
               {declineOpen ? (
                 <div className="space-y-2">

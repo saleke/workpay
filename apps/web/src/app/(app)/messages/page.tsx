@@ -17,6 +17,7 @@ import {
 import { ProviderAvatar } from "@/components/provider/provider-avatar";
 import { ConversationThread } from "@/components/task-room/conversation-thread";
 import { WorkCommitmentPanel } from "@/components/commitments/work-commitment-panel";
+import { ConversationCommitmentAction } from "@/components/commitments/conversation-commitment-action";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -583,13 +584,30 @@ function MessagesPageContent() {
               {selectedConversation ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant={
+                    selectedSummary.workCommitmentStatus === "AWAITING_CLIENT" &&
+                    selectedConversation.buyerUserId === currentUserId
+                      ? "default"
+                      : "outline"
+                  }
                   size="sm"
                   onClick={() => setWorkContextOpen(true)}
                   className="shrink-0 gap-1.5 px-2.5"
                 >
                   <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Work context</span>
+                  <span className="hidden sm:inline">
+                    {selectedSummary.workCommitmentStatus === "AWAITING_CLIENT" &&
+                    selectedConversation.buyerUserId === currentUserId
+                      ? "Confirm professional"
+                      : selectedSummary.workCommitmentStatus === "AWAITING_PROVIDER" &&
+                          selectedConversation.providerUserId === currentUserId
+                        ? "Review work proposal"
+                        : !selectedSummary.workCommitmentStatus &&
+                            selectedSummary.status === "OPEN" &&
+                            selectedConversation.buyerUserId === currentUserId
+                          ? "Propose work"
+                          : "Work context"}
+                  </span>
                   <span className="sr-only sm:hidden">Open work context</span>
                 </Button>
               ) : null}
@@ -681,6 +699,24 @@ function MessagesPageContent() {
             </div>
           ) : null}
 
+          {selectedSummary?.status === "OPEN" &&
+          !selectedSummary.hasWorkExecution &&
+          selectedConversation &&
+          currentUserId &&
+          (selectedConversation.buyerUserId === currentUserId ||
+            selectedSummary.workCommitmentStatus) ? (
+            <ConversationCommitmentAction
+              key={`commitment-action-${selectedConversation.id}`}
+              conversation={selectedConversation}
+              currentUserId={currentUserId}
+              onOpenContext={() => setWorkContextOpen(true)}
+              onChanged={() => {
+                setRefreshVersion((version) => version + 1);
+                void refreshInbox();
+              }}
+            />
+          ) : null}
+
           <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
             {conversationError ? (
               <p
@@ -745,6 +781,17 @@ function MessagesPageContent() {
                     {conversationState(selectedSummary).label}
                   </span>
                 </div>
+                {selectedSummary.status === "OPEN" && !selectedSummary.hasWorkExecution ? (
+                  <WorkCommitmentPanel
+                    conversation={selectedConversation}
+                    currentUserId={currentUserId}
+                    onChanged={() => {
+                      setRefreshVersion((version) => version + 1);
+                      void refreshInbox();
+                    }}
+                  />
+                ) : null}
+
                 <section className="space-y-3 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-canvas)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[var(--wp-text-secondary)]">
                     Current terms
@@ -796,17 +843,6 @@ function MessagesPageContent() {
                     </div>
                   </dl>
                 </section>
-
-                {selectedSummary.status === "OPEN" && !selectedSummary.hasWorkExecution ? (
-                  <WorkCommitmentPanel
-                    conversation={selectedConversation}
-                    currentUserId={currentUserId}
-                    onChanged={() => {
-                      setRefreshVersion((version) => version + 1);
-                      void refreshInbox();
-                    }}
-                  />
-                ) : null}
 
                 <Link
                   href={
