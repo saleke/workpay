@@ -24,8 +24,8 @@ export const metadata: Metadata = {
   },
   description: "Clear agreements for accountable professional work.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [{ url: "/tenfo-mark.svg", type: "image/svg+xml", sizes: "any" }],
+    shortcut: "/tenfo-mark.svg",
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
