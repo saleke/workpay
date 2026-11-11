@@ -30,11 +30,6 @@ export async function GET(req: Request) {
       const user = r.actorId ? userMap.get(r.actorId) : null;
 
       let actorName = user?.name || null;
-      if (!actorName && r.actorId) {
-        if (r.actorId.includes("alice")) actorName = "Alice";
-        else if (r.actorId.includes("bob")) actorName = "Bob";
-        else if (r.actorId.includes("carol")) actorName = "Carol";
-      }
 
       let actorRoleTitle = "Task Owner";
       if (user?.role === "provider") {

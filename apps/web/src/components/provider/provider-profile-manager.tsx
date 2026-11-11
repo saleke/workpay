@@ -539,7 +539,7 @@ export function ProviderProfileManager() {
                     setDisplayName(e.target.value);
                     markDirty();
                   }}
-                  placeholder="e.g. Alice Smith, Data Specialist"
+                  placeholder="e.g. Alex Morgan"
                   className="text-xs bg-white"
                 />
               </div>

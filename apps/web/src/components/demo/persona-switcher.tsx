@@ -65,33 +65,33 @@ interface AuthUser {
 const PERSONAS: PersonaConfig[] = [
   {
     key: "buyer",
-    name: "Alice",
-    roleTitle: "Task Owner",
-    badge: "Task Owner",
+    name: "Maya",
+    roleTitle: "Request work",
+    badge: "Requester view",
     badgeColor: "text-[var(--room-text-strong)]",
     description:
-      "Posts tasks, reviews requirements, approves contracts, and exercises simulated payment policy.",
+      "Creates a task, chooses who to contact, confirms a professional, and reviews completed work.",
     homeUrl: "/tasks",
     icon: User,
   },
   {
     key: "provider",
-    name: "Bob",
-    roleTitle: "Specialist",
-    badge: "Specialist",
+    name: "Jordan",
+    roleTitle: "Offer project work",
+    badge: "Professional view",
     badgeColor: "text-[var(--room-text-strong)]",
-    description: "Accepts agreed assignments, submits deliverables, and responds to buyer review.",
+    description: "Responds to contact, accepts exact work proposals, and manages accepted work.",
     homeUrl: "/provider",
     icon: Briefcase,
   },
   {
     key: "admin_reviewer",
-    name: "Carol",
-    roleTitle: "Reviewer",
-    badge: "Reviewer",
+    name: "Nadia",
+    roleTitle: "Offer paid reviews",
+    badge: "Reviewer view",
     badgeColor: "text-[var(--room-text-strong)]",
     description:
-      "Provides optional, attributable review evidence without deciding buyer acceptance or payment.",
+      "Accepts independent review engagements and returns attributable findings to the client.",
     homeUrl: "/review",
     icon: Scale,
   },
@@ -171,7 +171,7 @@ export function PersonaSwitcher() {
   };
 
   if (!mounted) {
-    return <div className="text-[var(--text-small)] text-[var(--room-muted)]">Alice</div>;
+    return <div className="text-[var(--text-small)] text-[var(--room-muted)]">Maya</div>;
   }
 
   const current: PersonaConfig = PERSONAS.find((p) => p.key === activePersona) ?? PERSONAS[0]!;
@@ -366,12 +366,12 @@ export function PersonaSwitcher() {
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">
                   1
                 </span>
-                Alice: define the task and choose who to contact
+                Maya: define the task and choose who to contact
               </h4>
               <p className="text-muted-foreground leading-relaxed">
                 Start with <strong>New Task</strong>. Confirm Tenfo's interpretation, answer only
                 material questions, approve the exact brief and terms, then review available
-                professional profiles. Nobody is selected or contacted until Alice approves the
+                professional profiles. Nobody is selected or contacted until Maya approves the
                 recipient and exact first message.
               </p>
             </div>
@@ -381,13 +381,12 @@ export function PersonaSwitcher() {
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px]">
                   2
                 </span>
-                Bob: accept contact and agree terms
+                Jordan: accept contact and decide on proposed work
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Switch to <strong>Bob (Professional)</strong> and open <strong>Work Studio</strong>.
-                Bob may decline the contact request, ask questions, or agree structured commercial
-                changes. Only after both parties agree and Alice authorizes the payment path does an
-                assignment appear for Bob to accept and start.
+                Switch to <strong>Jordan</strong> and open <strong>Work Studio</strong>. Contact
+                acceptance opens discussion only. Jordan separately accepts the exact work proposal,
+                then Maya confirms Jordan as the professional before payment authorization.
               </p>
             </div>
 
@@ -396,13 +395,12 @@ export function PersonaSwitcher() {
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">
                   3
                 </span>
-                Evidence and independent review
+                Nadia: independent review when requested
               </h4>
               <p className="text-muted-foreground leading-relaxed">
-                Objective checks evaluate only the properties they can prove. Subjective criteria
-                remain uncertain unless the parties appoint an independent reviewer and agree the
-                exact review plan. Payment authorization and capture remain under the approval gate
-                and cannot release funds without the correct review state.
+                When the parties agree that another perspective is useful, Nadia can accept a paid
+                review engagement, inspect the referred package, and return findings. Maya still
+                makes the final work-acceptance and payment-release decisions.
               </p>
             </div>
 
