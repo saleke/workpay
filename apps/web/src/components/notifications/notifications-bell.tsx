@@ -58,7 +58,7 @@ function getNotificationIcon(type: string) {
   return <Bell className="h-4 w-4 text-primary" />;
 }
 
-export function NotificationsBell() {
+export function NotificationsBell({ align = "end" }: { align?: "start" | "center" | "end" }) {
   const { data, reload } = useApi(() => listNotifications(), [], "notifications");
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationDto[]>([]);
@@ -165,9 +165,10 @@ export function NotificationsBell() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        align="end"
+        align={align}
         sideOffset={8}
-        className="w-88 sm:w-96 rounded-2xl border border-[var(--wp-border-strong)] p-0 shadow-xl backdrop-blur-md bg-white/98 ring-1 ring-black/5"
+        collisionPadding={8}
+        className="w-[min(24rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-[var(--wp-border-strong)] bg-white/98 p-0 shadow-xl ring-1 ring-black/5 backdrop-blur-md"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--wp-border)] bg-[var(--wp-surface-subtle)]/70">
           <div className="flex items-center gap-2">
@@ -328,7 +329,7 @@ export function NotificationsBell() {
                       ) : null}
                     </div>
                     {n.body ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      <p className="line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                         {n.body}
                       </p>
                     ) : null}

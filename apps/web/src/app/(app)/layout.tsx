@@ -94,25 +94,6 @@ function isActiveRoute(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function currentPageLabel(pathname: string): string {
-  const item = navGroups
-    .flatMap((group) => group.items)
-    .find((entry) => {
-      if (entry.href === "/tasks") {
-        return (
-          pathname === "/intake" ||
-          pathname === "/tasks/new" ||
-          pathname.startsWith("/tasks/") ||
-          pathname.startsWith("/invite/")
-        );
-      }
-      return isActiveRoute(entry.href, pathname);
-    });
-  if (pathname === "/intake" || pathname === "/tasks/new") return "New task";
-  if (pathname.startsWith("/invite/")) return "Work invitation";
-  return item?.label ?? "Tenfo";
-}
-
 function NavigationLinks({
   pathname,
   compact,
@@ -265,7 +246,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--wp-canvas)] text-[var(--wp-text-primary)]">
+    <div className="min-h-screen overflow-x-clip bg-[var(--wp-canvas)] text-[var(--wp-text-primary)]">
       <TopProgressBar />
       <div className="flex min-h-screen">
         <aside className="sticky top-0 hidden h-dvh w-[72px] shrink-0 flex-col border-r border-[var(--wp-border)] bg-white px-2 py-4 md:flex xl:w-64 xl:px-4">
@@ -310,13 +291,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
             <span className="hidden xl:inline">Settings</span>
           </Link>
-          <div className="mt-4 hidden border-t border-[var(--wp-border)] pt-4 xl:block">
-            <EnvironmentToggle />
+          <div className="mt-3 border-t border-[var(--wp-border)] pt-3">
+            <div className="flex flex-col items-center gap-2 xl:hidden">
+              <NotificationsBell align="start" />
+              <UserNav compact />
+              <EnvironmentToggle compact />
+            </div>
+            <div className="hidden space-y-2 xl:block">
+              <div className="flex min-h-10 items-center justify-between rounded-xl px-2 text-xs font-medium text-[var(--wp-text-secondary)]">
+                <span>Updates</span>
+                <NotificationsBell align="start" />
+              </div>
+              <UserNav />
+              <EnvironmentToggle className="w-full" />
+            </div>
           </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-[var(--wp-border)] bg-white/95 backdrop-blur">
+          <header className="sticky top-0 z-30 border-b border-[var(--wp-border)] bg-white/95 backdrop-blur md:hidden">
             <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
               <div className="flex min-w-0 items-center gap-3">
                 <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -386,23 +379,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="flex shrink-0 items-center gap-2 md:hidden"
                   aria-label="Tenfo home"
                 >
-                  <TenfoLogo size={27} wordmarkClassName="text-base" />
+                  <TenfoLogo size={27} wordmarkClassName="hidden text-base min-[360px]:inline" />
                 </Link>
-                <div className="hidden min-w-0 md:block">
-                  <p className="truncate text-xs text-[var(--wp-text-muted)]">Workspace</p>
-                  <h1 className="truncate text-sm font-semibold text-[var(--wp-text-primary)]">
-                    {currentPageLabel(pathname)}
-                  </h1>
-                </div>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                <EnvironmentToggle compact className="sm:hidden" />
-                <EnvironmentToggle className="hidden sm:flex" />
+                <EnvironmentToggle compact />
                 <NotificationsBell />
-                <div className="hidden sm:block">
-                  <UserNav />
-                </div>
+                <UserNav compact />
               </div>
             </div>
           </header>

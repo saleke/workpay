@@ -31,7 +31,7 @@ export interface AuthUser {
   image?: string | null;
 }
 
-export function UserNav() {
+export function UserNav({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -82,7 +82,11 @@ export function UserNav() {
   };
 
   if (!mounted) {
-    return <div className="h-8 w-24 animate-pulse rounded-lg bg-[var(--wp-surface-subtle)]" />;
+    return (
+      <div
+        className={`${compact ? "h-10 w-10" : "h-8 w-24"} animate-pulse rounded-lg bg-[var(--wp-surface-subtle)]`}
+      />
+    );
   }
 
   if (!user) {
@@ -114,7 +118,9 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wp-border)] bg-white px-2.5 shadow-2xs transition-all duration-150 select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2"
+          aria-label={compact ? `Account menu for ${user.displayName || user.name || user.email}` : undefined}
+          title={compact ? "Account menu" : undefined}
+          className={`flex min-h-10 items-center rounded-xl border border-[var(--wp-border)] bg-white shadow-2xs transition-all duration-150 select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wp-accent)] focus-visible:ring-offset-2 ${compact ? "h-10 w-10 justify-center p-0" : "gap-2 px-2.5"}`}
         >
           <div className="h-5 w-5 overflow-hidden rounded-md bg-[var(--wp-surface-subtle)] border border-[var(--wp-border)] flex items-center justify-center text-[10px] font-bold text-[var(--wp-text-primary)] shrink-0">
             {user.image ? (
@@ -123,13 +129,17 @@ export function UserNav() {
               initials
             )}
           </div>
-          <span className="text-xs font-semibold text-[var(--wp-text-primary)] max-w-[120px] truncate">
-            {user.displayName || user.name || user.username || user.email.split("@")[0]}
-          </span>
-          <span className="text-[10px] font-medium text-[var(--wp-text-muted)] bg-[var(--wp-surface-subtle)] px-1.5 py-0.5 rounded border border-[var(--wp-border)]">
-            {roleLabel}
-          </span>
-          <ChevronDown className="h-3 w-3 text-[var(--wp-text-muted)] group-hover:text-[var(--wp-text-primary)] transition-transform duration-150" />
+          {compact ? null : (
+            <>
+              <span className="text-xs font-semibold text-[var(--wp-text-primary)] max-w-[120px] truncate">
+                {user.displayName || user.name || user.username || user.email.split("@")[0]}
+              </span>
+              <span className="text-[10px] font-medium text-[var(--wp-text-muted)] bg-[var(--wp-surface-subtle)] px-1.5 py-0.5 rounded border border-[var(--wp-border)]">
+                {roleLabel}
+              </span>
+              <ChevronDown className="h-3 w-3 text-[var(--wp-text-muted)] group-hover:text-[var(--wp-text-primary)] transition-transform duration-150" />
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
 
