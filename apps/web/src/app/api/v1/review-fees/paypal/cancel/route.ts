@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/server/api";
+import { requireAuthenticatedSession } from "@/lib/server/conversation-auth";
 import { independentReviewEngagements } from "@workpay/shared/db/schema/independent-reviews";
 import { reviewFeePayments } from "@workpay/shared/db/schema/review-fees";
 import { cancelReviewFeeOrder } from "@workpay/shared/domain";
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
     const state = url.searchParams.get("state");
     const token = url.searchParams.get("token");
     if (!state || !token) throw new Error("Missing cancellation data");
+    const { actor } = await requireAuthenticatedSession(req);
     const [context] = await getDb()
       .select({
         conversationId: independentReviewEngagements.conversationId,
@@ -30,7 +32,7 @@ export async function GET(req: Request) {
       state,
       externalOrderId: token,
       payerUserId: context.payerUserId,
-      actor: { kind: "USER", id: context.payerUserId, role: "buyer" },
+      actor,
     });
     return NextResponse.redirect(
       `${appUrl}/messages?conversation=${encodeURIComponent(context.conversationId)}&reviewFee=cancelled`,

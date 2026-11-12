@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { tasks } from "@workpay/shared/db/schema/tasks";
-import { getCorrelationId, getDb } from "@/lib/server/api";
+import { getCorrelationId } from "@/lib/server/api";
+import { requireTaskOwner } from "@/lib/server/conversation-auth";
 import { cancelPayPalOrder } from "@workpay/shared/domain";
 import { getEnv, logger } from "@workpay/shared/platform";
 
@@ -13,17 +12,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const orderId = url.searchParams.get("token");
     const state = url.searchParams.get("state");
     if (!orderId || !state) throw new Error("PayPal cancellation omitted order or state.");
-    const [task] = await getDb()
-      .select({ userId: tasks.userId })
-      .from(tasks)
-      .where(eq(tasks.id, taskId))
-      .limit(1);
-    if (!task) throw new Error("Task not found.");
+    const { actor } = await requireTaskOwner(req, taskId);
     await cancelPayPalOrder({
       taskId,
       externalOrderId: orderId,
       approvalState: state,
-      actor: { kind: "USER", id: task.userId, role: "buyer" },
+      actor,
       correlationId: getCorrelationId(req),
     });
     return NextResponse.redirect(`${appUrl}/tasks/${encodeURIComponent(taskId)}?paypal=cancelled`);

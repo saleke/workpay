@@ -1,8 +1,9 @@
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, notInArray, sql } from "drizzle-orm";
 import { getDb, jsonError, jsonOk } from "@/lib/server/api";
 import { requireAuthenticatedSession } from "@/lib/server/conversation-auth";
 import { paypalIdentityLinks } from "@workpay/shared/db/schema/paypal";
 import { payments } from "@workpay/shared/db/schema/payments";
+import { reviewFeePayments } from "@workpay/shared/db/schema/review-fees";
 import { getConfiguredNewPaymentMode, paymentModeEnvironment } from "@workpay/shared/integrations";
 import { AppError } from "@workpay/shared/platform";
 
@@ -15,24 +16,38 @@ async function unlink(req: Request) {
     const mode = getConfiguredNewPaymentMode();
     const environment = paymentModeEnvironment(mode);
     const db = getDb();
-    const [activePayment] = await db
-      .select({ id: payments.id })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.buyerUserId, user.id),
-          eq(payments.mode, mode),
-          notInArray(payments.status, ["CAPTURED", "VOIDED", "REFUNDED", "FAILED"]),
-        ),
-      )
-      .limit(1);
-    if (activePayment) {
-      throw new AppError(
-        "DOMAIN_CONFLICT",
-        "Finish or cancel active PayPal payments before unlinking this account.",
-      );
-    }
     await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`${environment}:user:${user.id}`}))`,
+      );
+      const [activePayment] = await tx
+        .select({ id: payments.id })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.buyerUserId, user.id),
+            eq(payments.mode, mode),
+            notInArray(payments.status, ["CAPTURED", "VOIDED", "REFUNDED", "FAILED"]),
+          ),
+        )
+        .limit(1);
+      const [activeReviewFee] = await tx
+        .select({ id: reviewFeePayments.id })
+        .from(reviewFeePayments)
+        .where(
+          and(
+            eq(reviewFeePayments.payerUserId, user.id),
+            eq(reviewFeePayments.mode, mode),
+            notInArray(reviewFeePayments.status, ["PAID", "FAILED", "CANCELLED"]),
+          ),
+        )
+        .limit(1);
+      if (activePayment || activeReviewFee) {
+        throw new AppError(
+          "DOMAIN_CONFLICT",
+          "Finish or cancel active PayPal payments before unlinking this account.",
+        );
+      }
       await tx
         .update(paypalIdentityLinks)
         .set({ status: "REVOKED", revokedAt: new Date(), updatedAt: new Date() })
