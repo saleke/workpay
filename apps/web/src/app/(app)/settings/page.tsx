@@ -183,10 +183,9 @@ function SettingsContent() {
     message?: string;
   } | null>(null);
 
-  // PayPal account linking and seller onboarding
+  // PayPal payer identity and seller onboarding
   const [unbindModalOpen, setUnbindModalOpen] = useState(false);
   const [unbindingPaypal, setUnbindingPaypal] = useState(false);
-  const [connectingPayPalOAuth, setConnectingPayPalOAuth] = useState(false);
 
   // Developer Verification (Step 2 - GitHub Challenge)
   const [githubModalOpen, setGithubModalOpen] = useState(false);
@@ -568,24 +567,6 @@ function SettingsContent() {
       toast.error("GitHub authorization could not be started.");
     } finally {
       setConnectingGithubOAuth(false);
-    }
-  };
-
-  const handleConnectPayPalOAuth = async () => {
-    setConnectingPayPalOAuth(true);
-    try {
-      const response = await tabSessionFetch(
-        "/api/v1/user/paypal/connect?format=json&returnTo=%2Fsettings%3Ftab%3Dpaypal",
-        { headers: { Accept: "application/json" } },
-      );
-      const payload = await response.json();
-      if (!response.ok || !payload.authorizeUrl) {
-        throw new Error(payload.error?.message || "PayPal authorization is unavailable.");
-      }
-      window.location.assign(payload.authorizeUrl);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "PayPal authorization could not start.");
-      setConnectingPayPalOAuth(false);
     }
   };
 
@@ -1690,8 +1671,8 @@ function SettingsContent() {
                   PayPal payments
                 </CardTitle>
                 <CardDescription>
-                  Buyer identity linking and professional seller onboarding are separate, explicit
-                  PayPal consent steps.
+                  Buyers approve PayPal during checkout. Professionals complete seller onboarding
+                  before receiving payments.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 p-5 text-sm text-[var(--wp-text-secondary)] sm:p-6">
@@ -1714,15 +1695,17 @@ function SettingsContent() {
                       <div className="rounded-xl border border-[var(--wp-border)] p-4">
                         <div className="flex items-center justify-between gap-3">
                           <h3 className="font-semibold text-[var(--wp-text-primary)]">
-                            Buyer PayPal account
+                            Buyer PayPal approval
                           </h3>
                           <Badge variant="outline">
-                            {paypalStatus?.identity?.status === "LINKED" ? "Linked" : "Not linked"}
+                            {paypalStatus?.identity?.status === "LINKED"
+                              ? "Confirmed"
+                              : "At checkout"}
                           </Badge>
                         </div>
                         <p className="mt-2 text-xs leading-5">
-                          Linking confirms control of the PayPal account. Every order still requires
-                          separate approval on PayPal.
+                          No separate account-link step is required. Your PayPal payer identity is
+                          confirmed when you approve the first order on PayPal.
                         </p>
                         {paypalStatus?.identity ? (
                           <p className="mt-3 break-all text-xs font-medium text-[var(--wp-text-primary)]">
@@ -1740,14 +1723,9 @@ function SettingsContent() {
                               Unlink account
                             </Button>
                           ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={!paypalStatus?.configured || connectingPayPalOAuth}
-                              onClick={handleConnectPayPalOAuth}
-                            >
-                              {connectingPayPalOAuth ? "Opening PayPal…" : "Link PayPal account"}
-                            </Button>
+                            <span className="inline-flex min-h-9 items-center rounded-lg bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
+                              Ready for checkout approval
+                            </span>
                           )}
                         </div>
                       </div>

@@ -65,7 +65,11 @@ export const reviewFeePayments = pgTable(
     ),
     bindingCheck: check(
       "review_fee_payments_mode_binding_valid",
-      sql`(${t.mode} = 'FAKE' and ${t.payerIdSnapshot} is null and ${t.sellerMerchantIdSnapshot} is null) or (${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and ${t.payerIdSnapshot} is not null and ${t.sellerMerchantIdSnapshot} is not null)`,
+      sql`(${t.mode} = 'FAKE' and ${t.payerIdSnapshot} is null and ${t.sellerMerchantIdSnapshot} is null) or (${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and ${t.sellerMerchantIdSnapshot} is not null)`,
+    ),
+    payerBoundCheck: check(
+      "review_fee_payments_payer_bound_for_authorization",
+      sql`${t.mode} = 'FAKE' or ${t.status} not in ('AUTHORIZATION_REQUESTED', 'CAPTURE_REQUESTED', 'PAID') or ${t.payerIdSnapshot} is not null`,
     ),
   }),
 );

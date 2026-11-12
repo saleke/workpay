@@ -5,7 +5,7 @@ import { withTransaction } from "../../db/client.js";
 import { workContracts } from "../../db/schema/contracts.js";
 import { workExecutions } from "../../db/schema/execution.js";
 import { commercialAgreements } from "../../db/schema/negotiation.js";
-import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
+import { providerPaypalAccounts } from "../../db/schema/paypal.js";
 import { paymentOperations, paymentOrders, payments } from "../../db/schema/payments.js";
 import { tasks } from "../../db/schema/tasks.js";
 import { appendEvent } from "../../events/outbox.js";
@@ -21,6 +21,7 @@ import { assignExecution } from "../execution/service.js";
 import type { Actor } from "../identity/authorize.js";
 import { transitionTask } from "../tasks/service.js";
 import { ensurePaymentForAgreement, evaluatePaymentAction } from "./service.js";
+import { bindApprovedPayPalPayer } from "./payer-binding.js";
 
 function assertOwner(
   task: typeof tasks.$inferSelect,
@@ -123,7 +124,7 @@ export async function createPayPalOrderForTask(options: {
         generation: nextGeneration,
         requestId,
         approvalStateHash: sha256Hex(approvalState),
-        payerIdSnapshot: payment.payerIdSnapshot!,
+        payerIdSnapshot: payment.payerIdSnapshot,
         sellerMerchantIdSnapshot: payment.sellerMerchantIdSnapshot!,
         amountMinor: payment.amountMinor,
         currency: payment.currency,
@@ -178,10 +179,7 @@ export async function createPayPalOrderForTask(options: {
         .update(payments)
         .set({ status: "PENDING", updatedAt: new Date() })
         .where(
-          and(
-            eq(payments.id, prepared.payment.id),
-            eq(payments.status, "ORDER_CREATE_REQUESTED"),
-          ),
+          and(eq(payments.id, prepared.payment.id), eq(payments.status, "ORDER_CREATE_REQUESTED")),
         );
     });
     throw conflict(`Payment policy denied PayPal order creation: ${policy.decision.reasonCode}`);
@@ -230,10 +228,7 @@ export async function createPayPalOrderForTask(options: {
         updatedAt: new Date(),
       })
       .where(
-        and(
-          eq(paymentOrders.id, prepared.order.id),
-          eq(paymentOrders.status, "CREATE_REQUESTED"),
-        ),
+        and(eq(paymentOrders.id, prepared.order.id), eq(paymentOrders.status, "CREATE_REQUESTED")),
       )
       .returning({ id: paymentOrders.id });
     const [updatedPayment] = await tx
@@ -244,10 +239,7 @@ export async function createPayPalOrderForTask(options: {
         updatedAt: new Date(),
       })
       .where(
-        and(
-          eq(payments.id, prepared.payment.id),
-          eq(payments.status, "ORDER_CREATE_REQUESTED"),
-        ),
+        and(eq(payments.id, prepared.payment.id), eq(payments.status, "ORDER_CREATE_REQUESTED")),
       )
       .returning({ id: payments.id });
     if (!updatedOrder || !updatedPayment) {
@@ -313,38 +305,24 @@ export async function authorizeApprovedPayPalOrder(options: {
       throw conflict("This PayPal approval is not for the current payment order.");
     }
     const environment = paymentModeEnvironment(payment.mode);
-    const [[identityLink], [sellerAccount]] = await Promise.all([
-      tx
-        .select()
-        .from(paypalIdentityLinks)
-        .where(
-          and(
-            eq(paypalIdentityLinks.userId, payment.buyerUserId),
-            eq(paypalIdentityLinks.environment, environment),
-            eq(paypalIdentityLinks.status, "LINKED"),
-          ),
-        )
-        .limit(1),
-      tx
-        .select()
-        .from(providerPaypalAccounts)
-        .where(
-          and(
-            eq(providerPaypalAccounts.providerId, payment.providerId),
-            eq(providerPaypalAccounts.environment, environment),
-            eq(providerPaypalAccounts.status, "ACTIVE"),
-          ),
-        )
-        .limit(1),
-    ]);
+    const [sellerAccount] = await tx
+      .select()
+      .from(providerPaypalAccounts)
+      .where(
+        and(
+          eq(providerPaypalAccounts.providerId, payment.providerId),
+          eq(providerPaypalAccounts.environment, environment),
+          eq(providerPaypalAccounts.status, "ACTIVE"),
+        ),
+      )
+      .limit(1);
     if (
-      identityLink?.payerId !== payment.payerIdSnapshot ||
       sellerAccount?.merchantId !== payment.sellerMerchantIdSnapshot ||
       !sellerAccount.paymentsReceivable ||
       !sellerAccount.primaryEmailConfirmed ||
       !sellerAccount.consentStatus
     ) {
-      throw conflict("A linked PayPal account changed or is no longer eligible.");
+      throw conflict("The professional PayPal account changed or is no longer eligible.");
     }
     if (payment.status === "AUTHORIZED" && order.status === "AUTHORIZED") {
       return { task, order, payment, alreadyAuthorized: true };
@@ -371,7 +349,8 @@ export async function authorizeApprovedPayPalOrder(options: {
   );
   if (
     details.status !== "APPROVED" ||
-    details.payerId !== prepared.payment.payerIdSnapshot ||
+    !details.payerId ||
+    !details.payerEmail ||
     details.payeeMerchantId !== prepared.payment.sellerMerchantIdSnapshot ||
     details.referenceId !== prepared.order.id ||
     details.customId !== prepared.payment.id ||
@@ -381,6 +360,45 @@ export async function authorizeApprovedPayPalOrder(options: {
   ) {
     throw conflict("PayPal approval does not match this buyer, seller, amount, or local order.");
   }
+  await withTransaction(async (tx) => {
+    await bindApprovedPayPalPayer(tx, {
+      userId: prepared.payment.buyerUserId,
+      environment: paymentModeEnvironment(
+        prepared.payment.mode as "PAYPAL_SANDBOX" | "PAYPAL_LIVE",
+      ),
+      payerId: details.payerId!,
+      email: details.payerEmail!,
+      sellerMerchantId: prepared.payment.sellerMerchantIdSnapshot!,
+      source: { kind: "PAYMENT", id: prepared.payment.id },
+    });
+    const [updatedPayment] = await tx
+      .update(payments)
+      .set({ payerIdSnapshot: details.payerId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(payments.id, prepared.payment.id),
+          eq(payments.status, "AWAITING_BUYER_APPROVAL"),
+          eq(payments.providerOrderId, options.externalOrderId),
+        ),
+      )
+      .returning({ id: payments.id });
+    const [updatedOrder] = await tx
+      .update(paymentOrders)
+      .set({ payerIdSnapshot: details.payerId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(paymentOrders.id, prepared.order.id),
+          eq(paymentOrders.status, "AWAITING_APPROVAL"),
+          eq(paymentOrders.externalOrderId, options.externalOrderId),
+        ),
+      )
+      .returning({ id: paymentOrders.id });
+    if (!updatedPayment || !updatedOrder) {
+      throw conflict("The PayPal order was cancelled or replaced during approval.");
+    }
+  });
+  prepared.payment.payerIdSnapshot = details.payerId;
+  prepared.order.payerIdSnapshot = details.payerId;
   const policy = await evaluatePaymentAction({
     paymentId: prepared.payment.id,
     action: "AUTHORIZE",
@@ -424,20 +442,14 @@ export async function authorizeApprovedPayPalOrder(options: {
       .update(paymentOrders)
       .set({ status: "AUTHORIZATION_REQUESTED", approvedAt: new Date(), updatedAt: new Date() })
       .where(
-        and(
-          eq(paymentOrders.id, currentOrder.id),
-          eq(paymentOrders.status, "AWAITING_APPROVAL"),
-        ),
+        and(eq(paymentOrders.id, currentOrder.id), eq(paymentOrders.status, "AWAITING_APPROVAL")),
       )
       .returning({ id: paymentOrders.id });
     const [updatedPayment] = await tx
       .update(payments)
       .set({ status: "AUTHORIZATION_REQUESTED", updatedAt: new Date() })
       .where(
-        and(
-          eq(payments.id, currentPayment.id),
-          eq(payments.status, "AWAITING_BUYER_APPROVAL"),
-        ),
+        and(eq(payments.id, currentPayment.id), eq(payments.status, "AWAITING_BUYER_APPROVAL")),
       )
       .returning({ id: payments.id });
     if (!updatedOrder || !updatedPayment) {
@@ -543,10 +555,7 @@ export async function authorizeApprovedPayPalOrder(options: {
         .update(payments)
         .set({ status: "UNKNOWN", updatedAt: new Date() })
         .where(
-          and(
-            eq(payments.id, prepared.payment.id),
-            eq(payments.status, "AUTHORIZATION_REQUESTED"),
-          ),
+          and(eq(payments.id, prepared.payment.id), eq(payments.status, "AUTHORIZATION_REQUESTED")),
         );
     });
     throw conflict("PayPal authorization returned unexpected payer, seller, or amount data.");
@@ -733,9 +742,7 @@ export async function cancelPayPalOrder(options: {
     const [cancelledOrder] = await tx
       .update(paymentOrders)
       .set({ status: "CANCELLED", updatedAt: new Date() })
-      .where(
-        and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, "AWAITING_APPROVAL")),
-      )
+      .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, "AWAITING_APPROVAL")))
       .returning({ id: paymentOrders.id });
     const [resetPayment] = await tx
       .update(payments)

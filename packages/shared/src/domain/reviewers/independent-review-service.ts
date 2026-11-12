@@ -15,7 +15,7 @@ import {
 } from "../../db/schema/contracts.js";
 import { submissionArtifacts, workExecutions, workSubmissions } from "../../db/schema/execution.js";
 import { providers } from "../../db/schema/providers.js";
-import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
+import { providerPaypalAccounts } from "../../db/schema/paypal.js";
 import { reviewFeePayments } from "../../db/schema/review-fees.js";
 import { verificationResults, verificationRuns } from "../../db/schema/verification.js";
 import { tasks } from "../../db/schema/tasks.js";
@@ -152,7 +152,6 @@ async function prepareReviewFeePayments(
   const mode: PaymentMode =
     accountClass === "DEMO_FIXTURE" ? "FAKE" : getConfiguredNewPaymentMode();
   let sellerMerchantId: string | null = null;
-  const payerIds = new Map<string, string>();
   if (mode !== "FAKE") {
     const environment = paymentModeEnvironment(mode);
     const [seller] = await tx
@@ -175,26 +174,6 @@ async function prepareReviewFeePayments(
       throw conflict("The reviewer must complete PayPal seller onboarding before accepting.");
     }
     sellerMerchantId = seller.merchantId;
-    for (const share of payerShares) {
-      const [payer] = await tx
-        .select()
-        .from(paypalIdentityLinks)
-        .where(
-          and(
-            eq(paypalIdentityLinks.userId, share.userId),
-            eq(paypalIdentityLinks.environment, environment),
-            eq(paypalIdentityLinks.status, "LINKED"),
-          ),
-        )
-        .limit(1);
-      if (!payer?.accountVerified || !payer.emailVerified) {
-        throw conflict("Each review-fee payer must link a verified PayPal account.");
-      }
-      if (payer.payerId === sellerMerchantId) {
-        throw conflict("A reviewer cannot fund their own review fee.");
-      }
-      payerIds.set(share.userId, payer.payerId);
-    }
   }
   await tx.insert(reviewFeePayments).values(
     payerShares.map((share) => ({
@@ -206,7 +185,7 @@ async function prepareReviewFeePayments(
       amountMinor: share.amountMinor,
       currency: engagement.feeCurrency,
       status: "PENDING",
-      payerIdSnapshot: payerIds.get(share.userId) ?? null,
+      payerIdSnapshot: null,
       sellerMerchantIdSnapshot: sellerMerchantId,
     })),
   );
@@ -363,28 +342,6 @@ export async function proposeIndependentReview(
       !seller.consentStatus
     ) {
       throw validationError("Choose a reviewer whose PayPal review payments are ready.");
-    }
-    const payerUserIds =
-      proposal.feePayer === "BUYER"
-        ? [conversation.buyerUserId]
-        : proposal.feePayer === "PROVIDER"
-          ? [conversation.providerUserId]
-          : [conversation.buyerUserId, conversation.providerUserId];
-    const payerLinks = await tx
-      .select()
-      .from(paypalIdentityLinks)
-      .where(
-        and(
-          inArray(paypalIdentityLinks.userId, payerUserIds),
-          eq(paypalIdentityLinks.environment, environment),
-          eq(paypalIdentityLinks.status, "LINKED"),
-        ),
-      );
-    if (
-      payerLinks.length !== new Set(payerUserIds).size ||
-      payerLinks.some((link) => !link.accountVerified || !link.emailVerified)
-    ) {
-      throw validationError("Every review-fee payer must link a verified PayPal account first.");
     }
   }
   if (

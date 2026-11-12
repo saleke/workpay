@@ -3,10 +3,11 @@ import { and, eq, ne } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { withTransaction } from "../../db/client.js";
 import { independentReviewEngagements } from "../../db/schema/independent-reviews.js";
+import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
 import { reviewFeeOperations, reviewFeePayments } from "../../db/schema/review-fees.js";
 import { appendEvent } from "../../events/outbox.js";
 import { getPayPalClient } from "../../integrations/payments/index.js";
-import { isPayPalMode } from "../../integrations/payments/config.js";
+import { isPayPalMode, paymentModeEnvironment } from "../../integrations/payments/config.js";
 import { paypalRequestId } from "../../integrations/payments/idempotency.js";
 import { authorizationError, conflict, externalUnknown, notFound } from "../../platform/errors.js";
 import { sha256Hex } from "../../platform/hashing.js";
@@ -14,6 +15,8 @@ import { newId } from "../../platform/ids.js";
 import { money, type Money } from "../../platform/money.js";
 import type { Actor } from "../identity/authorize.js";
 import { toEventActor } from "../context.js";
+import { bindApprovedPayPalPayer } from "../payments/payer-binding.js";
+import { getEnv } from "../../platform/env.js";
 
 async function lockFeeContext(tx: Database, engagementId: string, payerUserId: string) {
   const [engagement] = await tx
@@ -36,6 +39,49 @@ async function lockFeeContext(tx: Database, engagementId: string, payerUserId: s
     .limit(1);
   if (!payment) throw notFound("Review fee payment");
   return { engagement, payment };
+}
+
+async function assertPayPalAccountsCurrent(
+  tx: Database,
+  payment: typeof reviewFeePayments.$inferSelect,
+) {
+  if (!isPayPalMode(payment.mode) || !payment.payerIdSnapshot) {
+    throw conflict("The review fee payer identity is not bound.");
+  }
+  const environment = paymentModeEnvironment(payment.mode);
+  const [identityLink] = await tx
+    .select()
+    .from(paypalIdentityLinks)
+    .where(
+      and(
+        eq(paypalIdentityLinks.userId, payment.payerUserId),
+        eq(paypalIdentityLinks.environment, environment),
+        eq(paypalIdentityLinks.status, "LINKED"),
+      ),
+    )
+    .limit(1);
+  const [sellerAccount] = await tx
+    .select()
+    .from(providerPaypalAccounts)
+    .where(
+      and(
+        eq(providerPaypalAccounts.providerId, payment.reviewerProviderId),
+        eq(providerPaypalAccounts.environment, environment),
+        eq(providerPaypalAccounts.status, "ACTIVE"),
+      ),
+    )
+    .limit(1);
+  if (
+    identityLink?.payerId !== payment.payerIdSnapshot ||
+    !identityLink.accountVerified ||
+    !identityLink.emailVerified ||
+    sellerAccount?.merchantId !== payment.sellerMerchantIdSnapshot ||
+    !sellerAccount.paymentsReceivable ||
+    !sellerAccount.primaryEmailConfirmed ||
+    !sellerAccount.consentStatus
+  ) {
+    throw conflict("The review fee PayPal accounts are no longer eligible.");
+  }
 }
 
 async function finalizeEngagementIfPaid(
@@ -110,12 +156,40 @@ async function markReviewFeePaid(
     .onConflictDoNothing()
     .returning({ id: reviewFeeOperations.id });
   if (!operation) {
+    const [existingCapture] = await tx
+      .select({ providerOperationId: reviewFeeOperations.providerOperationId })
+      .from(reviewFeeOperations)
+      .where(
+        and(
+          eq(reviewFeeOperations.reviewFeePaymentId, input.payment.id),
+          eq(reviewFeeOperations.action, "CAPTURE"),
+          eq(reviewFeeOperations.status, "SUCCEEDED"),
+        ),
+      )
+      .limit(1);
+    if (existingCapture?.providerOperationId !== input.captureId) {
+      throw externalUnknown("A different successful review fee capture is already recorded.");
+    }
     const [current] = await tx
       .select({ status: reviewFeePayments.status })
       .from(reviewFeePayments)
       .where(eq(reviewFeePayments.id, input.payment.id))
       .limit(1);
-    return current?.status === "PAID";
+    if (current?.status === "PAID") return true;
+    const [repaired] = await tx
+      .update(reviewFeePayments)
+      .set({
+        status: "PAID",
+        providerAuthorizationId: input.authorizationId,
+        providerCaptureId: input.captureId,
+        paidAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reviewFeePayments.id, input.payment.id))
+      .returning({ id: reviewFeePayments.id });
+    if (!repaired) return false;
+    await finalizeEngagementIfPaid(tx, input.engagement, input.actor, input.correlationId);
+    return true;
   }
   const [paid] = await tx
     .update(reviewFeePayments)
@@ -261,7 +335,7 @@ export async function createReviewFeeOrder(options: {
       await tx
         .update(reviewFeePayments)
         .set({ status: result.status === "DECLINED" ? "FAILED" : "UNKNOWN", updatedAt: new Date() })
-        .where(eq(reviewFeePayments.id, payment.id));
+        .where(and(eq(reviewFeePayments.id, payment.id), ne(reviewFeePayments.status, "PAID")));
       await tx
         .update(independentReviewEngagements)
         .set({
@@ -327,10 +401,6 @@ export async function completeReviewFeePayPal(options: {
     if (payment.status !== "AWAITING_APPROVAL") {
       throw conflict("The review fee is not awaiting PayPal approval.");
     }
-    await tx
-      .update(reviewFeePayments)
-      .set({ status: "AUTHORIZATION_REQUESTED", updatedAt: new Date() })
-      .where(eq(reviewFeePayments.id, payment.id));
     return { engagement, payment, alreadyPaid: false as const };
   });
   if (prepared.alreadyPaid) return { paid: true };
@@ -341,7 +411,8 @@ export async function completeReviewFeePayPal(options: {
   const order = await client.getOrder(payment.externalOrderId!, payment.sellerMerchantIdSnapshot!);
   if (
     order.status !== "APPROVED" ||
-    order.payerId !== payment.payerIdSnapshot ||
+    !order.payerId ||
+    !order.payerEmail ||
     order.payeeMerchantId !== payment.sellerMerchantIdSnapshot ||
     order.referenceId !== payment.id ||
     order.customId !== `review-fee:${payment.id}` ||
@@ -353,6 +424,32 @@ export async function completeReviewFeePayPal(options: {
       "PayPal review fee approval does not match the agreed payer, reviewer, or amount.",
     );
   }
+  await withTransaction(async (tx) => {
+    await bindApprovedPayPalPayer(tx, {
+      userId: payment.payerUserId,
+      environment: paymentModeEnvironment(payment.mode as "PAYPAL_SANDBOX" | "PAYPAL_LIVE"),
+      payerId: order.payerId!,
+      email: order.payerEmail!,
+      sellerMerchantId: payment.sellerMerchantIdSnapshot!,
+      source: { kind: "REVIEW_FEE_PAYMENT", id: payment.id },
+    });
+    const [claimed] = await tx
+      .update(reviewFeePayments)
+      .set({
+        payerIdSnapshot: order.payerId,
+        status: "AUTHORIZATION_REQUESTED",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(reviewFeePayments.id, payment.id),
+          eq(reviewFeePayments.status, "AWAITING_APPROVAL"),
+        ),
+      )
+      .returning({ id: reviewFeePayments.id });
+    if (!claimed) throw conflict("The review fee approval changed while it was being processed.");
+  });
+  payment.payerIdSnapshot = order.payerId;
   const authorizationKey = paypalRequestId("review-fee-authorize", payment.id);
   const authorization = await client.authorizeApprovedOrder({
     orderId: payment.externalOrderId!,
@@ -383,20 +480,37 @@ export async function completeReviewFeePayPal(options: {
           providerAuthorizationId: authorization.authorizationId ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(reviewFeePayments.id, payment.id));
+        .where(and(eq(reviewFeePayments.id, payment.id), ne(reviewFeePayments.status, "PAID")));
       await tx
         .update(independentReviewEngagements)
         .set({
           feeStatus: authorization.status === "DECLINED" ? "FAILED" : "UNKNOWN",
           updatedAt: new Date(),
         })
-        .where(eq(independentReviewEngagements.id, engagement.id));
+        .where(
+          and(
+            eq(independentReviewEngagements.id, engagement.id),
+            ne(independentReviewEngagements.feeStatus, "PAID"),
+          ),
+        );
     });
     if (authorization.status === "UNKNOWN")
       throw externalUnknown("Review fee authorization is uncertain.");
     throw conflict(authorization.errorMessage ?? "PayPal declined the review fee authorization.");
   }
-  await withTransaction(async (tx) => {
+  const captureClaimed = await withTransaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(reviewFeePayments)
+      .where(eq(reviewFeePayments.id, payment.id))
+      .for("update")
+      .limit(1);
+    if (!current) throw notFound("Review fee payment");
+    if (current.status === "PAID") return false;
+    if (current.status !== "AUTHORIZATION_REQUESTED") {
+      throw externalUnknown("The review fee is already being captured or reconciled.");
+    }
+    await assertPayPalAccountsCurrent(tx, current);
     await tx
       .insert(reviewFeeOperations)
       .values({
@@ -414,15 +528,27 @@ export async function completeReviewFeePayPal(options: {
         rawResponse: authorization as unknown as Record<string, unknown>,
       })
       .onConflictDoNothing();
-    await tx
+    const [claimed] = await tx
       .update(reviewFeePayments)
       .set({
         status: "CAPTURE_REQUESTED",
         providerAuthorizationId: authorization.authorizationId,
         updatedAt: new Date(),
       })
-      .where(eq(reviewFeePayments.id, payment.id));
+      .where(
+        and(
+          eq(reviewFeePayments.id, payment.id),
+          eq(reviewFeePayments.status, "AUTHORIZATION_REQUESTED"),
+        ),
+      )
+      .returning({ id: reviewFeePayments.id });
+    if (!claimed) throw externalUnknown("The review fee capture was claimed concurrently.");
+    return true;
   });
+  if (!captureClaimed) return { paid: true };
+  if (getEnv().SYSTEM_PAYMENT_PAUSE) {
+    throw conflict("Payment capture is temporarily paused.");
+  }
   const captureKey = paypalRequestId("review-fee-capture", payment.id);
   const capture = await client.capture({
     authorizationId: authorization.authorizationId,
@@ -464,14 +590,19 @@ export async function completeReviewFeePayPal(options: {
           providerCaptureId: capture.captureId ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(reviewFeePayments.id, payment.id));
+        .where(and(eq(reviewFeePayments.id, payment.id), ne(reviewFeePayments.status, "PAID")));
       await tx
         .update(independentReviewEngagements)
         .set({
           feeStatus: capture.status === "DECLINED" ? "FAILED" : "UNKNOWN",
           updatedAt: new Date(),
         })
-        .where(eq(independentReviewEngagements.id, engagement.id));
+        .where(
+          and(
+            eq(independentReviewEngagements.id, engagement.id),
+            ne(independentReviewEngagements.feeStatus, "PAID"),
+          ),
+        );
     });
     if (capture.status === "UNKNOWN") throw externalUnknown("Review fee capture is uncertain.");
     throw conflict(capture.errorMessage ?? "PayPal declined the review fee capture.");
@@ -567,8 +698,12 @@ export async function reconcileReviewFeePayment(options: {
   const client = getPayPalClient(payment.mode);
   const amount = money(payment.amountMinor, payment.currency as Money["currency"]);
   const order = await client.getOrder(payment.externalOrderId!, payment.sellerMerchantIdSnapshot!);
+  if (!order.payerId) {
+    throw externalUnknown("PayPal has not exposed the review fee payer identity.");
+  }
   if (
-    order.payerId !== payment.payerIdSnapshot ||
+    !["APPROVED", "COMPLETED"].includes(order.status) ||
+    (payment.payerIdSnapshot !== null && order.payerId !== payment.payerIdSnapshot) ||
     order.payeeMerchantId !== payment.sellerMerchantIdSnapshot ||
     order.referenceId !== payment.id ||
     order.customId !== `review-fee:${payment.id}` ||
@@ -577,6 +712,26 @@ export async function reconcileReviewFeePayment(options: {
     order.amount.currency !== amount.currency
   ) {
     throw conflict("PayPal returned mismatched review fee data during reconciliation.");
+  }
+  if (!payment.payerIdSnapshot) {
+    if (!order.payerEmail) {
+      throw externalUnknown("PayPal has not exposed the review fee payer email.");
+    }
+    await withTransaction(async (tx) => {
+      await bindApprovedPayPalPayer(tx, {
+        userId: payment.payerUserId,
+        environment: paymentModeEnvironment(payment.mode as "PAYPAL_SANDBOX" | "PAYPAL_LIVE"),
+        payerId: order.payerId!,
+        email: order.payerEmail!,
+        sellerMerchantId: payment.sellerMerchantIdSnapshot!,
+        source: { kind: "REVIEW_FEE_PAYMENT", id: payment.id },
+      });
+      await tx
+        .update(reviewFeePayments)
+        .set({ payerIdSnapshot: order.payerId, updatedAt: new Date() })
+        .where(eq(reviewFeePayments.id, payment.id));
+    });
+    payment.payerIdSnapshot = order.payerId;
   }
   if (order.captureId) {
     const capture = await client.getCapture(order.captureId, payment.sellerMerchantIdSnapshot!);
@@ -610,19 +765,105 @@ export async function reconcileReviewFeePayment(options: {
     return { paid: true };
   }
   let authorizationId = order.authorizationId ?? payment.providerAuthorizationId;
+  let authorizationRaw: Record<string, unknown> = { reconciled: true };
+  if (
+    order.authorizationId &&
+    (order.authorizationStatus !== "CREATED" ||
+      !order.authorizationExpiresAt ||
+      order.authorizationExpiresAt <= new Date())
+  ) {
+    throw externalUnknown("The PayPal review fee authorization is not valid for capture.");
+  }
   if (!authorizationId && order.status === "APPROVED") {
     const authorization = await client.authorizeApprovedOrder({
       orderId: payment.externalOrderId!,
       payeeMerchantId: payment.sellerMerchantIdSnapshot!,
       idempotencyKey: paypalRequestId("review-fee-authorize", payment.id),
     });
-    if (authorization.status !== "SUCCESS" || !authorization.authorizationId) {
+    if (
+      authorization.status !== "SUCCESS" ||
+      !authorization.authorizationId ||
+      authorization.providerOrderId !== payment.externalOrderId ||
+      authorization.providerStatus !== "COMPLETED" ||
+      authorization.referenceId !== payment.id ||
+      authorization.customId !== `review-fee:${payment.id}` ||
+      authorization.invoiceId !== payment.id ||
+      authorization.authorizationStatus !== "CREATED" ||
+      !authorization.authorizationExpiresAt ||
+      authorization.authorizationExpiresAt <= new Date() ||
+      authorization.payerId !== payment.payerIdSnapshot ||
+      authorization.payeeMerchantId !== payment.sellerMerchantIdSnapshot ||
+      authorization.amount?.amountMinor !== amount.amountMinor ||
+      authorization.amount.currency !== amount.currency
+    ) {
       throw externalUnknown("The PayPal review fee authorization is not final yet.");
     }
     authorizationId = authorization.authorizationId;
+    authorizationRaw = authorization as unknown as Record<string, unknown>;
   }
   if (!authorizationId)
     throw externalUnknown("PayPal has not exposed the review fee authorization.");
+  const authorizationDetails = await client.getAuthorization(
+    authorizationId,
+    payment.sellerMerchantIdSnapshot!,
+  );
+  if (
+    authorizationDetails.id !== authorizationId ||
+    authorizationDetails.status !== "CREATED" ||
+    authorizationDetails.amount?.amountMinor !== amount.amountMinor ||
+    authorizationDetails.amount.currency !== amount.currency ||
+    authorizationDetails.orderId !== payment.externalOrderId ||
+    (authorizationDetails.payeeMerchantId !== null &&
+      authorizationDetails.payeeMerchantId !== payment.sellerMerchantIdSnapshot) ||
+    !authorizationDetails.expiresAt ||
+    authorizationDetails.expiresAt <= new Date()
+  ) {
+    throw externalUnknown("The PayPal review fee authorization could not be verified.");
+  }
+  authorizationRaw = {
+    authorization: authorizationDetails,
+    source: authorizationRaw,
+  };
+  if (getEnv().SYSTEM_PAYMENT_PAUSE) {
+    throw conflict("Payment capture is temporarily paused.");
+  }
+  const captureClaimed = await withTransaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(reviewFeePayments)
+      .where(eq(reviewFeePayments.id, payment.id))
+      .for("update")
+      .limit(1);
+    if (!current) throw notFound("Review fee payment");
+    if (current.status === "PAID") return false;
+    await assertPayPalAccountsCurrent(tx, current);
+    await tx
+      .insert(reviewFeeOperations)
+      .values({
+        id: newId("rfop"),
+        reviewFeePaymentId: payment.id,
+        action: "AUTHORIZE",
+        status: "SUCCEEDED",
+        amountMinor: payment.amountMinor,
+        currency: payment.currency,
+        idempotencyKey: paypalRequestId("review-fee-authorization-success", authorizationId),
+        providerOperationId: authorizationId,
+        rawResponse: authorizationRaw,
+      })
+      .onConflictDoNothing();
+    const [claimed] = await tx
+      .update(reviewFeePayments)
+      .set({
+        status: "CAPTURE_REQUESTED",
+        providerAuthorizationId: authorizationId,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(reviewFeePayments.id, payment.id), ne(reviewFeePayments.status, "PAID")))
+      .returning({ id: reviewFeePayments.id });
+    if (!claimed) return false;
+    return true;
+  });
+  if (!captureClaimed) return { paid: true };
   const capture = await client.capture({
     authorizationId,
     amount,

@@ -92,22 +92,6 @@ export async function ensurePaymentForAgreement(
   let sellerMerchantIdSnapshot: string | null = null;
   if (isPayPalMode(participants.mode)) {
     const environment = paymentModeEnvironment(participants.mode);
-    const [identityLink] = await tx
-      .select()
-      .from(paypalIdentityLinks)
-      .where(
-        and(
-          eq(paypalIdentityLinks.userId, participants.buyer.id),
-          eq(paypalIdentityLinks.environment, environment),
-          eq(paypalIdentityLinks.status, "LINKED"),
-        ),
-      )
-      .limit(1);
-    if (!identityLink?.accountVerified || !identityLink.emailVerified) {
-      throw conflict(
-        `Link and verify the buyer's PayPal ${environment.toLowerCase()} account first.`,
-      );
-    }
     const [sellerAccount] = await tx
       .select()
       .from(providerPaypalAccounts)
@@ -129,11 +113,7 @@ export async function ensurePaymentForAgreement(
         `The professional must complete PayPal ${environment.toLowerCase()} seller onboarding first.`,
       );
     }
-    payerIdSnapshot = identityLink.payerId;
     sellerMerchantIdSnapshot = sellerAccount.merchantId;
-    if (payerIdSnapshot === sellerMerchantIdSnapshot) {
-      throw conflict("The buyer and professional must use different PayPal accounts.");
-    }
   }
 
   // The amount is copied from the agreement, never from a request body.
@@ -364,10 +344,7 @@ async function evaluateAndRecord(
       ? {
           reviewId: releaseApproval.reviewId,
           buyerUserId: releaseApproval.buyerUserId,
-          amount: money(
-            releaseApproval.amountMinor,
-            releaseApproval.currency as Money["currency"],
-          ),
+          amount: money(releaseApproval.amountMinor, releaseApproval.currency as Money["currency"]),
           contractVersion: releaseApproval.contractVersion,
           contractHash: releaseApproval.contractHash,
         }

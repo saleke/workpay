@@ -23,7 +23,11 @@ import {
 } from "../../testing/index.js";
 import type { Actor } from "../identity/authorize.js";
 import { createTask } from "../tasks/service.js";
-import { completeReviewFeePayPal, createReviewFeeOrder } from "./fee-service.js";
+import {
+  completeReviewFeePayPal,
+  createReviewFeeOrder,
+  reconcileReviewFeePayment,
+} from "./fee-service.js";
 
 if (process.env.RUN_DB_TESTS === "1") {
   const { getEnv } = await import("../../platform/env.js");
@@ -131,16 +135,6 @@ describeDb("PayPal review fee (integration)", () => {
       reviewerAcceptedAt: new Date(),
       reviewerConflictConfirmed: true,
     });
-    await db.insert(paypalIdentityLinks).values({
-      id: newId("plink"),
-      userId: buyerUser.id,
-      environment: "SANDBOX",
-      payerId: "BUYER_PAYER",
-      email: "buyer-paypal@example.test",
-      emailVerified: true,
-      accountVerified: true,
-      status: "LINKED",
-    });
     await db.insert(providerPaypalAccounts).values({
       id: newId("ppacct"),
       providerId: reviewerProvider.id,
@@ -163,11 +157,15 @@ describeDb("PayPal review fee (integration)", () => {
       amountMinor: 12_000,
       currency: "USD",
       status: "PENDING",
-      payerIdSnapshot: "BUYER_PAYER",
+      payerIdSnapshot: null,
       sellerMerchantIdSnapshot: "REVIEWER_MERCHANT",
     });
 
     let approvalState = "";
+    let authorizationReads = 0;
+    let captureCalls = 0;
+    let orderReads = 0;
+    let restrictSellerOnAuthorize = true;
     const paypal = new SandboxPayPal({
       clientId: "client",
       clientSecret: "secret",
@@ -206,11 +204,15 @@ describeDb("PayPal review fee (integration)", () => {
           );
         }
         if (target.endsWith("/v2/checkout/orders/REVIEW_ORDER") && init?.method === "GET") {
+          orderReads += 1;
           return new Response(
             JSON.stringify({
               id: "REVIEW_ORDER",
               status: "APPROVED",
-              payer: { payer_id: "BUYER_PAYER" },
+              payer: {
+                payer_id: "BUYER_PAYER",
+                ...(orderReads === 1 ? { email_address: "buyer-paypal@example.test" } : {}),
+              },
               purchase_units: [
                 {
                   reference_id: reviewFeePaymentId,
@@ -225,11 +227,21 @@ describeDb("PayPal review fee (integration)", () => {
           );
         }
         if (target.endsWith("/v2/checkout/orders/REVIEW_ORDER/authorize")) {
+          if (restrictSellerOnAuthorize) {
+            restrictSellerOnAuthorize = false;
+            await db
+              .update(providerPaypalAccounts)
+              .set({ status: "RESTRICTED" })
+              .where(eq(providerPaypalAccounts.providerId, reviewerProvider.id));
+          }
           return new Response(
             JSON.stringify({
               id: "REVIEW_ORDER",
               status: "COMPLETED",
-              payer: { payer_id: "BUYER_PAYER" },
+              payer: {
+                payer_id: "BUYER_PAYER",
+                email_address: "buyer-paypal@example.test",
+              },
               purchase_units: [
                 {
                   reference_id: reviewFeePaymentId,
@@ -252,6 +264,21 @@ describeDb("PayPal review fee (integration)", () => {
             { status: 201 },
           );
         }
+        if (target.endsWith("/v2/payments/authorizations/REVIEW_AUTH")) {
+          authorizationReads += 1;
+          return new Response(
+            JSON.stringify({
+              id: "REVIEW_AUTH",
+              status: "CREATED",
+              amount: { currency_code: "USD", value: "120.00" },
+              payee: { merchant_id: "REVIEWER_MERCHANT" },
+              expiration_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              supplementary_data: { related_ids: { order_id: "REVIEW_ORDER" } },
+            }),
+            { status: 200 },
+          );
+        }
+        captureCalls += 1;
         return new Response(
           JSON.stringify({
             id: "REVIEW_CAPTURE",
@@ -285,7 +312,21 @@ describeDb("PayPal review fee (integration)", () => {
         actor: buyer,
         correlationId,
       }),
+    ).rejects.toThrow("review fee PayPal accounts are no longer eligible");
+    expect(captureCalls).toBe(0);
+    await db
+      .update(providerPaypalAccounts)
+      .set({ status: "ACTIVE" })
+      .where(eq(providerPaypalAccounts.providerId, reviewerProvider.id));
+    await expect(
+      reconcileReviewFeePayment({
+        reviewFeePaymentId,
+        actor: buyer,
+        correlationId,
+      }),
     ).resolves.toEqual({ paid: true });
+    expect(authorizationReads).toBe(1);
+    expect(captureCalls).toBe(1);
     const [payment] = await db
       .select()
       .from(reviewFeePayments)
@@ -300,8 +341,19 @@ describeDb("PayPal review fee (integration)", () => {
       .where(eq(reviewFeeOperations.reviewFeePaymentId, reviewFeePaymentId));
     expect(payment).toMatchObject({
       status: "PAID",
+      payerIdSnapshot: "BUYER_PAYER",
       providerAuthorizationId: "REVIEW_AUTH",
       providerCaptureId: "REVIEW_CAPTURE",
+    });
+    const [payerLink] = await db
+      .select()
+      .from(paypalIdentityLinks)
+      .where(eq(paypalIdentityLinks.userId, buyerUser.id));
+    expect(payerLink).toMatchObject({
+      environment: "SANDBOX",
+      payerId: "BUYER_PAYER",
+      email: "buyer-paypal@example.test",
+      status: "LINKED",
     });
     expect(engagement).toMatchObject({ status: "ENGAGED", feeStatus: "PAID" });
     expect(operations.map((operation) => [operation.action, operation.status])).toEqual(
@@ -310,5 +362,11 @@ describeDb("PayPal review fee (integration)", () => {
         ["CAPTURE", "SUCCEEDED"],
       ]),
     );
+    await expect(
+      db
+        .update(reviewFeePayments)
+        .set({ payerIdSnapshot: "DIFFERENT_PAYER" })
+        .where(eq(reviewFeePayments.id, reviewFeePaymentId)),
+    ).rejects.toThrow("review fee economic binding is immutable");
   });
 });

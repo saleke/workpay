@@ -16,7 +16,7 @@
 import { hashObject } from "../../platform/hashing.js";
 import { money, type Money } from "../../platform/money.js";
 
-export const POLICY_VERSION = "pay-policy-v3";
+export const POLICY_VERSION = "pay-policy-v4";
 
 export type PaymentAction = "AUTHORIZE" | "CAPTURE" | "VOID" | "REFUND";
 export type PolicyResult = "ALLOW" | "DENY";
@@ -183,17 +183,16 @@ function authorizeChecks(input: PaymentPolicyInput): PolicyCheck[] {
   } else if (!input.paymentAccounts) {
     checks.push(fail("paypal.accounts_current", "PayPal account readiness could not be loaded"));
   } else {
+    // Buyer identity is established by PayPal when the buyer approves the
+    // order. Before that redirect, only seller readiness can be proven.
     const accountsCurrent =
-      input.paymentAccounts.payerLinked &&
-      input.paymentAccounts.sellerReady &&
-      input.paymentAccounts.payerIdCurrent &&
-      input.paymentAccounts.sellerMerchantIdCurrent;
+      input.paymentAccounts.sellerReady && input.paymentAccounts.sellerMerchantIdCurrent;
     checks.push(
       accountsCurrent
-        ? pass("paypal.accounts_current", "Buyer and professional PayPal accounts are eligible")
+        ? pass("paypal.accounts_current", "The professional PayPal account is eligible")
         : fail(
             "paypal.accounts_current",
-            "A linked PayPal account is missing, stale, or restricted",
+            "The professional PayPal account is missing, stale, or restricted",
             {
               ...input.paymentAccounts,
             },
@@ -330,12 +329,17 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
 
   const releaseApproval = input.releaseApproval;
   if (!releaseApproval) {
-    checks.push(fail("payment_release.client_approved", "The client has not approved payment release"));
+    checks.push(
+      fail("payment_release.client_approved", "The client has not approved payment release"),
+    );
   } else {
     checks.push(
       releaseApproval.buyerUserId === input.task.ownerUserId
         ? pass("payment_release.client_approved", "The task owner approved payment release")
-        : fail("payment_release.client_approved", "Payment release approval belongs to another user"),
+        : fail(
+            "payment_release.client_approved",
+            "Payment release approval belongs to another user",
+          ),
     );
     checks.push(
       sameMoney(releaseApproval.amount, input.payment.amount)
@@ -350,7 +354,10 @@ function captureChecks(input: PaymentPolicyInput): PolicyCheck[] {
             "payment_release.binding_current",
             "Release approval matches the final review and agreement",
           )
-        : fail("payment_release.binding_current", "Release approval is bound to stale review terms"),
+        : fail(
+            "payment_release.binding_current",
+            "Release approval is bound to stale review terms",
+          ),
     );
   }
 

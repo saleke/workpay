@@ -21,24 +21,6 @@ function client(fetchImpl: typeof fetch) {
 }
 
 describe("PayPal Orders gateway", () => {
-  it("builds the current Log in with PayPal authorization URL", () => {
-    const paypal = client((async () => response(500, {})) as typeof fetch);
-    const authorizeUrl = new URL(
-      paypal.getOAuthAuthorizeUrl({
-        redirectUri: "https://tenfo.example/api/v1/user/paypal/callback",
-        state: "state-token",
-        scope: "openid profile email https://uri.paypal.com/services/paypalattributes",
-      }),
-    );
-    expect(authorizeUrl.origin).toBe("https://www.sandbox.paypal.com");
-    expect(authorizeUrl.pathname).toBe("/connect");
-    expect(authorizeUrl.searchParams.get("flowEntry")).toBe("static");
-    expect(authorizeUrl.searchParams.get("client_id")).toBe("client-id");
-    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
-      "https://tenfo.example/api/v1/user/paypal/callback",
-    );
-  });
-
   it("creates an AUTHORIZE order for the explicit seller and returns payer approval", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -49,9 +31,7 @@ describe("PayPal Orders gateway", () => {
       return response(201, {
         id: "ORDER123",
         status: "CREATED",
-        links: [
-          { rel: "payer-action", href: "https://www.sandbox.paypal.com/approve/ORDER123" },
-        ],
+        links: [{ rel: "payer-action", href: "https://www.sandbox.paypal.com/approve/ORDER123" }],
       });
     }) as typeof fetch;
     const result = await client(fetchImpl).createOrder({
@@ -91,6 +71,32 @@ describe("PayPal Orders gateway", () => {
       idempotencyKey: "key",
     });
     expect(result).toMatchObject({ status: "DECLINED", errorCode: "PAYER_APPROVAL_REQUIRED" });
+  });
+
+  it("reads the approved payer identity from the PayPal order", async () => {
+    const fetchImpl = (async (url: string | URL | Request) => {
+      if (String(url).endsWith("/v1/oauth2/token")) {
+        return response(200, { access_token: "token", expires_in: 3600 });
+      }
+      return response(200, {
+        id: "ORDER123",
+        status: "APPROVED",
+        payer: { payer_id: "PAYER123", email_address: "Buyer@Example.test" },
+        purchase_units: [
+          {
+            reference_id: "porder_1",
+            custom_id: "pay_1",
+            invoice_id: "porder_1",
+            payee: { merchant_id: "SELLER123" },
+            amount: { currency_code: "USD", value: "12.34" },
+          },
+        ],
+      });
+    }) as typeof fetch;
+    await expect(client(fetchImpl).getOrder("ORDER123", "SELLER123")).resolves.toMatchObject({
+      payerId: "PAYER123",
+      payerEmail: "Buyer@Example.test",
+    });
   });
 
   it("treats a non-COMPLETED capture as unknown for reconciliation", async () => {

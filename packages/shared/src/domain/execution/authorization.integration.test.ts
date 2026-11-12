@@ -4,7 +4,12 @@ import { getDb, withTransaction } from "../../db/client.js";
 import { workContracts } from "../../db/schema/contracts.js";
 import { workExecutions } from "../../db/schema/execution.js";
 import { commercialAgreements } from "../../db/schema/negotiation.js";
-import { paymentCommands, paymentDecisions, payments } from "../../db/schema/payments.js";
+import {
+  paymentCommands,
+  paymentDecisions,
+  paymentOrders,
+  payments,
+} from "../../db/schema/payments.js";
 import { paypalIdentityLinks, providerPaypalAccounts } from "../../db/schema/paypal.js";
 import { providers } from "../../db/schema/providers.js";
 import { users } from "../../db/schema/identity.js";
@@ -32,6 +37,7 @@ import {
   cancelPayPalOrder,
   createPayPalOrderForTask,
 } from "../payments/paypal-order-service.js";
+import { bindApprovedPayPalPayer } from "../payments/payer-binding.js";
 import { reconcilePayPalPayment } from "../payments/reconciliation.js";
 import {
   approvePaymentReleaseForTask,
@@ -215,16 +221,6 @@ describeDb("provider execution authorization (integration)", () => {
       currency: "USD",
       agreementHash: "2".repeat(64),
     });
-    await db.insert(paypalIdentityLinks).values({
-      id: newId("plink"),
-      userId: buyerUser.id,
-      environment: "SANDBOX",
-      payerId: "PAYER_MEMBER",
-      email: "buyer-paypal@example.test",
-      emailVerified: true,
-      accountVerified: true,
-      status: "LINKED",
-    });
     await db.insert(providerPaypalAccounts).values({
       id: newId("ppacct"),
       providerId: provider.id,
@@ -292,7 +288,10 @@ describeDb("provider execution authorization (integration)", () => {
         const orderBody = {
           id: "ORDER_MEMBER",
           status: init?.method === "POST" || captureVisible ? "COMPLETED" : "APPROVED",
-          payer: { payer_id: "PAYER_MEMBER" },
+          payer: {
+            payer_id: "PAYER_MEMBER",
+            email_address: "buyer-paypal@example.test",
+          },
           purchase_units: [
             {
               reference_id: localOrderId,
@@ -344,7 +343,7 @@ describeDb("provider execution authorization (integration)", () => {
       mode: "PAYPAL_SANDBOX",
       buyerUserId: buyerUser.id,
       providerId: provider.id,
-      payerIdSnapshot: "PAYER_MEMBER",
+      payerIdSnapshot: null,
       sellerMerchantIdSnapshot: "SELLER_MEMBER",
     });
     await expect(
@@ -376,7 +375,42 @@ describeDb("provider execution authorization (integration)", () => {
       status: "AUTHORIZED",
       providerOrderId: "ORDER_MEMBER",
       providerAuthorizationId: "AUTH_MEMBER",
+      payerIdSnapshot: "PAYER_MEMBER",
     });
+    const [payerLink] = await db
+      .select()
+      .from(paypalIdentityLinks)
+      .where(eq(paypalIdentityLinks.userId, buyerUser.id));
+    expect(payerLink).toMatchObject({
+      environment: "SANDBOX",
+      payerId: "PAYER_MEMBER",
+      email: "buyer-paypal@example.test",
+      status: "LINKED",
+    });
+    await expect(
+      withTransaction((tx) =>
+        bindApprovedPayPalPayer(tx, {
+          userId: buyerUser.id,
+          environment: "SANDBOX",
+          payerId: "DIFFERENT_PAYER",
+          email: "other-paypal@example.test",
+          sellerMerchantId: "SELLER_MEMBER",
+          source: { kind: "PAYMENT", id: "pay_other" },
+        }),
+      ),
+    ).rejects.toThrow("Finish or cancel active PayPal payments");
+    await expect(
+      db
+        .update(payments)
+        .set({ payerIdSnapshot: "DIFFERENT_PAYER" })
+        .where(eq(payments.id, payment.id)),
+    ).rejects.toThrow("payment payer binding is immutable");
+    await expect(
+      db
+        .update(paymentOrders)
+        .set({ payerIdSnapshot: "DIFFERENT_PAYER" })
+        .where(eq(paymentOrders.paymentId, payment.id)),
+    ).rejects.toThrow("payment order payer binding is immutable");
     await expect(
       cancelPayPalOrder({
         taskId: task.id,

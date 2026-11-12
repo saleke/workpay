@@ -87,7 +87,11 @@ export const payments = pgTable(
     ),
     modeBindingCheck: check(
       "payments_mode_binding_valid",
-      sql`(${t.mode} = 'FAKE' and ${t.payerIdSnapshot} is null and ${t.sellerMerchantIdSnapshot} is null) or (${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and ${t.payerIdSnapshot} is not null and ${t.sellerMerchantIdSnapshot} is not null)`,
+      sql`(${t.mode} = 'FAKE' and ${t.payerIdSnapshot} is null and ${t.sellerMerchantIdSnapshot} is null) or (${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE') and ${t.sellerMerchantIdSnapshot} is not null)`,
+    ),
+    payerBoundCheck: check(
+      "payments_payer_bound_for_authorization",
+      sql`${t.mode} = 'FAKE' or ${t.status}::text not in ('ORDER_APPROVED', 'AUTHORIZATION_REQUESTED', 'AUTHORIZED', 'CAPTURE_REQUESTED', 'CAPTURED', 'VOIDED', 'REFUNDED') or ${t.payerIdSnapshot} is not null`,
     ),
   }),
 );
@@ -105,7 +109,7 @@ export const paymentOrders = pgTable(
     externalOrderId: varchar("external_order_id", { length: 128 }),
     approvalStateHash: varchar("approval_state_hash", { length: 64 }).notNull(),
     approvalUrl: text("approval_url"),
-    payerIdSnapshot: varchar("payer_id_snapshot", { length: 128 }).notNull(),
+    payerIdSnapshot: varchar("payer_id_snapshot", { length: 128 }),
     sellerMerchantIdSnapshot: varchar("seller_merchant_id_snapshot", { length: 128 }).notNull(),
     amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
     currency: varchar("currency", { length: 3 }).notNull().default("USD"),
@@ -132,6 +136,10 @@ export const paymentOrders = pgTable(
     paypalModeCheck: check(
       "payment_orders_paypal_mode_only",
       sql`${t.mode} in ('PAYPAL_SANDBOX', 'PAYPAL_LIVE')`,
+    ),
+    payerBoundCheck: check(
+      "payment_orders_payer_bound_for_authorization",
+      sql`${t.status} not in ('APPROVED', 'AUTHORIZATION_REQUESTED', 'AUTHORIZED') or ${t.payerIdSnapshot} is not null`,
     ),
   }),
 );

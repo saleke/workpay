@@ -283,7 +283,7 @@ async function reconcileCapture(input: {
   if (
     !decision ||
     decision.result !== "ALLOW" ||
-    !["pay-policy-v2", "pay-policy-v3"].includes(decision.policyVersion)
+    !["pay-policy-v2", "pay-policy-v3", "pay-policy-v4"].includes(decision.policyVersion)
   ) {
     throw conflict("The local capture command is not backed by a current ALLOW decision.");
   }
@@ -293,9 +293,7 @@ async function reconcileCapture(input: {
     input.payment.sellerMerchantIdSnapshot!,
   );
   const captureId =
-    (input.webhook?.eventType.startsWith("PAYMENT.CAPTURE.")
-      ? input.webhook.resourceId
-      : null) ??
+    (input.webhook?.eventType.startsWith("PAYMENT.CAPTURE.") ? input.webhook.resourceId : null) ??
     input.payment.providerCaptureId ??
     order.captureId;
   if (!captureId) throw externalUnknown("PayPal has not exposed the capture identifier yet.");
@@ -547,7 +545,10 @@ async function reconcileAuthorizationTerminal(input: {
     throw externalUnknown("PayPal authorization terminal state is not yet confirmed.");
   }
   await withTransaction(async (tx) => {
-    const key = paypalRequestId(`authorization-${input.targetStatus.toLowerCase()}`, authorizationId);
+    const key = paypalRequestId(
+      `authorization-${input.targetStatus.toLowerCase()}`,
+      authorizationId,
+    );
     const [operation] = await tx
       .insert(paymentOperations)
       .values({
@@ -607,7 +608,10 @@ async function reconcileCaptureDenied(input: {
     input.captureId,
     input.payment.sellerMerchantIdSnapshot!,
   );
-  if (resource.status !== "DENIED" || resource.authorizationId !== input.payment.providerAuthorizationId) {
+  if (
+    resource.status !== "DENIED" ||
+    resource.authorizationId !== input.payment.providerAuthorizationId
+  ) {
     throw externalUnknown("PayPal capture denial is not yet confirmed.");
   }
   await withTransaction(async (tx) => {

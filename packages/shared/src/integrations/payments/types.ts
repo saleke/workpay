@@ -66,6 +66,7 @@ export interface PayPalOrderDetails {
   id: string;
   status: string;
   payerId: string | null;
+  payerEmail: string | null;
   payeeMerchantId: string | null;
   referenceId: string | null;
   customId: string | null;

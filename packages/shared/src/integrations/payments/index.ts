@@ -1,12 +1,7 @@
 /** Persisted-mode payment gateway factory. */
 import { FakePayPal } from "./fake.js";
 import { SandboxPayPal } from "./paypal.js";
-import {
-  getConfiguredNewPaymentMode,
-  getPayPalConfig,
-  type PaymentMode,
-  type PayPalPaymentMode,
-} from "./config.js";
+import { getPayPalConfig, type PaymentMode, type PayPalPaymentMode } from "./config.js";
 import type { PaymentGateway } from "./types.js";
 
 const gateways = new Map<PaymentMode, PaymentGateway>();
@@ -52,13 +47,7 @@ export function resetPaymentGateways(): void {
   gateways.clear();
 }
 
-export function getPayPalOAuthClient(
-  mode: PayPalPaymentMode = getConfiguredNewPaymentMode(),
-): SandboxPayPal {
-  return getPayPalClient(mode);
-}
-
 export * from "./types.js";
 export * from "./config.js";
 export { FakePayPal } from "./fake.js";
-export { SandboxPayPal, type PayPalUserInfo } from "./paypal.js";
+export { SandboxPayPal } from "./paypal.js";

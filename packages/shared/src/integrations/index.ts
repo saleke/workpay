@@ -47,7 +47,6 @@ export {
   setPaymentGateway,
   resetPaymentGateways,
   getPayPalClient,
-  getPayPalOAuthClient,
   getConfiguredNewPaymentMode,
   getPayPalConfig,
   paypalModeConfigured,
@@ -58,7 +57,6 @@ export {
 } from "./payments/index.js";
 export type {
   PaymentGateway,
-  PayPalUserInfo,
   AuthorizeRequest,
   AuthorizeResult,
   CaptureRequest,

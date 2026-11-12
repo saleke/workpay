@@ -65,6 +65,7 @@ describe("payment policy (P1)", () => {
   it("ALLOWs a capture when every condition holds", () => {
     const decision = evaluatePaymentPolicy(validCaptureInput());
     expect(decision.result).toBe("ALLOW");
+    expect(decision.policyVersion).toBe("pay-policy-v4");
     expect(decision.checks.every((c) => c.result !== "FAIL")).toBe(true);
   });
 
@@ -209,6 +210,25 @@ describe("payment policy (P1)", () => {
     input.payment.status = "PENDING";
     input.payment.providerAuthorizationId = null;
     expect(evaluatePaymentPolicy(input).result).toBe("ALLOW");
+  });
+
+  it("AUTHORIZEs PayPal before the buyer payer identity is known", () => {
+    const input = validCaptureInput();
+    input.action = "AUTHORIZE";
+    input.payment.mode = "PAYPAL_SANDBOX";
+    input.payment.status = "PENDING";
+    input.payment.providerAuthorizationId = null;
+    input.payment.payerIdSnapshot = null;
+    input.payment.sellerMerchantIdSnapshot = "SELLER123";
+    input.paymentAccounts = {
+      payerLinked: false,
+      sellerReady: true,
+      payerIdCurrent: false,
+      sellerMerchantIdCurrent: true,
+    };
+    expect(evaluatePaymentPolicy(input).result).toBe("ALLOW");
+    input.paymentAccounts.sellerReady = false;
+    expect(reasonFor(input)).toBe("paypal.accounts_current");
   });
 
   it("AUTHORIZEs while the agreement is still PENDING_AUTHORIZATION", () => {

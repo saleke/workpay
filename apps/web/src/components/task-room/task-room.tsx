@@ -176,11 +176,6 @@ export function TaskRoom({ taskId }: { taskId: string }) {
         setActionError("PayPal Sandbox is not configured for authenticated member accounts.");
         return;
       }
-      if (paypal.data.identity?.status !== "LINKED" || !paypal.data.identity.accountVerified) {
-        setSimulatingPayment(false);
-        setActionError("Link and verify your PayPal account in Settings before approving payment.");
-        return;
-      }
     }
     const result = isEvaluator
       ? await simulatePaymentAuthorization(taskId, newIdempotencyKey())

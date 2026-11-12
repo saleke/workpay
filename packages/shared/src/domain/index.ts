@@ -52,6 +52,7 @@ export * from "./negotiation/service.js";
 // Payments
 export * from "./payments/policy.js";
 export * from "./payments/mode.js";
+export * from "./payments/payer-binding.js";
 export * from "./payments/paypal-order-service.js";
 export * from "./payments/reconciliation.js";
 export * from "./payments/service.js";

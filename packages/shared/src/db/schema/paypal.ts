@@ -55,31 +55,6 @@ export const paypalIdentityLinks = pgTable(
   }),
 );
 
-export const paypalOauthAttempts = pgTable(
-  "paypal_oauth_attempts",
-  {
-    id: varchar("id", { length: 64 }).primaryKey(),
-    userId: varchar("user_id", { length: 64 })
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    environment: varchar("environment", { length: 16 }).notNull(),
-    stateHash: varchar("state_hash", { length: 64 }).notNull(),
-    sessionTokenHash: varchar("session_token_hash", { length: 64 }).notNull(),
-    returnTo: text("return_to").notNull().default("/settings?tab=paypal"),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => ({
-    stateIdx: uniqueIndex("paypal_oauth_attempts_state_unique").on(t.stateHash),
-    userIdx: index("paypal_oauth_attempts_user_idx").on(t.userId, t.createdAt),
-    environmentCheck: check(
-      "paypal_oauth_attempts_environment_valid",
-      sql`${t.environment} in ('SANDBOX', 'LIVE')`,
-    ),
-  }),
-);
-
 export const providerPaypalAccounts = pgTable(
   "provider_paypal_accounts",
   {
