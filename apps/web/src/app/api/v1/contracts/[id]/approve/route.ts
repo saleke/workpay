@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const body = await req.json();
     const parsed = approveSchema.parse(body);
 
-    return withIdempotency("approve_contract", req, { contractId, ...parsed }, async () => {
+    return await withIdempotency("approve_contract", req, { contractId, ...parsed }, async () => {
       const updated = await withTransaction(async (tx) => {
         return approveContract(tx, {
           contractId,

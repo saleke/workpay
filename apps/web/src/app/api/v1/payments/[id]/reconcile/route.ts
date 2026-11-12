@@ -20,13 +20,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!payment || payment.buyerUserId !== user.id) {
       throw new AppError("NOT_FOUND", "Payment not found.");
     }
-    return withIdempotency("reconcile_paypal_payment", req, { paymentId, userId: user.id }, async () => {
-      const data = await reconcilePayPalPayment({
-        paymentId,
-        correlationId: getCorrelationId(req),
-      });
-      return { status: 200, data };
-    });
+    return await withIdempotency(
+      "reconcile_paypal_payment",
+      req,
+      { paymentId, userId: user.id },
+      async () => {
+        const data = await reconcilePayPalPayment({
+          paymentId,
+          correlationId: getCorrelationId(req),
+        });
+        return { status: 200, data };
+      },
+    );
   } catch (error) {
     return jsonError(error);
   }

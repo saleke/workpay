@@ -21,22 +21,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new AppError("VALIDATION_ERROR", "Idempotency-Key is required for payment release.");
     }
     const body = releaseSchema.parse(await req.json());
-    return withIdempotency("release_task_payment", req, { taskId, actorId: actor.id, ...body }, async () => {
-      await approvePaymentReleaseForTask({
-        taskId,
-        expectedPaymentId: body.expectedPaymentId,
-        expectedAmountMinor: body.expectedAmountMinor,
-        expectedCurrency: body.expectedCurrency,
-        actor,
-        correlationId: getCorrelationId(req),
-      });
-      const data = await releasePaymentForTask({
-        taskId,
-        actor,
-        correlationId: getCorrelationId(req),
-      });
-      return { status: 200, data };
-    });
+    return await withIdempotency(
+      "release_task_payment",
+      req,
+      { taskId, actorId: actor.id, ...body },
+      async () => {
+        await approvePaymentReleaseForTask({
+          taskId,
+          expectedPaymentId: body.expectedPaymentId,
+          expectedAmountMinor: body.expectedAmountMinor,
+          expectedCurrency: body.expectedCurrency,
+          actor,
+          correlationId: getCorrelationId(req),
+        });
+        const data = await releasePaymentForTask({
+          taskId,
+          actor,
+          correlationId: getCorrelationId(req),
+        });
+        return { status: 200, data };
+      },
+    );
   } catch (error) {
     return jsonError(error);
   }

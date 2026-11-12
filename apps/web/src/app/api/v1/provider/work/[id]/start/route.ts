@@ -22,14 +22,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const [execution] = await db
       .select()
       .from(workExecutions)
-      .where(
-        and(eq(workExecutions.id, executionId), eq(workExecutions.providerId, provider.id)),
-      )
+      .where(and(eq(workExecutions.id, executionId), eq(workExecutions.providerId, provider.id)))
       .limit(1);
 
     if (!execution) throw notFound("Execution");
 
-    return withIdempotency("start_provider_work", req, { executionId }, async () => {
+    return await withIdempotency("start_provider_work", req, { executionId }, async () => {
       await withTransaction((tx) =>
         startWork(tx, {
           executionId,

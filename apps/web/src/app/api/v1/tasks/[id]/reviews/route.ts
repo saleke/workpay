@@ -43,7 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new AppError("VALIDATION_ERROR", "Idempotency-Key is required.");
     }
     const body = openReviewSchema.parse(await req.json());
-    return withIdempotency(
+    return await withIdempotency(
       "open_work_review",
       req,
       { taskId, userId: user.id, ...body },

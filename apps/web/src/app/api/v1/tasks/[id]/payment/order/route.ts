@@ -10,15 +10,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const { id: taskId } = await params;
     const { actor } = await requireAuthenticatedSession(req);
-    return withIdempotency("create_paypal_order", req, { taskId, actorId: actor.id }, async () => {
-      const data = await createPayPalOrderForTask({
-        taskId,
-        actor,
-        correlationId: getCorrelationId(req),
-        appUrl: getEnv().APP_URL,
-      });
-      return { status: data.reused ? 200 : 201, data };
-    });
+    return await withIdempotency(
+      "create_paypal_order",
+      req,
+      { taskId, actorId: actor.id },
+      async () => {
+        const data = await createPayPalOrderForTask({
+          taskId,
+          actor,
+          correlationId: getCorrelationId(req),
+          appUrl: getEnv().APP_URL,
+        });
+        return { status: data.reused ? 200 : 201, data };
+      },
+    );
   } catch (error) {
     return jsonError(error);
   }

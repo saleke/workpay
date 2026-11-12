@@ -10,7 +10,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!req.headers.get("idempotency-key")) {
       throw new AppError("VALIDATION_ERROR", "Idempotency-Key is required.");
     }
-    return withIdempotency(
+    return await withIdempotency(
       "reconcile_review_fee",
       req,
       { reviewFeePaymentId, payerUserId: user.id },

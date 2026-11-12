@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new AppError("VALIDATION_ERROR", "Idempotency-Key is required.");
     }
     const body = proposalSchema.parse(await req.json());
-    return withIdempotency(
+    return await withIdempotency(
       "propose_work_commitment",
       req,
       { conversationId, userId: user.id, ...body },
